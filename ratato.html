@@ -88,10 +88,12 @@
             <!-- Stats Panel -->
             <div class="w-full lg:w-2/3 bg-gray-800 p-4 rounded-lg shadow-xl border border-gray-700 text-sm text-gray-200">
                 <h2 class="text-lg font-semibold mb-2 text-yellow-400">Rat Stats & Inventory</h2>
-                <div class="grid grid-cols-2 gap-2">
+                <div class="grid grid-cols-3 gap-2">
                     <div>Movement Speed: <span id="statSpeed"></span></div>
                     <div>Damage Multiplier: <span id="statDamage"></span>x</div>
-                    <div class="col-span-2">Weapons: <span id="weaponList" class="text-green-400 font-medium"></span></div>
+                    <div>Armor: <span id="statArmor"></span></div>
+                    <div class="col-span-1">Evasion: <span id="statEvasion"></span>%</div>
+                    <div class="col-span-3">Weapons: <span id="weaponList" class="text-green-400 font-medium"></span></div>
                 </div>
             </div>
         </div>
@@ -144,9 +146,9 @@
         let animationFrameId;
 
         // --- RAT VISUALS ---
-        const RAT_COLOR = '#a0522d'; // Sienna Brown
+        const RAT_COLOR = '#a0522d'; // Sienna Brown (Darker Fur)
         const RAT_DETAIL_COLOR = '#3b4455'; // Arena color for eyes
-        const ANIMATION_SPEED = 8; // Change frame every 8 updates
+        const RAT_LIGHT_FUR = '#d2b48c'; // Tan (Lighter highlight fur)
 
         // --- WEAPON DEFINITIONS ---
         // Added 'iconColor' for simple geometric drawing
@@ -192,6 +194,8 @@
             xpBarFill: document.getElementById('xpBarFill'),
             statSpeed: document.getElementById('statSpeed'),
             statDamage: document.getElementById('statDamage'),
+            statArmor: document.getElementById('statArmor'), // New
+            statEvasion: document.getElementById('statEvasion'), // New
             weaponList: document.getElementById('weaponList')
         };
         const startScreen = document.getElementById('startScreen');
@@ -290,6 +294,8 @@
                 this.xp = 0;
                 this.xpToNextLevel = 10;
                 this.damageMultiplier = 1.0;
+                this.armor = 0;       // New: Flat damage reduction
+                this.evasion = 0;     // New: Chance to completely ignore damage (0.0 to 0.5)
                 this.moveDirection = { x: 0, y: 0 };
                 this.damageFlashTimer = 0; 
                 this.animationFrame = 0; 
@@ -367,31 +373,64 @@
                 }
 
                 const currentTime = Date.now();
-                this.weapons.forEach(weapon => {
-                    const key = weapon.key;
-                    
-                    if (currentTime - this.weaponTimers[key] > weapon.fireRate) {
-                        this.shoot(weapon);
+                
+                // Group weapons by type to check fire rates
+                const weaponsByType = this.weapons.reduce((acc, weapon) => {
+                    (acc[weapon.key] = acc[weapon.key] || []).push(weapon);
+                    return acc;
+                }, {});
+
+                Object.entries(weaponsByType).forEach(([key, stacks]) => {
+                    // Check if the overall weapon type timer has reset
+                    if (currentTime - this.weaponTimers[key] > stacks[0].fireRate) {
+                        this.shootWeaponStacks(key, stacks);
                         this.weaponTimers[key] = currentTime; 
                     }
                 });
             }
 
-            shoot(weapon) {
-                let targetEnemy = game.getNearestEnemy(this.x, this.y);
-                let initialAngle = Math.random() * Math.PI * 2; 
+            shootWeaponStacks(weaponKey, stacks) {
+                // --- RESTORED MULTI-TARGETING LOGIC ---
+                // Get all enemies sorted by distance from the Rat
+                const sortedEnemies = game.enemies
+                    .map(e => ({ e, distance: Math.hypot(e.x - this.x, e.y - this.y) }))
+                    .sort((a, b) => a.distance - b.distance)
+                    .map(item => item.e);
 
-                if (targetEnemy) {
-                    initialAngle = Math.atan2(targetEnemy.y - this.y, targetEnemy.x - this.x);
-                }
-                
+                // Track which stacks have fired to ensure consistent logic across types
+                let stacksFired = 0; 
+
+                stacks.forEach((weapon, stackIndex) => {
+                    if (stacksFired < stacks.length) {
+                        // Target the stackIndex-th nearest enemy (0 = nearest, 1 = second nearest, etc.)
+                        const targetEnemy = sortedEnemies[stackIndex];
+                        let initialAngle = Math.random() * Math.PI * 2; 
+
+                        if (targetEnemy) {
+                            // Target the specific enemy based on stack index
+                            initialAngle = Math.atan2(targetEnemy.y - this.y, targetEnemy.x - this.x);
+                        } else if (game.enemies.length > 0) {
+                            // If we run out of unique targets, loop back to the nearest one for overflow stacks
+                            const nearestEnemy = sortedEnemies[0];
+                            initialAngle = Math.atan2(nearestEnemy.y - this.y, nearestEnemy.x - this.x);
+                        }
+                        
+                        // Proceed to fire the individual stack
+                        this.fireSingleWeaponStack(weapon, initialAngle);
+                        stacksFired++;
+                    }
+                });
+                // --- END RESTORED LOGIC ---
+            }
+            
+            fireSingleWeaponStack(weapon, initialAngle) {
                 if (weapon.isMelee) {
+                    // Melee still targets all close enemies on one swing
                     game.meleeAttack(this.x, this.y, weapon, initialAngle);
-                    return; 
+                    return;
                 }
-                
-                let bulletColor = WEAPONS[weapon.key].iconColor || '#fbd38d';
 
+                const bulletColor = WEAPONS[weapon.key].iconColor || '#fbd38d';
                 const { damage: baseDamage, projectiles, spread, projectileSpeed, radius } = weapon;
                 const finalDamage = baseDamage * this.damageMultiplier;
 
@@ -414,6 +453,59 @@
                     game.projectiles.push(bullet);
                 }
             }
+
+
+            levelUp() {
+                this.xp -= this.xpToNextLevel;
+                this.level += 1;
+                this.xpToNextLevel = Math.floor(this.xpToNextLevel * 1.5); 
+                game.pauseAndShowStatUpgrades();
+            }
+
+            update(deltaTime) {
+                const totalSpeed = this.baseSpeed * (deltaTime / 16.66); 
+                let newX = this.x + this.moveDirection.x * totalSpeed;
+                let newY = this.y + this.moveDirection.y * totalSpeed;
+
+                // Update facing direction based on horizontal movement
+                if (this.moveDirection.x > 0) {
+                    this.facingRight = true;
+                } else if (this.moveDirection.x < 0) {
+                    this.facingRight = false;
+                }
+
+
+                const distToCenter = Math.hypot(newX - centerX, newY - centerY);
+                if (distToCenter + this.radius > ARENA_RADIUS) {
+                    const angle = Math.atan2(newY - centerY, newX - centerX);
+                    newX = centerX + Math.cos(angle) * (ARENA_RADIUS - this.radius);
+                    newY = centerY + Math.sin(angle) * (ARENA_RADIUS - this.radius);
+                }
+
+                this.x = newX;
+                this.y = newY;
+                
+                if (this.moveDirection.x !== 0 || this.moveDirection.y !== 0) {
+                    this.animationFrame++;
+                }
+
+                const currentTime = Date.now();
+                
+                // Group weapons by type to check fire rates
+                const weaponsByType = this.weapons.reduce((acc, weapon) => {
+                    (acc[weapon.key] = acc[weapon.key] || []).push(weapon);
+                    return acc;
+                }, {});
+
+                Object.entries(weaponsByType).forEach(([key, stacks]) => {
+                    // Check if the overall weapon type timer has reset
+                    if (currentTime - this.weaponTimers[key] > stacks[0].fireRate) {
+                        this.shootWeaponStacks(key, stacks);
+                        this.weaponTimers[key] = currentTime; 
+                    }
+                });
+            }
+
             
             drawRatBody(context) {
                 context.save();
@@ -441,17 +533,31 @@
                 context.lineWidth = 2;
                 context.beginPath();
                 context.moveTo(-bodyLength / 2, 0);
-                // Draw a bezier curve for a natural looking tail
                 context.bezierCurveTo(-bodyLength * 0.8, -bodyHeight * 0.5, -bodyLength * 0.8, bodyHeight * 0.5, -bodyLength * 2, 0);
                 context.stroke();
 
-                // 2. Draw Torso (Side view shape - Horizontal Oval)
-                context.fillStyle = RAT_COLOR;
+                // 2. Draw Torso (Use gradient for dimension)
+                const gradientTorso = context.createRadialGradient(
+                    0, 0, 1, // Inner circle (light source)
+                    0, 0, bodyLength / 2 // Outer circle
+                );
+                gradientTorso.addColorStop(0, RAT_LIGHT_FUR); // Lighter center
+                gradientTorso.addColorStop(1, RAT_COLOR); // Darker edges (Sienna)
+                
+                context.fillStyle = gradientTorso;
                 context.beginPath();
                 context.ellipse(0, 0, bodyLength / 2, bodyHeight / 2, 0, 0, Math.PI * 2);
                 context.fill();
                 
-                // 3. Draw Head (Slightly to the right/front)
+                // 3. Draw Head (Use gradient)
+                const gradientHead = context.createRadialGradient(
+                    bodyLength * 0.4 + headRadius * 0.3, -headRadius * 0.3, 1, // Light source
+                    bodyLength * 0.4, 0, headRadius // Outer area
+                );
+                gradientHead.addColorStop(0, RAT_LIGHT_FUR);
+                gradientHead.addColorStop(1, RAT_COLOR);
+
+                context.fillStyle = gradientHead;
                 context.beginPath();
                 context.arc(bodyLength * 0.4, 0, headRadius, 0, Math.PI * 2);
                 context.fill();
@@ -468,58 +574,51 @@
                 context.arc(bodyLength * 0.4 + headRadius * 0.6, -headRadius * 0.3, headRadius * 0.15, 0, Math.PI * 2);
                 context.fill();
                 
-                // 6. Draw Legs (Two visible points for isometric side view)
-                context.fillStyle = RAT_DETAIL_COLOR; 
+                // 6. Draw Legs and Paws (Improved look)
+                context.fillStyle = '#f0c6b1'; // Light pink/flesh color for paws
                 const legSize = 3;
+                const pawSize = 2;
                 const legY = bodyHeight * 0.4;
                 
-                // Front Leg (moves forward)
+                // Front Leg/Paw
+                context.fillStyle = RAT_DETAIL_COLOR; 
                 context.beginPath();
                 context.arc(bodyLength * 0.2 + strideOffset, legY, legSize, 0, Math.PI * 2);
                 context.fill();
+                context.fillStyle = '#f0c6b1'; 
+                context.beginPath();
+                context.arc(bodyLength * 0.2 + strideOffset - 4, legY + 2, pawSize, 0, Math.PI * 2);
+                context.fill();
                 
-                // Back Leg (moves backward)
+                // Back Leg/Paw
+                context.fillStyle = RAT_DETAIL_COLOR; 
                 context.beginPath();
                 context.arc(-bodyLength * 0.2 - strideOffset, legY, legSize, 0, Math.PI * 2);
                 context.fill();
+                context.fillStyle = '#f0c6b1'; 
+                context.beginPath();
+                context.arc(-bodyLength * 0.2 - strideOffset - 4, legY + 2, pawSize, 0, Math.PI * 2);
+                context.fill();
+                
+                // 7. Draw Whiskers (thin black lines)
+                context.strokeStyle = '#000';
+                context.lineWidth = 0.5;
+                const noseX = bodyLength * 0.4 + headRadius * 0.7;
+                const noseY = 0;
+
+                for(let i=0; i<3; i++) {
+                    context.beginPath();
+                    context.moveTo(noseX, noseY);
+                    context.lineTo(noseX + 10, noseY - 5 + i * 5);
+                    context.stroke();
+                }
 
                 context.restore();
             }
 
             drawWeaponIcon(context, x, y, weapon) {
-                context.save();
-                context.translate(x, y);
-                context.fillStyle = weapon.iconColor;
-                context.strokeStyle = '#fff';
-                context.lineWidth = 1;
-
-                switch (weapon.key) {
-                    case 'pistol':
-                        context.fillRect(-4, -2, 8, 4); 
-                        break;
-                    case 'shotgun':
-                        context.fillRect(-6, -3, 12, 6);
-                        break;
-                    case 'shuriken':
-                        context.beginPath();
-                        context.arc(0, 0, 4, 0, Math.PI * 2);
-                        context.stroke();
-                        break;
-                    case 'sledgehammer':
-                        context.fillRect(-6, -4, 12, 8); // Head
-                        context.fillStyle = '#6e7e89';
-                        context.fillRect(-1, -10, 2, 20); // Handle
-                        break;
-                    case 'phaser':
-                        context.beginPath();
-                        context.arc(0, 0, 3, 0, Math.PI * 2);
-                        context.fill();
-                        break;
-                    default:
-                        context.fillRect(-3, -3, 6, 6);
-                        break;
-                }
-                context.restore();
+                // Icons are not drawn as the weapons are visually stationary (firing from the center)
+                return;
             }
 
             draw(context) {
@@ -532,24 +631,6 @@
                 this.drawRatBody(context);
 
                 context.globalAlpha = 1.0; 
-
-                // --- Draw Orbiting Weapons ---
-                const RAT_ORBIT_RADIUS = 30;
-                const totalWeapons = this.weapons.length;
-                
-                if (totalWeapons > 0) {
-                    const baseAngle = (Date.now() / 1500) % (Math.PI * 2); 
-                    const angleIncrement = (Math.PI * 2) / totalWeapons; 
-
-                    this.weapons.forEach((weapon, index) => {
-                        const angle = baseAngle + index * angleIncrement;
-                        
-                        const weaponX = this.x + Math.cos(angle) * RAT_ORBIT_RADIUS;
-                        const weaponY = this.y + Math.sin(angle) * RAT_ORBIT_RADIUS;
-
-                        this.drawWeaponIcon(context, weaponX, weaponY, weapon);
-                    });
-                }
 
                 // Draw HP Bar
                 const hpWidth = 40;
@@ -565,19 +646,29 @@
             }
         }
 
-        class Enemy { // Removed 'extends Entity' and added constructor for explicit call
-            constructor(x, y, radius = 10, waveFactor = 1) { // Added waveFactor argument
-                this.x = x;
-                this.y = y;
-                this.radius = radius;
-                this.color = '#48bb78'; 
-                this.speed = 2.0; // Fixed speed as requested
+        class Enemy extends Entity { 
+            constructor(x, y, radius = 10, waveFactor = 1) { 
+                super(x, y, radius, '#48bb78', 2.0); 
+
                 this.maxHp = 30 + (waveFactor - 1) * 15;
                 this.currentHp = this.maxHp;
                 this.damage = 5 + (waveFactor - 1) * 2;
                 this.xpValue = 5;
+                this.color = '#48bb78'; // Default green snake color
+                this.strokeColor = '#2d3748';
             }
 
+            _drawHpBar(context, hpWidth = 25, hpHeight = 3, yOffset = -10) {
+                const hpRatio = this.currentHp / this.maxHp;
+                
+                context.fillStyle = '#4a5568'; 
+                context.fillRect(-hpWidth / 2, -this.radius + yOffset, hpWidth, hpHeight);
+                
+                const hpColor = hpRatio > 0.5 ? '#48bb78' : (hpRatio > 0.2 ? '#fbd38d' : '#f56565');
+                context.fillStyle = hpColor; 
+                context.fillRect(-hpWidth / 2, -this.radius + yOffset, hpWidth * hpRatio, hpHeight);
+            }
+            
             update(player, deltaTime) {
                 const totalSpeed = this.speed * (deltaTime / 16.66);
 
@@ -595,22 +686,25 @@
                 context.save();
                 context.translate(this.x, this.y);
                 
-                // --- Snake Drawing Logic ---
                 const SNAKE_LENGTH = 30;
                 const bodySegments = 4;
-                const wave = Math.sin(Date.now() / 150) * 0.5; // Wiggle for animation
+                const wave = Math.sin(Date.now() / 150) * 0.5; 
 
-                context.fillStyle = '#48bb78'; // Green Snake
-                context.strokeStyle = '#2d3748'; // Dark Segment Lines
+                // --- Detailed Snake Body with Gradient for Texture/Shading ---
+                const gradientBody = context.createLinearGradient(-SNAKE_LENGTH / 2, -5, SNAKE_LENGTH / 2, 5);
+                gradientBody.addColorStop(0, this.strokeColor); // Dark tail
+                gradientBody.addColorStop(0.3, this.color); // Body color
+                gradientBody.addColorStop(0.7, this.color); // Body color
+                gradientBody.addColorStop(1, this.strokeColor); // Dark head
+                
+                context.strokeStyle = gradientBody; 
                 context.lineJoin = 'round';
                 context.lineCap = 'round';
 
                 context.beginPath();
                 
-                // Draw the segments with a wavy path
                 for (let i = 0; i <= bodySegments; i++) {
                     const x = (i / bodySegments) * SNAKE_LENGTH - SNAKE_LENGTH / 2;
-                    // Y position follows a sine wave for the wiggle effect
                     const y = Math.sin(x / 5 + this.x / 10 + wave) * 3; 
                     
                     if (i === 0) {
@@ -620,70 +714,178 @@
                     }
                 }
                 
-                // Draw thick line to represent body
                 context.lineWidth = this.radius * 1.5; 
                 context.stroke();
+                // --- End Body Drawing ---
                 
-                // Draw Head (a circle at the end)
                 const headX = SNAKE_LENGTH / 2;
                 const headY = Math.sin(headX / 5 + this.x / 10 + wave) * 3;
-                context.fillStyle = '#63b3ed'; // Blue head for visibility
+                context.fillStyle = '#63b3ed'; 
                 context.beginPath();
                 context.arc(headX, headY, this.radius * 0.8, 0, Math.PI * 2);
                 context.fill();
                 
-                // --- End Snake Drawing Logic ---
+                this._drawHpBar(context); 
+                context.restore();
+            }
+        }
 
-                // Draw HP Bar (translated to 0,0 relative to the center of the drawing)
-                const hpWidth = 25;
-                const hpHeight = 3;
-                const hpRatio = this.currentHp / this.maxHp;
-
-                context.fillStyle = '#4a5568'; 
-                context.fillRect(-hpWidth / 2, -this.radius - 10, hpWidth, hpHeight);
+        class FastSnake extends Enemy {
+            constructor(x, y, waveFactor) {
+                super(x, y, 8, waveFactor); // Smaller radius
+                this.speed = 4.0; 
+                this.maxHp = Math.floor(10 + (waveFactor - 1) * 5); 
+                this.currentHp = this.maxHp;
+                this.damage = 3 + (waveFactor - 1) * 1;
+                this.color = '#f6ad55'; // Orange/Fast color
+                this.strokeColor = '#994b00'; // Darker outline
+                this.xpValue = 7;
+            }
+            
+            draw(context) {
+                context.save();
+                context.translate(this.x, this.y);
                 
-                const hpColor = hpRatio > 0.5 ? '#48bb78' : (hpRatio > 0.2 ? '#fbd38d' : '#f56565');
-                context.fillStyle = hpColor; 
-                context.fillRect(-hpWidth / 2, -this.radius - 10, hpWidth * hpRatio, hpHeight);
+                const SNAKE_LENGTH = 20; // Shorter
+                const bodySegments = 3;
+                const wave = Math.sin(Date.now() / 100) * 0.7; 
 
+                // --- Detailed Snake Body with Gradient for Texture/Shading ---
+                const gradientBody = context.createLinearGradient(-SNAKE_LENGTH / 2, -5, SNAKE_LENGTH / 2, 5);
+                gradientBody.addColorStop(0, this.strokeColor); 
+                gradientBody.addColorStop(0.3, this.color); 
+                gradientBody.addColorStop(0.7, this.color); 
+                gradientBody.addColorStop(1, this.strokeColor); 
+                
+                context.strokeStyle = gradientBody; 
+                context.lineJoin = 'round';
+                context.lineCap = 'round';
+
+                context.beginPath();
+                
+                for (let i = 0; i <= bodySegments; i++) {
+                    const x = (i / bodySegments) * SNAKE_LENGTH - SNAKE_LENGTH / 2;
+                    const y = Math.sin(x / 3 + this.x / 5 + wave) * 2; 
+                    
+                    if (i === 0) {
+                        context.moveTo(x, y);
+                    } else {
+                        context.lineTo(x, y);
+                    }
+                }
+                
+                context.lineWidth = this.radius * 1.0; 
+                context.stroke();
+                // --- End Body Drawing ---
+                
+                const headX = SNAKE_LENGTH / 2;
+                const headY = Math.sin(headX / 3 + this.x / 5 + wave) * 2;
+                context.fillStyle = '#e53e3e'; // Red head
+                context.beginPath();
+                context.arc(headX, headY, this.radius * 0.8, 0, Math.PI * 2);
+                context.fill();
+                
+                this._drawHpBar(context, 20, 3, -10); 
+                context.restore();
+            }
+        }
+
+        class TankSnake extends Enemy {
+            constructor(x, y, waveFactor) {
+                super(x, y, 20, waveFactor); // Larger radius
+                this.speed = 0.8; 
+                this.maxHp = Math.floor(120 + (waveFactor - 1) * 60); 
+                this.currentHp = this.maxHp;
+                this.damage = 15 + (waveFactor - 1) * 5; 
+                this.color = '#744210'; // Brown/Tank color
+                this.strokeColor = '#4a2500'; // Darker outline
+                this.xpValue = 20;
+            }
+            
+            draw(context) {
+                context.save();
+                context.translate(this.x, this.y);
+                
+                const SNAKE_LENGTH = 50; // Longer body
+                const bodySegments = 5;
+                const wave = Math.sin(Date.now() / 300) * 0.3; // Slower wiggle
+
+                // --- Detailed Snake Body with Gradient for Texture/Shading ---
+                const gradientBody = context.createLinearGradient(-SNAKE_LENGTH / 2, -5, SNAKE_LENGTH / 2, 5);
+                gradientBody.addColorStop(0, this.strokeColor); 
+                gradientBody.addColorStop(0.3, this.color); 
+                gradientBody.addColorStop(0.7, this.color); 
+                gradientBody.addColorStop(1, this.strokeColor); 
+                
+                context.strokeStyle = gradientBody; 
+                context.lineJoin = 'round';
+                context.lineCap = 'round';
+
+                context.beginPath();
+                
+                for (let i = 0; i <= bodySegments; i++) {
+                    const x = (i / bodySegments) * SNAKE_LENGTH - SNAKE_LENGTH / 2;
+                    const y = Math.sin(x / 8 + this.x / 15 + wave) * 5; 
+                    
+                    if (i === 0) {
+                        context.moveTo(x, y);
+                    } else {
+                        context.lineTo(x, y);
+                    }
+                }
+                
+                context.lineWidth = this.radius * 1.8; // Thicker body
+                context.stroke();
+                // --- End Body Drawing ---
+
+                const headX = SNAKE_LENGTH / 2;
+                const headY = Math.sin(headX / 8 + this.x / 15 + wave) * 5;
+                context.fillStyle = '#a0522d'; // Brown head
+                context.beginPath();
+                context.arc(headX, headY, this.radius * 0.7, 0, Math.PI * 2);
+                context.fill();
+                
+                this._drawHpBar(context, 40, 5, -15); // Larger HP bar
                 context.restore();
             }
         }
         
         class Boss extends Enemy {
             constructor(x, y, wave) {
-                // Ensure base Enemy constructor is called correctly (as it was originally an Entity, but the definition changed above)
-                // For simplicity and to inherit the base properties setup, we re-initialize essential properties manually here:
-                super(x, y, 40, wave); // Pass wave to set maxHp/damage correctly
+                super(x, y, 40, wave); 
                 
                 this.speed = 1.5;
                 const bossMultiplier = wave / 10;
                 this.maxHp = Math.floor(500 * bossMultiplier);
                 this.currentHp = this.maxHp;
-                this.damage = Math.floor(10 * bossMultiplier) * 0.5; // Damage reduction applied here
+                this.damage = Math.floor(10 * bossMultiplier) * 0.5; 
                 this.xpValue = Math.floor(200 * bossMultiplier); 
+                this.color = '#3182ce'; 
+                this.strokeColor = '#2563eb';
             }
 
             draw(context) {
                 context.save();
                 context.translate(this.x, this.y);
                 
-                // --- King Snake Drawing Logic ---
                 const BOSS_SNAKE_LENGTH = 80;
                 const bodySegments = 8;
                 const wave = Math.sin(Date.now() / 250) * 0.5;
 
-                context.fillStyle = '#3182ce'; // Blue Boss Color
-                context.strokeStyle = '#2563eb'; // Darker blue outline
+                // --- Detailed Boss Snake Body with Gradient for Texture/Shading ---
+                const gradientBody = context.createLinearGradient(-BOSS_SNAKE_LENGTH / 2, -5, BOSS_SNAKE_LENGTH / 2, 5);
+                gradientBody.addColorStop(0, this.strokeColor); 
+                gradientBody.addColorStop(0.3, this.color); 
+                gradientBody.addColorStop(0.7, this.color); 
+                gradientBody.addColorStop(1, this.strokeColor); 
+
                 context.lineJoin = 'round';
                 context.lineCap = 'round';
 
                 context.beginPath();
                 
-                // Draw the segments with a wavy path
                 for (let i = 0; i <= bodySegments; i++) {
                     const x = (i / bodySegments) * BOSS_SNAKE_LENGTH - BOSS_SNAKE_LENGTH / 2;
-                    // Stronger wiggle for boss
                     const y = Math.sin(x / 10 + this.x / 20 + wave) * 8; 
                     
                     if (i === 0) {
@@ -693,15 +895,16 @@
                     }
                 }
                 
-                // Draw thick line to represent body (outline)
                 context.lineWidth = this.radius * 1.5; 
+                context.strokeStyle = gradientBody; // Main color stroke
                 context.stroke();
-                // Draw again with fill color for solid body
-                context.lineWidth = this.radius * 1.3;
-                context.strokeStyle = '#3182ce';
-                context.stroke(); 
-
                 
+                context.lineWidth = this.radius * 1.7;
+                context.strokeStyle = this.strokeColor; // Darker border
+                context.stroke(); 
+                // --- End Body Drawing ---
+
+
                 // Draw Head 
                 const headX = BOSS_SNAKE_LENGTH / 2;
                 const headY = Math.sin(headX / 10 + this.x / 20 + wave) * 8;
@@ -710,10 +913,10 @@
                 context.arc(headX, headY, this.radius * 0.6, 0, Math.PI * 2);
                 context.fill();
                 
-                // Draw Crown (Adjusted position relative to the new head)
+                // Draw Crown
                 context.fillStyle = '#fbd38d'; 
                 context.beginPath();
-                context.moveTo(headX, headY - this.radius * 0.6); // Base of the crown
+                context.moveTo(headX, headY - this.radius * 0.6); 
                 context.lineTo(headX - 10, headY - this.radius * 1.5);
                 context.lineTo(headX - 5, headY - this.radius * 1.0);
                 context.lineTo(headX, headY - this.radius * 1.8);
@@ -724,20 +927,8 @@
                 context.strokeStyle = '#000';
                 context.lineWidth = 1;
                 context.stroke();
-                // --- End King Snake Drawing Logic ---
 
-
-                // Boss HP Bar (Bigger and more prominent)
-                const hpWidth = 100;
-                const hpHeight = 8;
-                const hpRatio = this.currentHp / this.maxHp;
-
-                context.fillStyle = '#4a5568';
-                context.fillRect(-hpWidth / 2, -this.radius - 20, hpWidth, hpHeight);
-                
-                const hpColor = hpRatio > 0.5 ? '#f6ad55' : (hpRatio > 0.2 ? '#fbd38d' : '#e53e3e');
-                context.fillStyle = hpColor; 
-                context.fillRect(-hpWidth / 2, -this.radius - 20, hpWidth * hpRatio, hpHeight);
+                this._drawHpBar(context, 100, 8, -20);
                 
                 context.restore();
             }
@@ -798,6 +989,8 @@
                     { name: "Max HP Boost", description: "+20 Max HP", apply: p => p.maxHp += 20 },
                     { name: "Movement Speed", description: "+1 Speed", apply: p => p.baseSpeed += 1 },
                     { name: "Damage Up", description: "+0.1x Damage Multiplier", apply: p => p.damageMultiplier = parseFloat((p.damageMultiplier + 0.1).toFixed(2)) },
+                    { name: "Defense: Armor", description: "+1 Armor (Reduces damage taken)", apply: p => p.armor += 1 },
+                    { name: "Defense: Evasion", description: "+5% Evasion (Max 50%)", apply: p => p.evasion = Math.min(0.5, p.evasion + 0.05) },
                     { name: "Healing Potion", description: "Fully Heal HP", apply: p => p.currentHp = p.maxHp }
                 ];
 
@@ -926,8 +1119,31 @@
                 const spawnX = centerX + Math.cos(angle) * (ARENA_RADIUS - 10);
                 const spawnY = centerY + Math.sin(angle) * (ARENA_RADIUS - 10);
 
-                // Use the wave number to calculate enemy stats within the Enemy constructor
-                const enemy = new Enemy(spawnX, spawnY, 10, this.wave); 
+                let enemy;
+                const roll = Math.random();
+                
+                // --- Spawn Chance Logic (Increases difficulty over waves) ---
+                let fastChance = 0.15;
+                let tankChance = 0.05;
+
+                if (this.wave >= 5) {
+                    fastChance = 0.25;
+                    tankChance = 0.15;
+                }
+                if (this.wave >= 15) {
+                     fastChance = 0.30;
+                     tankChance = 0.20;
+                }
+                
+                if (roll < tankChance) {
+                    enemy = new TankSnake(spawnX, spawnY, this.wave);
+                } else if (roll < (tankChance + fastChance)) {
+                    enemy = new FastSnake(spawnX, spawnY, this.wave);
+                } else {
+                    // Default Snake
+                    enemy = new Enemy(spawnX, spawnY, 10, this.wave); 
+                }
+                // --- End Spawn Chance Logic ---
 
                 this.enemies.push(enemy);
                 this.enemyCountThisWave++;
@@ -962,13 +1178,16 @@
                     // Base enemy increase: +8 enemies per wave
                     this.maxEnemiesThisWave = 15 + (this.wave - 1) * 8;
                     
-                    // NEW LOGIC: Double the amount of enemies every 2 waves (Wave 2, 4, 6, etc.)
+                    // Double the amount of enemies every 2 waves (Wave 2, 4, 6, etc.)
                     if (this.wave > 1 && this.wave % 2 === 0) {
                         this.maxEnemiesThisWave *= 2;
                         this.maxEnemiesThisWave = Math.floor(this.maxEnemiesThisWave);
                     }
 
-                    this.enemySpawnInterval = Math.max(100, 1500 - (this.wave - 1) * 100);
+                    // --- ADJUSTED SPAWN RATE (Gentle Scaling) ---
+                    // Base interval starts at 800ms. Decreases by 50ms per wave, down to a minimum of 100ms.
+                    this.enemySpawnInterval = Math.max(100, 800 - (this.wave - 1) * 50);
+                    // --- END ADJUSTED SPAWN RATE ---
                 }
             }
 
@@ -994,8 +1213,20 @@
                 this.enemies = this.enemies.filter(e => {
                     const distance = Math.hypot(e.x - this.player.x, e.y - this.player.y);
                     if (distance < e.radius + this.player.radius) {
-                        this.player.currentHp -= e.damage;
+                        
+                        // --- Evasion Check ---
+                        if (Math.random() < this.player.evasion) {
+                            // Successfully dodged!
+                            return true; 
+                        }
+                        
+                        // --- Armor Calculation ---
+                        let damageTaken = e.damage - this.player.armor;
+                        damageTaken = Math.max(1, damageTaken); // Always take at least 1 damage
+                        
+                        this.player.currentHp -= damageTaken;
                         this.player.damageFlashTimer = 10; 
+                        
                         if (this.player.currentHp <= 0) {
                             this.endGame();
                         }
@@ -1029,13 +1260,26 @@
                 });
                 return nearest;
             }
+
+            // New method to get N nearest enemies
+            getNNearestEnemies(n) {
+                return this.enemies
+                    .map(e => ({ e, distance: Math.hypot(e.x - this.player.x, e.y - this.player.y) }))
+                    .sort((a, b) => a.distance - b.distance)
+                    .slice(0, n)
+                    .map(item => item.e);
+            }
             
             generateStatOptions() {
                 const options = [];
-                const availableStatUpgrades = [...this.statUpgrades];
-                for (let i = 0; i < 3; i++) {
-                    const randomIndex = Math.floor(Math.random() * availableStatUpgrades.length);
-                    const stat = availableStatUpgrades.splice(randomIndex, 1)[0];
+                // Include Armor and Evasion now
+                const availableStatUpgrades = this.statUpgrades;
+                
+                // Shuffle the stat upgrades to pick 3 random ones
+                const shuffledUpgrades = [...availableStatUpgrades].sort(() => 0.5 - Math.random());
+                
+                for (let i = 0; i < 3 && i < shuffledUpgrades.length; i++) {
+                    const stat = shuffledUpgrades[i];
                     options.push({ ...stat, type: 'stat' });
                 }
                 return options;
@@ -1078,7 +1322,8 @@
                 
                 const equippedWeaponCounts = {};
                 this.player.weapons.forEach(w => {
-                    equippedWeaponCounts[w.key] = (equippedWeaponCounts[w.key] || 0) + 1;
+                    // FIX: Changed 'equippedWeaponCounts[key]' to 'equippedWeaponCounts[w.key]'
+                    equippedWeaponCounts[w.key] = (equippedWeaponCounts[w.key] || 0) + 1; 
                 });
                 
                 if (this.player.weapons.length < MAX_TOTAL_WEAPONS) {
@@ -1199,6 +1444,8 @@
                 hud.maxHP.textContent = this.player.maxHp;
                 hud.statSpeed.textContent = this.player.baseSpeed.toFixed(1);
                 hud.statDamage.textContent = this.player.damageMultiplier.toFixed(2);
+                hud.statArmor.textContent = this.player.armor; // New
+                hud.statEvasion.textContent = (this.player.evasion * 100).toFixed(0); // New
                 hud.weaponList.innerHTML = weaponNames.join(', ');
 
                 const xpRatio = this.player.xp / this.player.xpToNextLevel;
@@ -1245,7 +1492,39 @@
 
             draw() {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Set background color outside the arena
+                ctx.fillStyle = '#1a202c';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // --- Draw Arena Floor (Textured Dirt) ---
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, ARENA_RADIUS, 0, Math.PI * 2);
+                ctx.fillStyle = '#3b4455'; // Base arena color (Dirt)
+                ctx.fill();
+                ctx.clip(); // Clip subsequent drawing to the circle
+                
+                // Add subtle shadow gradient for depth
+                const gradientDepth = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, ARENA_RADIUS);
+                gradientDepth.addColorStop(0, 'rgba(0,0,0,0.05)');
+                gradientDepth.addColorStop(1, 'rgba(0,0,0,0.3)');
+                ctx.fillStyle = gradientDepth;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+                // Add subtle randomized 'pebbles' for texture
+                ctx.fillStyle = '#718096'; 
+                for(let i=0; i<300; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const distance = Math.random() * ARENA_RADIUS;
+                    const px = centerX + Math.cos(angle) * distance;
+                    const py = centerY + Math.sin(angle) * distance;
+                    ctx.fillRect(px, py, 1, 1);
+                }
+
+                ctx.restore(); // Restore clipping
+
+                // --- Draw Arena Boundary Stroke ---
                 ctx.strokeStyle = '#fbd38d';
                 ctx.lineWidth = 4;
                 ctx.beginPath();
