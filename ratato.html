@@ -52,13 +52,16 @@
             box-shadow: 0 10px 15px rgba(72, 187, 120, 0.4);
             border-color: #48bb78; 
         }
-        .weapon-card {
+        .character-card {
+            cursor: pointer;
+            transition: transform 0.1s, box-shadow 0.1s;
+            border: 3px solid transparent;
             background-color: #2d3748;
         }
-        .weapon-card:hover {
+        .character-card:hover {
             transform: translateY(-4px);
-            border-color: #fbd38d; /* Gold hover border for starter selection */
-            box-shadow: 0 10px 15px rgba(251, 211, 141, 0.4);
+            border-color: #63b3ed; /* Blue hover border for character selection */
+            box-shadow: 0 10px 15px rgba(99, 179, 237, 0.4);
         }
     </style>
 </head>
@@ -100,12 +103,12 @@
 
         <canvas id="gameCanvas" width="800" height="800"></canvas>
 
-        <!-- START SCREEN (Weapon Selection) -->
+        <!-- START SCREEN (Character Selection) -->
         <div id="startScreen" class="absolute inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
             <div class="bg-gray-900 p-10 rounded-xl shadow-2xl text-white max-w-5xl w-full text-center border-4 border-yellow-500">
-                <h2 class="text-4xl font-extrabold mb-8 text-yellow-400">CHOOSE YOUR STARTING WEAPON</h2>
-                <div id="weaponOptions" class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    <!-- Weapon cards injected here -->
+                <h2 class="text-4xl font-extrabold mb-8 text-yellow-400">CHOOSE YOUR RAT</h2>
+                <div id="characterOptions" class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    <!-- Character cards injected here -->
                 </div>
             </div>
         </div>
@@ -130,7 +133,7 @@
         </div>
 
         <p class="text-center mt-4 text-gray-400 text-sm">
-            Use WASD or Arrow Keys to move the Rat. Weapons fire automatically!
+            Use WASD or Arrow Keys to move the Rat, or **hold the left mouse button** to guide it!
         </p>
     </div>
 
@@ -149,6 +152,29 @@
         const RAT_COLOR = '#a0522d'; // Sienna Brown (Darker Fur)
         const RAT_DETAIL_COLOR = '#3b4455'; // Arena color for eyes
         const RAT_LIGHT_FUR = '#d2b48c'; // Tan (Lighter highlight fur)
+
+        // --- CHARACTER DEFINITIONS ---
+        const CHARACTERS = {
+            brawler: {
+                name: "The Brawler",
+                description: "Focused on defense and survival. Excels at melee.",
+                initialStats: { maxHp: 150, baseSpeed: 3.5, damageMultiplier: 1.0, armor: 2, evasion: 0.0 },
+                starterWeapon: 'sledgehammer'
+            },
+            sharpshooter: {
+                name: "The Sharpshooter",
+                description: "High damage and precision. Excels at projectile builds.",
+                initialStats: { maxHp: 80, baseSpeed: 4.0, damageMultiplier: 1.2, armor: 0, evasion: 0.05 },
+                starterWeapon: 'pistol'
+            },
+            fleetfoot: {
+                name: "The Fleetfoot",
+                description: "Fast, evasive, and good at map control.",
+                initialStats: { maxHp: 100, baseSpeed: 5.5, damageMultiplier: 0.9, armor: 0, evasion: 0.15 },
+                starterWeapon: 'shuriken'
+            }
+        };
+
 
         // --- WEAPON DEFINITIONS ---
         // Added 'iconColor' for simple geometric drawing
@@ -181,7 +207,20 @@
                 key: 'phaser', name: "Phaser", emoji: "✨", damage: 15, fireRate: 350, projectileSpeed: 25, projectiles: 1, spread: 0, radius: 3, description: "Pinpoint accuracy with a very high velocity energy bolt.", iconColor: '#9f7aea',
             },
             sledgehammer: {
-                key: 'sledgehammer', name: "Sledgehammer", emoji: "🔨", damage: 50, fireRate: 800, radius: 30, isMelee: true, knockback: 15, description: "Instant hit, high damage, short range melee attack that pushes enemies back.", iconColor: '#b8860b', // Darker gold for the hammer head
+                key: 'sledgehammer', name: "Sledgehammer", emoji: "🔨", damage: 50, fireRate: 400, radius: 30, isMelee: true, knockback: 15, description: "Instant hit, high damage, sweeping attack. Increased frequency!", iconColor: '#b8860b',
+            },
+            // --- NEW MELEE WEAPONS ---
+            axe: {
+                key: 'axe', name: "Battle Axe", emoji: "🪓", damage: 35, fireRate: 600, radius: 45, isMelee: true, knockback: 10, description: "High damage, medium range, reliable sweeping attack.", iconColor: '#713e2f',
+            },
+            sword: {
+                key: 'sword', name: "Short Sword", emoji: "⚔️", damage: 15, fireRate: 200, radius: 25, isMelee: true, knockback: 5, description: "Very fast attack, low damage, small radius.", iconColor: '#b0b0b0',
+            },
+            spear: {
+                key: 'spear', name: "Spear", emoji: "🔱", damage: 20, fireRate: 250, radius: 60, isMelee: true, knockback: 8, description: "Medium damage, fast attack, long reach for pokes.", iconColor: '#f9a825',
+            },
+            lance: {
+                key: 'lance', name: "Lance", emoji: "🗡️", damage: 80, fireRate: 1500, radius: 80, isMelee: true, knockback: 25, description: "Slowest attack, highest damage, massive sweep radius.", iconColor: '#4a5568',
             },
         };
 
@@ -199,7 +238,7 @@
             weaponList: document.getElementById('weaponList')
         };
         const startScreen = document.getElementById('startScreen');
-        const weaponOptionsDiv = document.getElementById('weaponOptions');
+        const characterOptionsDiv = document.getElementById('characterOptions'); // Updated ID
         const messageBox = document.getElementById('messageBox');
         const upgradeScreen = document.getElementById('upgradeScreen');
         const upgradeOptionsDiv = document.getElementById('upgradeOptions');
@@ -285,26 +324,30 @@
         }
 
         class Rat extends Entity {
-            constructor(weaponKey) {
+            constructor(characterKey) {
                 super(centerX, centerY, 15, RAT_COLOR, 4); // Rat color now uses constant
-                this.maxHp = 100;
-                this.currentHp = 100;
-                this.baseSpeed = 4;
+                
+                const initialStats = CHARACTERS[characterKey].initialStats;
+
+                this.maxHp = initialStats.maxHp;
+                this.currentHp = initialStats.maxHp;
+                this.baseSpeed = initialStats.baseSpeed;
+                this.damageMultiplier = initialStats.damageMultiplier;
+                this.armor = initialStats.armor;       
+                this.evasion = initialStats.evasion;     
+
                 this.level = 1;
                 this.xp = 0;
                 this.xpToNextLevel = 10;
-                this.damageMultiplier = 1.0;
-                this.armor = 0;       // New: Flat damage reduction
-                this.evasion = 0;     // New: Chance to completely ignore damage (0.0 to 0.5)
                 this.moveDirection = { x: 0, y: 0 };
                 this.damageFlashTimer = 0; 
                 this.animationFrame = 0; 
-                this.facingRight = true; // New: Tracks visual direction
+                this.facingRight = true; 
                 
                 this.weapons = [];
                 this.weaponTimers = {};
                 
-                this.addWeapon(weaponKey);
+                this.addWeapon(CHARACTERS[characterKey].starterWeapon);
             }
 
             addWeapon(weaponKey) {
@@ -317,13 +360,34 @@
                     return; 
                 }
 
+                // 1. Create the new weapon instance (copying base stats)
                 const newWeapon = JSON.parse(JSON.stringify(weaponDefinition));
                 newWeapon.key = weaponKey; 
 
+                // 2. Add the new weapon
                 this.weapons.push(newWeapon);
                 
+                // 3. Handle timer setup if this is the first stack
                 if (currentStackCount === 0) {
                      this.weaponTimers[weaponKey] = 0;
+                }
+                
+                // 4. Handle Melee stacking logic (Sledgehammer/Axe/Sword/Spear/Lance)
+                if (newWeapon.isMelee) {
+                    const newTotalStacks = currentStackCount + 1;
+                    const BASE_RADIUS = WEAPONS[weaponKey].radius;
+                    const RADIUS_PER_STACK = 5; 
+                    
+                    // Only Sledgehammer stacks currently increase radius.
+                    const radiusIncrease = (weaponKey === 'sledgehammer') ? RADIUS_PER_STACK * newTotalStacks : 0;
+                    const finalRadius = BASE_RADIUS + radiusIncrease;
+                    
+                    // Update ALL instances of this weapon with the new final radius
+                    this.weapons.forEach(w => {
+                        if (w.key === weaponKey) {
+                            w.radius = finalRadius;
+                        }
+                    });
                 }
             }
 
@@ -390,7 +454,7 @@
             }
 
             shootWeaponStacks(weaponKey, stacks) {
-                // --- RESTORED MULTI-TARGETING LOGIC ---
+                // --- MULTI-TARGETING LOGIC ---
                 // Get all enemies sorted by distance from the Rat
                 const sortedEnemies = game.enemies
                     .map(e => ({ e, distance: Math.hypot(e.x - this.x, e.y - this.y) }))
@@ -420,13 +484,13 @@
                         stacksFired++;
                     }
                 });
-                // --- END RESTORED LOGIC ---
+                // --- END MULTI-TARGETING LOGIC ---
             }
             
             fireSingleWeaponStack(weapon, initialAngle) {
                 if (weapon.isMelee) {
-                    // Melee still targets all close enemies on one swing
-                    game.meleeAttack(this.x, this.y, weapon, initialAngle);
+                    // Melee triggers the AOE hit immediately at the rat's position
+                    game.meleeAttack(this.x, this.y, weapon);
                     return;
                 }
 
@@ -964,8 +1028,8 @@
         // --- GAME LOGIC ---
 
         class Game {
-            constructor(weaponName) {
-                this.player = new Rat(weaponName);
+            constructor(characterKey) {
+                this.player = new Rat(characterKey);
                 this.enemies = [];
                 this.projectiles = [];
                 this.pickups = []; 
@@ -973,7 +1037,7 @@
                 this.wave = 0;
                 this.kills = 0;
                 this.lastWaveTime = Date.now();
-                this.waveDuration = 30000;
+                this.waveDuration = 60000; // Waves now last 60 seconds (60000ms)
                 this.enemySpawnInterval = 1000;
                 this.lastSpawnTime = 0;
                 this.enemyCountThisWave = 0;
@@ -984,6 +1048,19 @@
                 this.isBossWave = false; 
 
                 this.keyState = { up: false, down: false, left: false, right: false };
+                
+                // Mouse control variables
+                this.mouseTargetX = centerX;
+                this.mouseTargetY = centerY;
+                this.mouseTolerance = 10; // Distance tolerance for stopping
+                this.isMouseMoving = false; // Flag to check if mouse is actively moving the Rat
+                this.isMouseDown = false; // Tracks if the left mouse button is held
+                
+                // Melee Animation Variables
+                this.isMeleeSwinging = false;
+                this.meleeSwingTimer = 0; // Timer for the visual swing animation
+                this.MELEE_SWING_DURATION = 15; // 15 frames for the visual effect
+
 
                 this.statUpgrades = [
                     { name: "Max HP Boost", description: "+20 Max HP", apply: p => p.maxHp += 20 },
@@ -1002,13 +1079,76 @@
             setupInput() {
                 document.removeEventListener('keydown', this.keyListenerDown);
                 document.removeEventListener('keyup', this.keyListenerUp);
+                canvas.removeEventListener('mousemove', this.mouseListener);
+                canvas.removeEventListener('click', this.mouseClickListener);
+                canvas.removeEventListener('mousedown', this.mouseDownListener); 
+                canvas.removeEventListener('mouseup', this.mouseUpListener);     
 
                 this.keyListenerDown = (e) => this.handleInput(e.key, true);
                 this.keyListenerUp = (e) => this.handleInput(e.key, false);
+                this.mouseListener = (e) => this.handleMouseMovement(e);
+                this.mouseDownListener = (e) => this.handleMouseDown(e); 
+                this.mouseUpListener = (e) => this.handleMouseUp(e);     
+                this.mouseClickListener = (e) => this.handleMouseClick(e); 
+
 
                 document.addEventListener('keydown', this.keyListenerDown);
                 document.addEventListener('keyup', this.keyListenerUp);
+                canvas.addEventListener('mousemove', this.mouseListener);
+                canvas.addEventListener('mousedown', this.mouseDownListener); 
+                canvas.addEventListener('mouseup', this.mouseUpListener);     
+                canvas.addEventListener('click', this.mouseClickListener);
                 restartButton.addEventListener('click', () => this.restart());
+            }
+
+            // NEW: Mouse Down sets the movement flag
+            handleMouseDown(e) {
+                if (e.button === 0) { // Left click
+                    this.isMouseDown = true;
+                    this.isMouseMoving = true;
+                    // When mouse is pressed, clear keyboard state for mouse priority
+                    this.keyState = { up: false, down: false, left: false, right: false };
+                    this.updateMovementDirection();
+                }
+            }
+
+            // NEW: Mouse Up clears the movement flag
+            handleMouseUp(e) {
+                if (e.button === 0) { // Left click
+                    this.isMouseDown = false;
+                    this.isMouseMoving = false;
+                    this.updateMovementDirection(); // Forces stop
+                }
+            }
+            
+            // Mouse Click is simplified since movement is handled by Down/Up
+            handleMouseClick(e) {
+                 if (this.isPaused || this.gameOver) return;
+                 // Clicks now just set the target, Down/Up handle motion
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+                this.mouseTargetX = (e.clientX - rect.left) * scaleX;
+                this.mouseTargetY = (e.clientY - rect.top) * scaleY;
+                
+                // If the player clicks, assume they want to move there (handled by Down/Up)
+            }
+
+            handleMouseMovement(e) {
+                if (this.isPaused || this.gameOver) return;
+
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+
+                // On mouse move, always update the target position
+                this.mouseTargetX = (e.clientX - rect.left) * scaleX;
+                this.mouseTargetY = (e.clientY - rect.top) * scaleY;
+                
+                if (this.isMouseDown) {
+                    // Only update direction if the mouse button is down
+                    this.updateMovementDirection();
+                }
             }
 
             handleInput(key, isDown) {
@@ -1038,6 +1178,12 @@
                     default:
                         return;
                 }
+                
+                // If any movement key is pressed, keyboard takes precedence and stops mouse movement control
+                if (isDown) {
+                    this.isMouseDown = false;
+                    this.isMouseMoving = false;
+                }
                 this.updateMovementDirection();
             }
 
@@ -1045,12 +1191,33 @@
                 const ks = this.keyState;
                 let dx = 0;
                 let dy = 0;
+                let isKeyboardActive = false;
 
-                if (ks.left) dx -= 1;
-                if (ks.right) dx += 1;
-                if (ks.up) dy -= 1;
-                if (ks.down) dy += 1;
+                // 1. Check Keyboard State
+                if (ks.left || ks.right || ks.up || ks.down) {
+                    if (ks.left) dx -= 1;
+                    if (ks.right) dx += 1;
+                    if (ks.up) dy -= 1;
+                    if (ks.down) dy += 1;
+                    isKeyboardActive = true;
+                }
 
+                // 2. Check Mouse State (only if keyboard is not active AND mouse button is held)
+                if (!isKeyboardActive && this.isMouseDown) {
+                    const distToTarget = Math.hypot(this.player.x - this.mouseTargetX, this.player.y - this.mouseTargetY);
+
+                    if (distToTarget > this.mouseTolerance) {
+                        dx = this.mouseTargetX - this.player.x;
+                        dy = this.mouseTargetY - this.player.y;
+                    } else {
+                        // Stop if we are close enough to the target
+                        this.isMouseMoving = false; // Stop movement flag
+                        dx = 0;
+                        dy = 0;
+                    }
+                }
+                
+                // 3. Apply final movement vector
                 if (dx !== 0 || dy !== 0) {
                     const length = Math.hypot(dx, dy);
                     this.player.moveDirection.x = dx / length;
@@ -1076,9 +1243,13 @@
             }
             
             meleeAttack(x, y, weapon) {
+                // Melee still performs a radial slash
                 const damage = weapon.damage * this.player.damageMultiplier;
-                const radius = weapon.radius;
+                const radius = weapon.radius; 
                 const knockback = weapon.knockback || 0;
+                
+                this.isMeleeSwinging = true;
+                this.meleeSwingTimer = this.MELEE_SWING_DURATION;
 
                 this.enemies = this.enemies.filter(e => {
                     const distance = Math.hypot(x - e.x, y - e.y);
@@ -1088,8 +1259,9 @@
                         this.player.damageFlashTimer = 5;
 
                         if (knockback > 0) {
+                            // Radial Knockback: direction away from the Rat
                             const angle = Math.atan2(e.y - y, e.x - x);
-                            const KB_FACTOR = 3;
+                            const KB_FACTOR = 1.5; // REDUCED KNOCKBACK FACTOR
                             e.x += Math.cos(angle) * knockback * KB_FACTOR;
                             e.y += Math.sin(angle) * knockback * KB_FACTOR;
                             
@@ -1111,10 +1283,19 @@
             }
 
             spawnEnemy() {
-                if (this.enemyCountThisWave >= this.maxEnemiesThisWave) {
-                    return;
+                // --- MODIFIED: Spawning now relies ONLY on the timer and is uncapped (unless boss wave) ---
+                if (!this.isBossWave && this.enemies.length >= 1000) {
+                    // Simple failsafe limit for performance, though capped by wave duration/spawn interval now
+                    return; 
                 }
 
+                if (this.enemyCountThisWave >= this.maxEnemiesThisWave && !this.isBossWave) {
+                    // This check is now ignored for non-boss waves since maxEnemiesThisWave is Infinity.
+                    return;
+                }
+                
+                // ... (rest of the spawning logic remains the same)
+                
                 const angle = Math.random() * Math.PI * 2;
                 const spawnX = centerX + Math.cos(angle) * (ARENA_RADIUS - 10);
                 const spawnY = centerY + Math.sin(angle) * (ARENA_RADIUS - 10);
@@ -1175,19 +1356,15 @@
                     this.enemyCountThisWave = 1; 
 
                 } else {
-                    // Base enemy increase: +8 enemies per wave
-                    this.maxEnemiesThisWave = 15 + (this.wave - 1) * 8;
+                    // --- MODIFIED: NO MAX ENEMY LIMIT ---
+                    // The wave will now end only based on the 60-second timer.
+                    this.maxEnemiesThisWave = Infinity; 
                     
-                    // Double the amount of enemies every 2 waves (Wave 2, 4, 6, etc.)
-                    if (this.wave > 1 && this.wave % 2 === 0) {
-                        this.maxEnemiesThisWave *= 2;
-                        this.maxEnemiesThisWave = Math.floor(this.maxEnemiesThisWave);
-                    }
-
-                    // --- ADJUSTED SPAWN RATE (Gentle Scaling) ---
-                    // Base interval starts at 800ms. Decreases by 50ms per wave, down to a minimum of 100ms.
-                    this.enemySpawnInterval = Math.max(100, 800 - (this.wave - 1) * 50);
-                    // --- END ADJUSTED SPAWN RATE ---
+                    // Base enemy scaling logic removed, as it calculated max count.
+                    
+                    // --- REDUCED SPAWN RATE SCALING ---
+                    // Base interval starts at 1000ms. Decreases by 50ms per wave, down to a minimum of 150ms.
+                    this.enemySpawnInterval = Math.max(150, 1000 - (this.wave - 1) * 50); 
                 }
             }
 
@@ -1210,32 +1387,45 @@
                     return !(hit || p.update(16.66));
                 });
 
-                this.enemies = this.enemies.filter(e => {
+                // --- ENEMY COLLISION LOGIC (Bounce and Persist) ---
+                this.enemies.forEach((e) => {
                     const distance = Math.hypot(e.x - this.player.x, e.y - this.player.y);
                     if (distance < e.radius + this.player.radius) {
                         
-                        // --- Evasion Check ---
+                        // 1. Evasion Check
                         if (Math.random() < this.player.evasion) {
-                            // Successfully dodged!
-                            return true; 
+                            return; 
                         }
                         
-                        // --- Armor Calculation ---
+                        // 2. Armor Calculation and Damage
                         let damageTaken = e.damage - this.player.armor;
-                        damageTaken = Math.max(1, damageTaken); // Always take at least 1 damage
+                        damageTaken = Math.max(1, damageTaken); 
                         
                         this.player.currentHp -= damageTaken;
                         this.player.damageFlashTimer = 10; 
                         
                         if (this.player.currentHp <= 0) {
                             this.endGame();
+                            return;
                         }
-                        if (!(e instanceof Boss)) {
-                            return false; 
+                        
+                        // 3. Bounce/Knockback effect
+                        const BOUNCE_DISTANCE = 20; 
+                        const angle = Math.atan2(e.y - this.player.y, e.x - this.player.x);
+                        
+                        e.x += Math.cos(angle) * BOUNCE_DISTANCE;
+                        e.y += Math.sin(angle) * BOUNCE_DISTANCE;
+                        
+                        // 4. Clamp position to Arena 
+                        const distToCenter = Math.hypot(e.x - centerX, e.y - centerY);
+                        if (distToCenter + e.radius > ARENA_RADIUS) {
+                            const clampAngle = Math.atan2(e.y - centerY, e.x - centerX);
+                            e.x = centerX + Math.cos(clampAngle) * (ARENA_RADIUS - e.radius);
+                            e.y = centerY + Math.sin(clampAngle) * (ARENA_RADIUS - e.radius);
                         }
                     }
-                    return true;
                 });
+                // --- END ENEMY COLLISION LOGIC ---
                 
                 this.pickups = this.pickups.filter(p => {
                     const distance = Math.hypot(p.x - this.player.x, p.y - this.player.y);
@@ -1289,6 +1479,8 @@
                 // FIX: Stop character movement immediately upon pausing
                 this.player.moveDirection = { x: 0, y: 0 };
                 this.keyState = { up: false, down: false, left: false, right: false };
+                this.isMouseMoving = false; // Stop mouse control too
+                this.isMouseDown = false; // Ensure mouse control is also cleared
                 // END FIX
 
                 this.isPaused = true;
@@ -1317,12 +1509,14 @@
             generateWeaponOptions() {
                 const MAX_TOTAL_WEAPONS = 18;
                 const MAX_STACK_COUNT = 6;
+                // --- MODIFICATION: Include ALL weapons in the pool ---
                 const allWeaponKeys = Object.keys(WEAPONS);
+                // --- END MODIFICATION ---
+
                 const availableWeaponOptions = [];
                 
                 const equippedWeaponCounts = {};
                 this.player.weapons.forEach(w => {
-                    // FIX: Changed 'equippedWeaponCounts[key]' to 'equippedWeaponCounts[w.key]'
                     equippedWeaponCounts[w.key] = (equippedWeaponCounts[w.key] || 0) + 1; 
                 });
                 
@@ -1359,6 +1553,8 @@
                 // FIX: Stop character movement immediately upon pausing
                 this.player.moveDirection = { x: 0, y: 0 };
                 this.keyState = { up: false, down: false, left: false, right: false };
+                this.isMouseMoving = false; // Stop mouse control too
+                this.isMouseDown = false; // Ensure mouse control is also cleared
                 // END FIX
 
                 this.isPaused = true;
@@ -1419,6 +1615,10 @@
             restart() {
                 document.removeEventListener('keydown', this.keyListenerDown);
                 document.removeEventListener('keyup', this.keyListenerUp);
+                canvas.removeEventListener('mousemove', this.mouseListener);
+                canvas.removeEventListener('click', this.mouseClickListener);
+                canvas.removeEventListener('mousedown', this.mouseDownListener);
+                canvas.removeEventListener('mouseup', this.mouseUpListener);
 
                 messageBox.classList.add('hidden');
                 showStartScreen();
@@ -1478,7 +1678,17 @@
                     this.spawnEnemy();
                     this.lastSpawnTime = currentTime;
                 }
+                
+                // Update melee swing timer
+                if (this.isMeleeSwinging) {
+                    this.meleeSwingTimer--;
+                    if (this.meleeSwingTimer <= 0) {
+                        this.isMeleeSwinging = false;
+                    }
+                }
 
+                this.updateMovementDirection(); // Recalculate movement based on KB/Mouse before updating position
+                
                 this.player.update(deltaTime);
                 this.enemies.forEach(e => e.update(this.player, deltaTime));
                 this.pickups.forEach(p => p.update(deltaTime));
@@ -1530,6 +1740,36 @@
                 ctx.beginPath();
                 ctx.arc(centerX, centerY, ARENA_RADIUS, 0, Math.PI * 2);
                 ctx.stroke();
+                
+                // Draw mouse target indicator if mouse is controlling the rat
+                if (this.isMouseDown) { // Draw only when the button is held
+                    ctx.save();
+                    ctx.strokeStyle = '#63b3ed';
+                    ctx.lineWidth = 2;
+                    ctx.globalAlpha = 0.5;
+                    ctx.beginPath();
+                    ctx.arc(this.mouseTargetX, this.mouseTargetY, 15, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
+                // --- Draw Melee Slash Animation ---
+                if (this.isMeleeSwinging) {
+                    const alpha = this.meleeSwingTimer / this.MELEE_SWING_DURATION;
+                    // Find the radius of the first sledgehammer instance to use for the visual
+                    const sledgehammerInstance = this.player.weapons.find(w => w.key === 'sledgehammer');
+                    const slashRadius = sledgehammerInstance ? sledgehammerInstance.radius : WEAPONS.sledgehammer.radius;
+
+                    ctx.save();
+                    ctx.translate(this.player.x, this.player.y);
+                    ctx.strokeStyle = `rgba(255, 69, 0, ${alpha})`; // Red/Orange slash color
+                    ctx.lineWidth = 6;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, slashRadius, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
 
                 this.pickups.forEach(p => p.draw(ctx));
                 this.projectiles.forEach(p => p.draw(ctx));
@@ -1555,36 +1795,39 @@
         
         // --- STARTUP LOGIC ---
 
-        function startGame(weaponName) {
+        function startGame(characterKey) {
             startScreen.classList.add('hidden');
-            game = new Game(weaponName);
+            game = new Game(characterKey);
             game.lastUpdateTime = performance.now();
             window.requestAnimationFrame(gameLoop);
         }
 
         function showStartScreen() {
             startScreen.classList.remove('hidden');
-            weaponOptionsDiv.innerHTML = '';
+            
+            // --- MODIFICATION: Updated ID to characterOptionsDiv ---
+            characterOptionsDiv.innerHTML = '';
 
-            // Note: We still use emojis here for clarity in the UI text, not the game world
-            const starterWeapons = [WEAPONS.pistol, WEAPONS.shotgun, WEAPONS.shuriken];
-
-            starterWeapons.forEach(weapon => {
+            Object.entries(CHARACTERS).forEach(([key, character]) => {
                 const card = document.createElement('div');
-                card.className = 'weapon-card p-6 rounded-lg text-left shadow-xl';
+                card.className = 'character-card p-6 rounded-lg text-left shadow-xl';
                 card.innerHTML = `
-                    <p class="text-5xl mb-3">${weapon.emoji}</p>
-                    <h3 class="text-2xl font-bold text-yellow-300 mb-2">${weapon.name}</h3>
-                    <p class="text-sm text-gray-300 mb-4">${weapon.description}</p>
+                    <h3 class="text-2xl font-bold text-blue-300 mb-2">${character.name}</h3>
+                    <p class="text-sm text-gray-300 mb-4">${character.description}</p>
+                    <hr class="border-gray-600 mb-3">
                     <ul class="text-xs text-gray-400 space-y-1">
-                        <li>Damage: <span class="text-white">${weapon.damage} (Base)</span></li>
-                        <li>Fire Rate: <span class="text-white">${(1000/weapon.fireRate).toFixed(1)} RPS</span></li>
-                        <li>Projectiles: <span class="text-white">${weapon.projectiles}</span></li>
+                        <li>HP: <span class="text-white">${character.initialStats.maxHp}</span></li>
+                        <li>Damage Multiplier: <span class="text-white">${character.initialStats.damageMultiplier.toFixed(1)}x</span></li>
+                        <li>Speed: <span class="text-white">${character.initialStats.baseSpeed.toFixed(1)}</span></li>
+                        <li>Armor: <span class="text-white">${character.initialStats.armor}</span></li>
+                        <li>Evasion: <span class="text-white">${(character.initialStats.evasion * 100).toFixed(0)}%</span></li>
+                        <li class="mt-2 text-yellow-500">Starts with: ${WEAPONS[character.starterWeapon].name} ${WEAPONS[character.starterWeapon].emoji}</li>
                     </ul>
                 `;
-                card.onclick = () => startGame(weapon.key);
-                weaponOptionsDiv.appendChild(card);
+                card.onclick = () => startGame(key);
+                characterOptionsDiv.appendChild(card);
             });
+            // --- END MODIFICATION ---
         }
 
 
