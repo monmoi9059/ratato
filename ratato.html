@@ -98,10 +98,11 @@
             <div class="w-full lg:w-1/3 bg-gray-800 p-4 rounded-lg shadow-xl border border-gray-700">
                 <div class="flex flex-col space-y-2 text-sm">
                     <div class="hud-stat text-lg text-yellow-400">Wave: <span id="waveCount">1</span></div>
+                    <div class="hud-stat text-lg text-red-400">Best Kills: <span id="bestKillCount">0</span></div>
                     <div class="hud-stat text-lg text-green-400">Currency (Kills): <span id="killCount">0</span></div>
                     <div class="hud-stat">
                         HP: <span id="currentHP"></span> / <span id="maxHP"></span> 
-                        <span id="buffTimer" class="text-xs text-red-400 ml-1"></span> <!-- NEW BUFF TIMER -->
+                        <span id="buffTimer" class="text-xs text-red-400 ml-1"></span>
                     </div>
                     <div class="hud-stat">
                         EXP:
@@ -123,6 +124,7 @@
                     <div>Add. Projectiles: <span id="statProjectiles"></span></div>
                     <div>Attack Speed: <span id="statAttackSpeed"></span>%</div>
                     <div>Attack Range: <span id="statRange"></span>x</div>
+                    <div>Shield: <span id="statShield"></span></div>
                     <div class="col-span-4">
                         Weapons: <span id="weaponList" class="text-green-400 font-medium"></span> 
                         <span id="weaponSlots" class="text-gray-500">(Slots: 0/0)</span>
@@ -147,7 +149,7 @@
         <div id="messageBox" class="hidden absolute inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
             <div class="bg-gray-800 p-8 rounded-lg shadow-2xl text-white max-w-md w-full text-center border-4 border-red-500">
                 <h2 id="messageTitle" class="text-3xl font-bold mb-4 text-red-500">GAME OVER</h2>
-                <p id="messageText" class="mb-6 text-lg">You survived 0 waves and killed 0 enemies.</p>
+                <p id="messageText" class="mb-6 text-lg">You survived 0 waves and earned 0 Kills.</p>
                 <button id="restartButton" class="px-6 py-3 bg-yellow-600 hover:bg-yellow-500 text-gray-900 font-bold rounded-lg transition">Restart Game</button>
             </div>
         </div>
@@ -182,13 +184,27 @@
         // Constants and Initialization
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
+        
+        // --- NEW WORLD/CAMERA CONSTANTS ---
+        const VIEWPORT_RADIUS = 350; // Radius of the visible area
+        const WORLD_RADIUS = 1500;   // Radius of the entire explorable world
+        const WORLD_CENTER_X = 0;
+        const WORLD_CENTER_Y = 0;
+        // The center of the visible canvas (where the Rat is drawn)
         const centerX = canvas.width / 2;
         const centerY = canvas.height / 2;
-        const ARENA_RADIUS = 350; // The radius of the circular arena
+        
+        const ARENA_RADIUS = VIEWPORT_RADIUS; // Alias for old code compatibility
+        // --- END NEW CONSTANTS ---
+
         const BASE_PROJECTILE_RANGE = 230; // Base range increased by 50px (was 180)
+        
+        const HIGHSCORE_KEY = 'ratato_best_kills'; // Key for localStorage
 
         let game;
         let animationFrameId;
+        
+        let highScore = parseInt(localStorage.getItem(HIGHSCORE_KEY) || '0', 10); // Load high score
 
         // --- DYNAMIC COLOR PALETTES (Swaps every 10 waves) ---
         const COLOR_PALETTES = {
@@ -244,126 +260,188 @@
         let currentPalette = COLOR_PALETTES.dirt;
 
 
-        // --- CHARACTER DEFINITIONS (Custom Colors/Skins & Inventory Limits) ---
+        // --- CHARACTER DEFINITIONS (Custom Colors/Skins & Uniform Inventory Limits) ---
+        const UNIFORM_MAX_SLOTS = 8; // Max slots is 8 for all classes on start
+        
+        // Define affinity constants
+        const MELEE_AFFINITY_RANGE = 3.0; // +200% base melee radius
+        const RANGED_AFFINITY_RANGE = 2.0; // +100% base ranged range
+        const SPREAD_AFFINITY_PROJ = 3;   // +3 base projectiles
+
         const CHARACTERS = {
-            // ORIGINAL CHARACTERS
+            // 1. The Melee/Tank
             brawler: {
                 name: "The Brawler",
-                description: "Focused on defense and survival. Excels at melee.",
-                initialStats: { maxHp: 150, baseSpeed: 3.5, damageMultiplier: 1.0, armor: 2, evasion: 0.0, projectileCountBonus: 0, fireRateReduction: 1.0, attackRangeMultiplier: 1.0, currency: 0, maxWeapons: 4 }, // Lower slots
-                ratColors: { main: '#713e2f', light: '#a0522d', detail: '#4a2500' }, // Dark, tough colors
+                description: "Focus: Tank/Melee. High HP and Armor with massive melee reach.",
+                initialStats: { 
+                    maxHp: 500, baseSpeed: 3.5, damageMultiplier: 1.0, armor: 4, evasion: 0.0, 
+                    projectileCountBonus: 0, fireRateReduction: 1.0, attackRangeMultiplier: 0.9, shield: 10, bounceCount: 0, 
+                    lifestealPercentage: 0.0, currency: 0, maxWeapons: UNIFORM_MAX_SLOTS,
+                    meleeRangeMultiplier: MELEE_AFFINITY_RANGE // NEW AFFINITY
+                }, 
+                ratColors: { main: '#713e2f', light: '#a0522d', detail: '#4a2500' }, 
                 starterWeapon: 'sledgehammer'
             },
+            // 2. The Heavy Ranged
             sharpshooter: {
                 name: "The Sharpshooter",
-                description: "High damage and precision. Excels at projectile builds.",
-                initialStats: { maxHp: 80, baseSpeed: 4.0, damageMultiplier: 1.2, armor: 0, evasion: 0.05, projectileCountBonus: 0, fireRateReduction: 1.1, attackRangeMultiplier: 1.1, currency: 0, maxWeapons: 12 }, // High slots
-                ratColors: { main: '#3182ce', light: '#63b3ed', detail: '#2b6cb0' }, // Blue, techy colors
+                description: "Focus: Pure Damage/Range. Extreme damage and range for true sniping.",
+                initialStats: { 
+                    maxHp: 160, baseSpeed: 4.0, damageMultiplier: 1.8, armor: 0, evasion: 0.05, 
+                    projectileCountBonus: 0, fireRateReduction: 0.9, attackRangeMultiplier: RANGED_AFFINITY_RANGE, shield: 0, bounceCount: 0, 
+                    lifestealPercentage: 0.0, currency: 0, maxWeapons: UNIFORM_MAX_SLOTS,
+                    meleeRangeMultiplier: 1.0
+                }, 
+                ratColors: { main: '#3182ce', light: '#63b3ed', detail: '#2b6cb0' }, 
                 starterWeapon: 'pistol'
             },
+            // 3. The Evasion/Speedster
             fleetfoot: {
                 name: "The Fleetfoot",
-                description: "Fast, evasive, and good at map control.",
-                initialStats: { maxHp: 100, baseSpeed: 5.5, damageMultiplier: 0.9, armor: 0, evasion: 0.15, projectileCountBonus: 0, fireRateReduction: 1.0, attackRangeMultiplier: 1.0, currency: 0, maxWeapons: 8 }, // Medium slots
-                ratColors: { main: '#f6ad55', light: '#ffc785', detail: '#dd6b20' }, // Orange, fast colors
+                description: "Focus: Speed/Bounce. Max speed and evasion, plus starting bounce utility.",
+                initialStats: { 
+                    maxHp: 180, baseSpeed: 7.0, damageMultiplier: 0.9, armor: 0, evasion: 0.25, 
+                    projectileCountBonus: 0, fireRateReduction: 1.1, attackRangeMultiplier: 1.0, shield: 0, bounceCount: 2, // Boosted starting bounce
+                    lifestealPercentage: 0.0, currency: 0, maxWeapons: UNIFORM_MAX_SLOTS,
+                    meleeRangeMultiplier: 1.0
+                }, 
+                ratColors: { main: '#f6ad55', light: '#ffc785', detail: '#dd6b20' }, 
                 starterWeapon: 'shuriken'
             },
-            // NEW WEAPON-FOCUSED CHARACTERS
+            // 4. The Fast Melee
             swordsman: {
                 name: "The Swordsman",
-                description: "Focus: Fast Melee. High speed and fast attack rate for close combat.",
-                initialStats: { maxHp: 120, baseSpeed: 4.5, damageMultiplier: 0.9, armor: 1, evasion: 0.10, projectileCountBonus: 0, fireRateReduction: 1.2, attackRangeMultiplier: 1.0, currency: 0, maxWeapons: 6 }, // Medium/Low slots
-                ratColors: { main: '#b0b0b0', light: '#c0c0c0', detail: '#737373' }, // Silver/Grey
+                description: "Focus: Melee Speed/Range. Hyper fast attack rate and massive melee reach.",
+                initialStats: { 
+                    maxHp: 320, baseSpeed: 5.0, damageMultiplier: 1.1, armor: 1, evasion: 0.10, 
+                    projectileCountBonus: 2, fireRateReduction: 1.3, attackRangeMultiplier: 1.0, shield: 5, bounceCount: 0, 
+                    lifestealPercentage: 0.0, currency: 0, maxWeapons: UNIFORM_MAX_SLOTS,
+                    meleeRangeMultiplier: MELEE_AFFINITY_RANGE // NEW AFFINITY
+                }, 
+                ratColors: { main: '#b0b0b0', light: '#c0c0c0', detail: '#737373' }, 
                 starterWeapon: 'sword'
             },
+            // 5. The Projectile Volley
             shogun: {
                 name: "The Shogun",
-                description: "Focus: Spread Fire. Boosted projectiles and armor for close-range spread weapons.",
-                initialStats: { maxHp: 130, baseSpeed: 3.0, damageMultiplier: 1.0, armor: 2, evasion: 0.0, projectileCountBonus: 2, fireRateReduction: 1.0, attackRangeMultiplier: 1.0, currency: 0, maxWeapons: 8 }, // Medium slots
-                ratColors: { main: '#713e2f', light: '#a0522d', detail: '#dd6b20' }, // Brown/Orange
+                description: "Focus: Spread/Projectiles. Massive starting volley count and high defense.",
+                initialStats: { 
+                    maxHp: 280, baseSpeed: 4.3, damageMultiplier: 1.1, armor: 2, evasion: 0.0, 
+                    projectileCountBonus: SPREAD_AFFINITY_PROJ, fireRateReduction: 1.0, attackRangeMultiplier: 1.0, shield: 0, bounceCount: 0, 
+                    lifestealPercentage: 0.0, currency: 0, maxWeapons: UNIFORM_MAX_SLOTS,
+                    meleeRangeMultiplier: 1.0
+                }, 
+                ratColors: { main: '#713e2f', light: '#a0522d', detail: '#dd6b20' }, 
                 starterWeapon: 'shotgun'
             },
+            // 6. The Long Range Sniper
             marksman: {
                 name: "The Marksman",
-                description: "Focus: Precision Range. Max range and high damage for long-distance sniping.",
-                initialStats: { maxHp: 90, baseSpeed: 3.8, damageMultiplier: 1.3, armor: 0, evasion: 0.0, projectileCountBonus: 0, fireRateReduction: 1.0, attackRangeMultiplier: 1.3, currency: 0, maxWeapons: 8 }, // Medium slots
-                ratColors: { main: '#a0aec0', light: '#b0c4de', detail: '#63b3ed' }, // Blue-Gray
+                description: "Focus: Range/Precision. Unmatched projectile travel distance and high damage.",
+                initialStats: { 
+                    maxHp: 200, baseSpeed: 4.3, damageMultiplier: 1.3, armor: 0, evasion: 0.05, 
+                    projectileCountBonus: 0, fireRateReduction: 0.9, attackRangeMultiplier: RANGED_AFFINITY_RANGE, shield: 0, bounceCount: 0, 
+                    lifestealPercentage: 0.0, currency: 0, maxWeapons: UNIFORM_MAX_SLOTS,
+                    meleeRangeMultiplier: 1.0
+                }, 
+                ratColors: { main: '#a0aec0', light: '#b0c4de', detail: '#63b3ed' }, 
                 starterWeapon: 'crossbow'
             },
+            // 7. The Sustain DPS
             minigunner: {
                 name: "The Minigunner",
-                description: "Focus: High Volley. Max attack speed and increased projectile count.",
-                initialStats: { maxHp: 100, baseSpeed: 4.0, damageMultiplier: 0.8, armor: 0, evasion: 0.0, projectileCountBonus: 1, fireRateReduction: 1.3, attackRangeMultiplier: 1.0, currency: 0, maxWeapons: 12 }, // High slots
-                ratColors: { main: '#5c646c', light: '#80878e', detail: '#3b4455' }, // Dark Steel
+                description: "Focus: Fire Rate/Range. Top attack speed and solid range for sustained DPS.",
+                initialStats: { 
+                    maxHp: 240, baseSpeed: 4.7, damageMultiplier: 1.0, armor: 0, evasion: 0.0, 
+                    projectileCountBonus: 2, fireRateReduction: 1.7, attackRangeMultiplier: RANGED_AFFINITY_RANGE, shield: 0, bounceCount: 0, 
+                    lifestealPercentage: 0.0, currency: 0, maxWeapons: UNIFORM_MAX_SLOTS,
+                    meleeRangeMultiplier: 1.0
+                }, 
+                ratColors: { main: '#5c646c', light: '#80878e', detail: '#3b4455' }, 
                 starterWeapon: 'minigun'
             },
+            // 8. The AoE Specialist
             pyro: {
                 name: "The Pyro",
-                description: "Focus: Close Range AoE. High evasion and fast attack rate for Flamethrower.",
-                initialStats: { maxHp: 110, baseSpeed: 4.2, damageMultiplier: 1.0, armor: 0, evasion: 0.15, projectileCountBonus: 0, fireRateReduction: 1.25, attackRangeMultiplier: 0.8, currency: 0, maxWeapons: 6 }, // Medium/Low slots
-                ratColors: { main: '#e53e3e', light: '#f6ad55', detail: '#ff4500' }, // Red/Orange
+                description: "Focus: Fire Rate/AoE. High attack speed and evasion for close-range clearing.",
+                initialStats: { 
+                    maxHp: 260, baseSpeed: 4.5, damageMultiplier: 1.1, armor: 0, evasion: 0.20, 
+                    projectileCountBonus: 2, fireRateReduction: 1.5, // Boosted fire rate and projectiles
+                    attackRangeMultiplier: 0.7, shield: 0, bounceCount: 0, 
+                    lifestealPercentage: 0.0, currency: 0, maxWeapons: UNIFORM_MAX_SLOTS,
+                    meleeRangeMultiplier: 1.0
+                }, 
+                ratColors: { main: '#e53e3e', light: '#f6ad55', detail: '#ff4500' }, 
                 starterWeapon: 'flamethrower'
             },
+            // 9. The Explosives Expert
             rocketRat: {
                 name: "The Rocket Rat",
-                description: "Focus: Heavy Ordnance. High damage and HP for powerful, slow attacks.",
-                initialStats: { maxHp: 160, baseSpeed: 3.0, damageMultiplier: 1.5, armor: 1, evasion: 0.0, projectileCountBonus: 0, fireRateReduction: 0.9, attackRangeMultiplier: 1.0, currency: 0, maxWeapons: 4 }, // Lower slots
-                ratColors: { main: '#6b46c1', light: '#9f7aea', detail: '#44337a' }, // Deep Violet/Purple
+                description: "Focus: Explosives/HP. Highest damage multiplier and high HP for heavy ordnance.",
+                initialStats: { 
+                    maxHp: 400, baseSpeed: 3.5, damageMultiplier: 2.0, armor: 1, evasion: 0.0, 
+                    projectileCountBonus: 0, fireRateReduction: 0.8, attackRangeMultiplier: 1.0, shield: 15, bounceCount: 0, 
+                    lifestealPercentage: 0.0, currency: 0, maxWeapons: UNIFORM_MAX_SLOTS,
+                    meleeRangeMultiplier: 1.0
+                }, 
+                ratColors: { main: '#6b46c1', light: '#9f7aea', detail: '#44337a' }, 
                 starterWeapon: 'rocketLauncher'
             }
         };
 
 
         // --- WEAPON DEFINITIONS ---
-        // Projectile speed slightly reduced across the board (~15% reduction vs previous update)
         const WEAPONS = {
             pistol: {
-                key: 'pistol', name: "Pistol", emoji: "🔫", damage: 15, fireRate: 469, // 625 * 0.75
-                projectileSpeed: 10, // Reduced (was 12)
+                key: 'pistol', name: "Pistol", emoji: "🔫", damage: Math.floor(15 * 1.2), fireRate: Math.round(469 / 1.2), 
+                projectileSpeed: 10, 
                 projectiles: 1, spread: 0, radius: 5, description: "Reliable single-shot weapon. Great precision, standard stats.", iconColor: '#a0a0a0',
             },
             shotgun: {
-                key: 'shotgun', name: "Shotgun", emoji: "💣", damage: 9, fireRate: 1406, // 1875 * 0.75
-                projectileSpeed: 8, // Reduced (was 10)
-                projectiles: 5, spread: 0.5, radius: 4, description: "High burst damage, wide spread, but very slow attack speed.", iconColor: '#dd6b20',
+                key: 'shotgun', name: "Shotgun", emoji: "💣", damage: Math.floor(9 * 1.2), fireRate: Math.round(1406 / 1.2), 
+                projectileSpeed: 8, 
+                projectiles: 6, // Base Projectiles increased
+                spread: 0.5, radius: 4, description: "High burst damage, wide spread, but very slow attack speed.", iconColor: '#dd6b20',
             },
             shuriken: {
-                key: 'shuriken', name: "Shuriken", emoji: "🔪", damage: 7.5, fireRate: 235, // 313 * 0.75
-                projectileSpeed: 15, // Reduced (was 18)
-                projectiles: 1, spread: 0, radius: 6, description: "Low damage but exceptionally fast firing and high projectile velocity.", iconColor: '#c0c0c0',
+                key: 'shuriken', name: "Shuriken", emoji: "🔪", damage: Math.floor(7.5 * 1.2), fireRate: Math.round(235 / 1.2), 
+                projectileSpeed: 15, 
+                projectiles: 1, spread: 0, radius: 6, description: "Low damage but exceptionally fast firing and high projectile velocity. Now bounces once!", iconColor: '#c0c0c0',
+                bounceCount: 1, // Base Shuriken bounce
             },
             rocketLauncher: {
-                key: 'rocketLauncher', name: "Rocket Launcher", emoji: "🚀", damage: 60, fireRate: 1500, // REDUCED DELAY (Faster fire)
-                projectileSpeed: 7, // Reduced (was 8)
+                key: 'rocketLauncher', name: "Rocket Launcher", emoji: "🚀", damage: Math.floor(60 * 1.2), fireRate: Math.round(1500 / 1.2), 
+                projectileSpeed: 7, 
                 projectiles: 1, spread: 0, radius: 10, description: "Extremely slow, high-damage projectile. Boom!", iconColor: '#e53e3e',
             },
             flamethrower: {
-                key: 'flamethrower', name: "Flamethrower", emoji: "🔥", damage: 5, // INCREASED DAMAGE (was 3)
-                fireRate: 94, // 125 * 0.75
-                projectileSpeed: 6, // Reduced (was 7)
-                projectiles: 1, spread: 0.8, radius: 3, description: "Low damage, rapid fire, creates a short-range cone of fire.", iconColor: '#f6e05e',
+                key: 'flamethrower', name: "Flamethrower", emoji: "🔥", damage: Math.floor(5 * 1.2), 
+                fireRate: Math.round(94 / 1.2), 
+                projectileSpeed: 6, 
+                projectiles: 2, // Base Projectiles increased
+                spread: 0.8, radius: 3, description: "Low damage, rapid fire, creates a short-range cone of fire.", iconColor: '#f6e05e',
             },
             crossbow: {
-                key: 'crossbow', name: "Crossbow", emoji: "🏹", damage: 30, fireRate: 750, // 1000 * 0.75
-                projectileSpeed: 12, // Reduced (was 15)
+                key: 'crossbow', name: "Crossbow", emoji: "🏹", damage: Math.floor(30 * 1.2), fireRate: Math.round(750 / 1.2), 
+                projectileSpeed: 12, 
                 projectiles: 1, spread: 0, radius: 7, description: "High damage, slow firing, straight-shot bolt.", iconColor: '#a0aec0',
             },
             lightningRod: {
-                key: 'lightningRod', name: "Lightning Rod", emoji: "⚡", damage: 12, fireRate: 281, // 375 * 0.75
-                projectileSpeed: 6, // Reduced (was 7)
+                key: 'lightningRod', name: "Lightning Rod", emoji: "⚡", damage: Math.floor(12 * 1.2), fireRate: Math.round(281 / 1.2), 
+                projectileSpeed: 6, 
                 projectiles: 1, spread: 0.1, radius: 12, description: "Rapidly fires large, slow energy bolts with area damage. Medium range.", iconColor: '#63b3ed',
             },
             minigun: {
-                key: 'minigun', name: "Minigun", emoji: "⚙️", damage: 4.5, fireRate: 100, // INCREASED DELAY (Slower fire, was 75)
-                projectileSpeed: 11, // Reduced (was 14)
+                key: 'minigun', name: "Minigun", emoji: "⚙️", damage: Math.floor(4.5 * 1.2), fireRate: Math.round(100 / 1.2), 
+                projectileSpeed: 11, 
                 projectiles: 1, spread: 0.15, radius: 4, description: "Extremely high fire rate, low damage. Slight inaccuracy.", iconColor: '#5c646c',
             },
             phaser: {
-                key: 'phaser', name: "Phaser", emoji: "✨", damage: 22.5, fireRate: 328, // 438 * 0.75
-                projectileSpeed: 25, // Reduced (was 30)
+                key: 'phaser', name: "Phaser", emoji: "✨", damage: Math.floor(22.5 * 1.2), fireRate: Math.round(328 / 1.2), 
+                projectileSpeed: 25, 
                 projectiles: 1, spread: 0, radius: 3, description: "Pinpoint accuracy with a very high velocity energy bolt.", iconColor: '#9f7aea',
             },
-            // --- MELEE WEAPONS WITH CONE PROPERTIES (UNCHANGED FIRE RATE) ---
+            // --- MELEE WEAPONS WITH CONE PROPERTIES ---
             sledgehammer: {
                 key: 'sledgehammer', name: "Sledgehammer", emoji: "🔨", damage: 50, fireRate: 400, radius: 60, arcAngle: Math.PI / 3, isMelee: true, knockback: 15, description: "Instant hit, high damage, forward sweeping attack.", iconColor: '#b8860b',
             },
@@ -377,7 +455,9 @@
                 key: 'spear', name: "Spear", emoji: "🔱", damage: 20, fireRate: 250, radius: 120, arcAngle: Math.PI / 8, isMelee: true, knockback: 8, description: "Medium damage, fast attack, narrow forward thrust.", iconColor: '#f9a825',
             },
             lance: {
-                key: 'lance', name: "Lance", emoji: "🗡️", damage: 80, fireRate: 1500, radius: 160, arcAngle: Math.PI * 0.75, isMelee: true, knockback: 25, description: "Slowest attack, highest damage, massive forward arc.", iconColor: '#4a5568',
+                key: 'lance', name: "Lance", emoji: "🗡️", damage: 80, fireRate: 750, 
+                radius: 80, 
+                arcAngle: Math.PI * 0.75, isMelee: true, knockback: 25, description: "Fast thrust, high damage, massive forward arc.", iconColor: '#4a5568',
             },
         };
 
@@ -385,22 +465,24 @@
         const hud = {
             waveCount: document.getElementById('waveCount'),
             killCount: document.getElementById('killCount'),
+            bestKillCount: document.getElementById('bestKillCount'),
             currentHP: document.getElementById('currentHP'),
             maxHP: document.getElementById('maxHP'),
             xpBarFill: document.getElementById('xpBarFill'),
             statSpeed: document.getElementById('statSpeed'),
             statDamage: document.getElementById('statDamage'),
-            statArmor: document.getElementById('statArmor'), // New
-            statEvasion: document.getElementById('statEvasion'), // New
-            statProjectiles: document.getElementById('statProjectiles'), // NEW
-            statAttackSpeed: document.getElementById('statAttackSpeed'), // NEW
-            statRange: document.getElementById('statRange'), // NEW
+            statArmor: document.getElementById('statArmor'),
+            statEvasion: document.getElementById('statEvasion'),
+            statProjectiles: document.getElementById('statProjectiles'),
+            statAttackSpeed: document.getElementById('statAttackSpeed'),
+            statRange: document.getElementById('statRange'),
+            statShield: document.getElementById('statShield'),
             weaponList: document.getElementById('weaponList'),
-            weaponSlots: document.getElementById('weaponSlots'), // NEW
-            buffTimer: document.getElementById('buffTimer') // NEW
+            weaponSlots: document.getElementById('weaponSlots'),
+            buffTimer: document.getElementById('buffTimer')
         };
         const startScreen = document.getElementById('startScreen');
-        const characterOptionsDiv = document.getElementById('characterOptions'); // Updated ID
+        const characterOptionsDiv = document.getElementById('characterOptions');
         const messageBox = document.getElementById('messageBox');
         const upgradeScreen = document.getElementById('upgradeScreen');
         const upgradeOptionsDiv = document.getElementById('upgradeOptions');
@@ -416,8 +498,9 @@
 
         class Entity {
             constructor(x, y, radius, color, speed) {
-                this.x = x;
-                this.y = y;
+                // FIX: Removed super() call here
+                this.x = x; // Now World X
+                this.y = y; // Now World Y
                 this.radius = radius;
                 this.color = color;
                 this.speed = speed;
@@ -434,13 +517,77 @@
             }
         }
 
-        class Particle {
+        class Obstacle extends Entity {
+            constructor(x, y, radius) {
+                super(x, y, radius, '#505050', 0);
+                this.color = '#505050';
+                this.strokeColor = '#303030';
+                this.type = 'rock';
+                
+                // NEW: Calculate and store the fixed jagged points once in the constructor
+                this.points = [];
+                const numPoints = 8 + Math.floor(Math.random() * 4); // 8-11 points
+                for(let i = 0; i <= numPoints; i++) {
+                    const angle = i * (Math.PI * 2 / numPoints);
+                    // Slight randomization in radius for jagged edges
+                    const r = this.radius * (0.8 + Math.random() * 0.4); 
+                    this.points.push({ x: r * Math.cos(angle), y: r * Math.sin(angle) });
+                }
+            }
+
+            draw(context) {
+                context.save();
+                context.translate(this.x, this.y);
+
+                // Draw main rock body (rounded shape with a gradient for texture)
+                const gradient = context.createRadialGradient(
+                    this.radius * 0.3, -this.radius * 0.3, 0,
+                    0, 0, this.radius
+                );
+                gradient.addColorStop(0, this.color);
+                gradient.addColorStop(1, this.strokeColor);
+                
+                context.fillStyle = gradient;
+                context.strokeStyle = this.strokeColor;
+                context.lineWidth = 2;
+
+                // Draw the fixed, irregular shape using stored points
+                context.beginPath();
+                
+                // --- USE STORED POINTS FOR STATIC SHAPE ---
+                if (this.points.length > 0) {
+                    context.moveTo(this.points[0].x, this.points[0].y);
+                    // Loop up to the second to last point, then close path
+                    for(let i = 1; i < this.points.length; i++) {
+                        context.lineTo(this.points[i].x, this.points[i].y);
+                    }
+                }
+                // --- END USE STORED POINTS ---
+                
+                context.closePath();
+                context.fill();
+                context.stroke();
+                
+                // Add texture details
+                context.fillStyle = 'rgba(0, 0, 0, 0.2)';
+                context.beginPath();
+                context.arc(this.radius * 0.4, this.radius * 0.4, this.radius * 0.2, 0, Math.PI * 2);
+                context.fill();
+
+                context.fillStyle = 'rgba(255, 255, 255, 0.2)';
+                context.beginPath();
+                context.arc(-this.radius * 0.5, -this.radius * 0.5, this.radius * 0.15, 0, Math.PI * 2);
+                context.fill();
+
+                context.restore();
+            }
+        }
+
+        class Particle extends Entity {
             constructor(x, y, color, size = 3) {
-                this.x = x;
-                this.y = y;
-                this.color = color;
-                this.radius = size;
-                // Random velocity for scattering effect
+                // FIX: Particle must correctly call super() since it extends Entity
+                super(x, y, size, color, 0); 
+                
                 this.velocity = { x: (Math.random() - 0.5) * 2, y: (Math.random() - 0.5) * 2 };
                 this.life = 60; // Frames of life
                 this.maxLife = 60;
@@ -467,7 +614,7 @@
         class HealthDrop extends Entity {
             constructor(x, y) {
                 super(x, y, 8, '#48bb78', 0); // Green color, stationary
-                this.healAmount = 20;
+                this.healAmount = 150; // MODIFIED: Increased heal amount
                 this.color = '#48bb78';
             }
 
@@ -486,8 +633,6 @@
                 context.strokeRect(this.x - 2, this.y - 6, 4, 12);
                 context.strokeRect(this.x - 6, this.y - 2, 12, 4);
             }
-            
-            update(deltaTime) { return; }
         }
 
         // NEW CLASS: Explosive Bullet Drop
@@ -522,14 +667,109 @@
 
                 context.restore();
             }
-            
-            update(deltaTime) { return; }
         }
         // END NEW CLASS
+        
+        // NEW CLASS: Ice Power-up Drop
+        class IcePowerupDrop extends Entity {
+            constructor(x, y) {
+                super(x, y, 8, '#4299e1', 0); // Blue color
+                this.buffDuration = 5000; // 5 seconds
+            }
+            draw(context) {
+                // Draw as a rotating blue crystal/gem
+                context.save();
+                context.translate(this.x, this.y);
+                context.rotate(Date.now() / 500); // Continuous rotation
+                
+                context.fillStyle = '#63b3ed'; 
+                context.strokeStyle = '#fff';
+                context.lineWidth = 1;
+
+                // Draw diamond shape
+                context.beginPath();
+                context.moveTo(0, -this.radius);
+                context.lineTo(this.radius, 0);
+                context.lineTo(0, this.radius);
+                context.lineTo(-this.radius, 0);
+                context.closePath();
+                context.fill();
+                context.stroke();
+                
+                context.restore();
+            }
+        }
+
+        // NEW CLASS: Extreme Fire Speed Power-up Drop
+        class SpeedPowerupDrop extends Entity {
+            constructor(x, y) {
+                super(x, y, 8, '#ff4500', 0); // Red/Orange
+                this.buffDuration = 5000; // 5 seconds
+            }
+            draw(context) {
+                // Draw as a stylized red lightning bolt
+                context.save();
+                context.translate(this.x, this.y);
+                context.rotate(Math.sin(Date.now() / 150) * 0.2); // Wiggle
+                
+                context.fillStyle = '#ff4500'; 
+                context.strokeStyle = '#ffc700'; // Yellow outline
+                context.lineWidth = 1.5;
+
+                // Draw Z shape (lightning)
+                context.beginPath();
+                context.moveTo(-5, -5);
+                context.lineTo(5, -5);
+                context.lineTo(0, 5);
+                context.lineTo(-10, 5);
+                context.lineTo(-5, -5);
+                context.closePath();
+                context.fill();
+                context.stroke();
+                
+                context.restore();
+            }
+        }
+        
+        // NEW CLASS: Bomb Drop (Nuclear Option)
+        class BombDrop extends Entity {
+            constructor(x, y) {
+                super(x, y, 10, '#000000', 0); 
+                this.color = '#000000';
+            }
+            draw(context) {
+                // Draw as a pulsing black/yellow bomb icon
+                context.save();
+                context.translate(this.x, this.y);
+                const pulse = Math.sin(Date.now() / 150) * 0.5 + 1;
+                
+                // Bomb body
+                context.fillStyle = '#1a1a1a';
+                context.beginPath();
+                context.arc(0, 0, this.radius * pulse, 0, Math.PI * 2);
+                context.fill();
+                
+                // Fuse/Warning sign (yellow)
+                context.fillStyle = '#fbd38d';
+                context.fillRect(-2, -this.radius * pulse * 1.5, 4, 10);
+                
+                // Warning stripes
+                context.strokeStyle = '#ffc700';
+                context.lineWidth = 1;
+                context.beginPath();
+                context.moveTo(-this.radius * pulse * 0.8, -this.radius * pulse * 0.5);
+                context.lineTo(this.radius * pulse * 0.8, this.radius * pulse * 0.5);
+                context.stroke();
+
+                context.restore();
+            }
+        }
+        
+        // END NEW POWERUP CLASSES
 
         class Rat extends Entity {
             constructor(characterKey) {
-                super(centerX, centerY, 15, null, 4); // Color is set in character init
+                super(WORLD_CENTER_X, WORLD_CENTER_Y, 15, null, 4); // Initialize at world center
                 
                 const initialStats = CHARACTERS[characterKey].initialStats;
                 const colors = CHARACTERS[characterKey].ratColors;
@@ -544,6 +784,13 @@
                 this.projectileCountBonus = initialStats.projectileCountBonus; 
                 this.fireRateReduction = initialStats.fireRateReduction; 
                 this.attackRangeMultiplier = initialStats.attackRangeMultiplier;
+                this.shield = initialStats.shield; // NEW SHIELD STAT
+                this.bounceCount = initialStats.bounceCount; // NEW GLOBAL BOUNCE STAT
+                this.lifestealPercentage = initialStats.lifestealPercentage; // NEW LIFESTEAL STAT
+
+                // NEW AFFINITY STAT
+                this.meleeRangeMultiplier = initialStats.meleeRangeMultiplier; 
+
                 // NEW CURRENCY STAT
                 this.currency = initialStats.currency; 
                 // NEW WEAPON SLOTS
@@ -567,7 +814,9 @@
                 
                 // NEW BUFF TRACKING
                 this.buffs = {
-                    explosiveBullets: 0 // Milliseconds remaining
+                    explosiveBullets: 0, // Milliseconds remaining
+                    iceAura: 0,
+                    extremeSpeed: 0 // New speed buff
                 };
                 
                 this.addWeapon(CHARACTERS[characterKey].starterWeapon);
@@ -591,6 +840,12 @@
                 // 1. Create the new weapon instance (copying base stats)
                 const newWeapon = JSON.parse(JSON.stringify(weaponDefinition));
                 newWeapon.key = weaponKey; 
+                newWeapon.stackDamageFactor = 1.0; // Initialize stack damage factor
+                
+                // NEW: Initialize bounce count if applicable (Shuriken)
+                if (newWeapon.bounceCount > 0) {
+                    newWeapon.currentBounces = newWeapon.bounceCount;
+                }
 
                 // 2. Add the new weapon
                 this.weapons.push(newWeapon);
@@ -600,27 +855,35 @@
                      this.weaponTimers[weaponKey] = 0;
                 }
                 
-                // 4. Handle Melee stacking logic (Sledgehammer/Axe/Sword/Spear/Lance)
-                if (newWeapon.isMelee) {
-                    const newTotalStacks = currentStackCount + 1;
-                    const BASE_RADIUS = WEAPONS[weaponKey].radius;
-                    
-                    // Melee radius scaling is now based on total stacks, applied to ALL instances
-                    const radiusIncrease = (weaponKey === 'sledgehammer') ? 10 * newTotalStacks : 
-                                             (weaponKey === 'axe') ? 5 * newTotalStacks :
-                                             (weaponKey === 'sword') ? 3 * newTotalStacks :
-                                             (weaponKey === 'spear') ? 7 * newTotalStacks :
-                                             (weaponKey === 'lance') ? 12 * newTotalStacks : 0;
-                    
-                    const finalRadius = BASE_RADIUS + radiusIncrease;
-                    
-                    // Update ALL instances of this weapon with the new final radius
-                    this.weapons.forEach(w => {
-                        if (w.key === weaponKey) {
-                            w.radius = finalRadius;
+                // 4. Handle Stacking Logic (Damage and Melee Range)
+                const newTotalStacks = currentStackCount + 1;
+                
+                // Damage Stacking: Factor increases linearly (1.0, 2.0, 3.0, etc.)
+                const stackDamageFactor = newTotalStacks; 
+                
+                // Update ALL instances of this weapon with the new final stats
+                this.weapons.forEach(w => {
+                    if (w.key === weaponKey) {
+                        // Apply damage factor to all instances of this weapon type
+                        w.stackDamageFactor = stackDamageFactor; 
+                        
+                        // Apply Melee Range Scaling (Melee logic only)
+                        if (w.isMelee) {
+                             const BASE_RADIUS = WEAPONS[weaponKey].radius;
+                             // Melee radius scaling is now based on total stacks, applied to ALL instances
+                             // BASE RADIUS is multiplied by the CHARACTER's affinity multiplier (3.0 for Brawler/Swordsman)
+                            const initialBaseRadius = BASE_RADIUS * this.meleeRangeMultiplier;
+                            
+                            const radiusIncrease = (weaponKey === 'sledgehammer') ? 10 * newTotalStacks : 
+                                                     (weaponKey === 'axe') ? 5 * newTotalStacks :
+                                                     (weaponKey === 'sword') ? 3 * newTotalStacks :
+                                                     (weaponKey === 'spear') ? 7 * newTotalStacks :
+                                                     (weaponKey === 'lance') ? 12 * newTotalStacks : 0;
+                            
+                            w.radius = initialBaseRadius + radiusIncrease;
                         }
-                    });
-                }
+                    }
+                });
             }
             
             // NEW: Add currency handling
@@ -643,6 +906,18 @@
             applyExplosiveBuff(duration) {
                 this.buffs.explosiveBullets = duration;
             }
+            
+            // NEW: Apply Ice Aura buff
+            applyIceAura(duration) {
+                this.buffs.iceAura = duration;
+                game.enemies.forEach(e => e.isSlowed = true);
+            }
+            
+            // NEW: Apply Extreme Speed buff
+            applyExtremeSpeed(duration) {
+                this.buffs.extremeSpeed = duration;
+            }
+
 
             levelUp() {
                 this.xp -= this.xpToNextLevel;
@@ -664,15 +939,17 @@
                 }
 
 
-                const distToCenter = Math.hypot(newX - centerX, newY - centerY);
-                if (distToCenter + this.radius > ARENA_RADIUS) {
-                    const angle = Math.atan2(newY - centerY, newX - centerX);
-                    newX = centerX + Math.cos(angle) * (ARENA_RADIUS - this.radius);
-                    newY = centerY + Math.sin(angle) * (ARENA_RADIUS - this.radius);
+                // --- WORLD BOUNDARY CLAMPING ---
+                const distToCenter = Math.hypot(newX - WORLD_CENTER_X, newY - WORLD_CENTER_Y);
+                if (distToCenter + this.radius > WORLD_RADIUS) {
+                    const angle = Math.atan2(newY - WORLD_CENTER_Y, newX - WORLD_CENTER_X);
+                    newX = WORLD_CENTER_X + Math.cos(angle) * (WORLD_RADIUS - this.radius);
+                    newY = WORLD_CENTER_Y + Math.sin(angle) * (WORLD_RADIUS - this.radius);
                 }
 
-                this.x = newX;
-                this.y = newY;
+                this.x = newX; // Now updating World X
+                this.y = newY; // Now updating World Y
+                // --- END WORLD CLAMPING ---
                 
                 if (this.moveDirection.x !== 0 || this.moveDirection.y !== 0) {
                     this.animationFrame++;
@@ -680,6 +957,14 @@
                 
                 // NEW: Update Buff timers
                 this.buffs.explosiveBullets = Math.max(0, this.buffs.explosiveBullets - deltaTime);
+                this.buffs.iceAura = Math.max(0, this.buffs.iceAura - deltaTime);
+                this.buffs.extremeSpeed = Math.max(0, this.buffs.extremeSpeed - deltaTime);
+                
+                // Debuff removal: remove slow effect if timer hits zero
+                if (this.buffs.iceAura === 0) {
+                     game.enemies.forEach(e => e.isSlowed = false);
+                }
+
 
                 const currentTime = Date.now();
                 
@@ -688,11 +973,18 @@
                     (acc[weapon.key] = acc[weapon.key] || []).push(weapon);
                     return acc;
                 }, {});
+                
+                // Calculate temporary speed boost from power-up
+                const speedBuffFactor = this.buffs.extremeSpeed > 0 ? 1.5 : 1.0; 
 
                 Object.entries(weaponsByType).forEach(([key, stacks]) => {
                     // Check if the overall weapon type timer has reset (using the fire rate adjusted by player stat)
                     const baseFireRate = stacks[0].fireRate;
-                    const adjustedFireRate = Math.max(10, baseFireRate / this.fireRateReduction);
+                    
+                    // Apply player stat AND speed power-up buff
+                    const totalFireRateReduction = this.fireRateReduction * speedBuffFactor;
+                    
+                    const adjustedFireRate = Math.max(10, baseFireRate / totalFireRateReduction);
 
                     if (currentTime - this.weaponTimers[key] > adjustedFireRate) {
                         this.shootWeaponStacks(key, stacks);
@@ -758,21 +1050,44 @@
 
                 const bulletColor = WEAPONS[weapon.key].iconColor || '#fbd38d';
                 
-                // --- APPLY GLOBAL RANGED STATS ---
-                const totalProjectiles = weapon.projectiles + this.projectileCountBonus; // Use count bonus
-                const finalDamage = weapon.damage * this.damageMultiplier;
+                // --- APPLY GLOBAL RANGED STATS & NEW STACK DAMAGE ---
+                
+                // NEW: Use weapon.stackDamageFactor for damage amplification (1.0, 2.0, 3.0, etc.)
+                const baseDamage = weapon.damage * weapon.stackDamageFactor; 
+
+                // Note: Projectiles count only uses base + global bonus (no stack based projectile increase)
+                const totalProjectiles = weapon.projectiles + this.projectileCountBonus; 
+                
+                const finalDamage = baseDamage * this.damageMultiplier;
                 const finalSpeed = weapon.projectileSpeed;
                 
                 // Max travel distance calculated using the updated BASE_PROJECTILE_RANGE
                 const maxTravelDistance = BASE_PROJECTILE_RANGE * this.attackRangeMultiplier; 
-                // --- END APPLY GLOBAL RANGED STATS ---
+                // --- END APPLY GLOBAL RANGED STATS & NEW STACK DAMAGE ---
 
 
                 const halfSpread = weapon.spread / 2;
-                const startingAngle = totalProjectiles > 1 ? initialAngle - halfSpread : initialAngle;
                 const angleIncrement = totalProjectiles > 1 ? weapon.spread / (totalProjectiles - 1) : 0;
                 
+                let startingAngle;
+
+                // --- FLAMETHROWER/SPREAD FIX ---
+                // The flamethrower relies on spreading around the target line.
+                if (weapon.key === 'flamethrower') {
+                    // Ensure the angle spread is centered correctly
+                    startingAngle = initialAngle - halfSpread;
+                } else if (totalProjectiles > 1) {
+                    startingAngle = initialAngle - halfSpread;
+                } else {
+                    startingAngle = initialAngle;
+                }
+                // --- END FLAMETHROWER/SPREAD FIX ---
+
+
                 const isExplosive = this.buffs.explosiveBullets > 0; // Check if buff is active
+                
+                // Get initial bounce count (0 or 1 for shuriken)
+                const initialBounces = weapon.bounceCount || 0; 
 
                 for (let i = 0; i < totalProjectiles; i++) {
                     let angle;
@@ -785,8 +1100,11 @@
                         angle = startingAngle + angleIncrement * i;
                     }
 
-                    // Pass maxTravelDistance AND if it's explosive to Projectile
-                    const bullet = new Projectile(this.x, this.y, weapon.radius, bulletColor, finalSpeed, angle, finalDamage, maxTravelDistance, isExplosive);
+                    // Pass maxTravelDistance, explosive status, and initial bounce count
+                    // --- FIX: Pass total bounces (weapon base + global player stat) ---
+                    const totalBounces = initialBounces + this.bounceCount; 
+                    
+                    const bullet = new Projectile(this.x, this.y, weapon.radius, bulletColor, finalSpeed, angle, finalDamage, maxTravelDistance, isExplosive, totalBounces);
                     game.projectiles.push(bullet);
                 }
             }
@@ -912,6 +1230,16 @@
                     context.arc(this.x, this.y, this.radius * 2, 0, Math.PI * 2);
                     context.fill();
                     context.restore();
+                } else if (this.buffs.extremeSpeed > 0) {
+                    // Attack speed buff visual
+                    const alpha = Math.sin(Date.now() / 30) * 0.5 + 0.5; 
+                    context.save();
+                    context.globalAlpha = alpha * 0.5;
+                    context.fillStyle = '#ffc700'; // Yellow/Gold glow
+                    context.beginPath();
+                    context.arc(this.x, this.y, this.radius * 1.8, 0, Math.PI * 2);
+                    context.fill();
+                    context.restore();
                 }
                 
                 // --- Damage Flash Effect ---
@@ -935,6 +1263,19 @@
                 const hpColor = hpRatio > 0.5 ? '#48bb78' : (hpRatio > 0.25 ? '#fbd38d' : '#f56565');
                 context.fillStyle = hpColor; 
                 context.fillRect(this.x - hpWidth / 2, this.y - this.radius - 10, hpWidth * hpRatio, hpHeight);
+                
+                // NEW: Draw Shield Bar if present
+                if (this.shield > 0) {
+                    const SHIELD_HP_MAX = this.maxHp + this.shield; // Temporary Max HP + Shield value for calculation
+                    const shieldRatio = this.shield / SHIELD_HP_MAX; 
+                    const shieldColor = '#4299e1'; // Blue
+
+                    context.fillStyle = '#4a5568';
+                    context.fillRect(this.x - hpWidth / 2, this.y - this.radius - 17, hpWidth, hpHeight); // Above HP bar
+                    
+                    context.fillStyle = shieldColor; 
+                    context.fillRect(this.x - hpWidth / 2, this.y - this.radius - 17, hpWidth * shieldRatio, hpHeight);
+                }
             }
         }
 
@@ -943,13 +1284,34 @@
             constructor(x, y, radius = 10, waveFactor = 1) { 
                 super(x, y, radius, null, 2.0); // Color handled by subclass/palette
 
-                // Health and Damage now scale significantly with waveFactor
-                this.maxHp = 30 + (waveFactor - 1) * 20; // Increased scaling from 15 to 20
-                this.currentHp = this.maxHp;
-                this.damage = 5 + (waveFactor - 1) * 3; // Increased scaling from 2 to 3
+                // --- MODIFIED HEALTH SCALING FOR EXTREME DIFFICULTY ---
                 
-                this.xpValue = 5;
+                // 1. Set a higher base linear increase for "way more health"
+                let baseHp = 50 + (waveFactor - 1) * 80; // Increased base HP and steeper linear scaling
+                
+                let healthMultiplier = 1.0;
+
+                // 2. Apply exponential doubling starting from Wave 5
+                if (waveFactor >= 5) {
+                    // Wave 5 = 2^1, Wave 6 = 2^1, Wave 7 = 2^2, Wave 8 = 2^2, etc.
+                    // Calculate how many times we've passed a 2-wave increment starting from Wave 5
+                    const doublingCycles = Math.floor((waveFactor - 5) / 2) + 1; 
+                    healthMultiplier = Math.pow(2, doublingCycles);
+                }
+                
+                this.maxHp = Math.floor(baseHp * healthMultiplier); 
+                // --- END MODIFIED HEALTH SCALING ---
+                
+                this.currentHp = this.maxHp;
+                
+                this.damage = 5 + (waveFactor - 1) * 7; 
+                
+                // Calculate base XP using a formula tied to scaling factor
+                this.xpValue = 5 + (waveFactor - 1) * 3; 
+                
                 this.lastAttackTime = 0; // For attack timers
+                this.isSlowed = false; // NEW: Slow status from Ice Aura
+                this.isDead = false; // NEW: Flag for clean deletion
                 
                 // Color is assigned in subclass constructor, which is called after super()
             }
@@ -958,19 +1320,48 @@
                 const hpRatio = this.currentHp / this.maxHp;
                 
                 context.fillStyle = '#4a5568'; 
+                // Background bar drawn relative to the translated origin (0, 0)
                 context.fillRect(-hpWidth / 2, -this.radius + yOffset, hpWidth, hpHeight);
                 
                 const hpColor = hpRatio > 0.5 ? '#48bb78' : (hpRatio > 0.2 ? '#fbd38d' : '#f56565');
                 context.fillStyle = hpColor; 
-                context.fillRect(-hpWidth / 2, -this.radius + yOffset, hpWidth * hpRatio, hpHeight);
+                // Fill bar drawn relative to the translated origin (0, 0)
+                // Use Math.max(0) to ensure the bar doesn't draw backwards due to tiny negative numbers
+                context.fillRect(-hpWidth / 2, -this.radius + yOffset, Math.max(0, hpWidth * hpRatio), hpHeight); 
             }
             
             update(player, deltaTime) {
-                const totalSpeed = this.speed * (deltaTime / 16.66);
+                let actualSpeed = this.speed;
+                const SLOW_FACTOR = 0.5; // 50% slow
+                
+                // NEW: Apply Ice Aura slow effect
+                if (this.isSlowed) {
+                    actualSpeed *= SLOW_FACTOR;
+                }
+                
+                const totalSpeed = actualSpeed * (deltaTime / 16.66);
 
                 const dx = player.x - this.x;
                 const dy = player.y - this.y;
                 const distance = Math.hypot(dx, dy);
+
+                // --- OBSTACLE COLLISION CHECK for Enemy Movement ---
+                let hitObstacle = false;
+                game.obstacles.forEach(o => {
+                    const nextX = this.x + (dx / distance) * totalSpeed;
+                    const nextY = this.y + (dy / distance) * totalSpeed;
+                    const dist = Math.hypot(nextX - o.x, nextY - o.y);
+                    if (dist < this.radius + o.radius) {
+                        hitObstacle = true;
+                    }
+                });
+
+                if (hitObstacle) {
+                    // Stop movement if heading into an obstacle
+                    return; 
+                }
+                // --- END OBSTACLE CHECK ---
+
 
                 if (distance > 0) {
                     this.x += (dx / distance) * totalSpeed;
@@ -984,7 +1375,19 @@
                 
                 const SNAKE_LENGTH = 30;
                 const bodySegments = 4;
-                const wave = Math.sin(Date.now() / 150) * 0.5; 
+                // Increased wave frequency for more visible slithering animation
+                const wave = Math.sin(Date.now() / 100) * 0.8; 
+
+                // --- Draw Ice Aura Visual ---
+                if (this.isSlowed) {
+                     const alpha = Math.sin(Date.now() / 100) * 0.3 + 0.4; // Pulsing light blue
+                     context.fillStyle = `rgba(66, 153, 225, ${alpha})`;
+                     context.beginPath();
+                     context.arc(0, 0, this.radius + 5, 0, Math.PI * 2);
+                     context.fill();
+                }
+                // --- End Ice Aura Visual ---
+
 
                 // --- Detailed Snake Body with Gradient for Texture/Shading ---
                 const gradientBody = context.createLinearGradient(-SNAKE_LENGTH / 2, -5, SNAKE_LENGTH / 2, 5);
@@ -1001,6 +1404,7 @@
                 
                 for (let i = 0; i <= bodySegments; i++) {
                     const x = (i / bodySegments) * SNAKE_LENGTH - SNAKE_LENGTH / 2;
+                    // Apply wave to both Y position and X position slightly for realistic slither
                     const y = Math.sin(x / 5 + this.x / 10 + wave) * 3; 
                     
                     if (i === 0) {
@@ -1031,7 +1435,8 @@
              constructor(x, y, waveFactor) {
                 super(x, y, 10, waveFactor);
                 // Health and Damage set in base Enemy constructor
-                this.speed = 2.0 + (waveFactor - 1) * 0.1; // Subtle speed scaling
+                this.speed = 2.0 + (waveFactor - 1) * 0.3; // INCREASED Speed Scaling: was * 0.1
+                // XP is base scaled (5 + 3 * (W-1))
                 this.color = currentPalette.defaultSnake;
                 this.strokeColor = this.color.slice(0, 5) + '00'; // Darken base color
              }
@@ -1045,7 +1450,7 @@
                 this.maxHp = Math.floor(this.maxHp * 0.4); // Naturally lower HP than default
                 this.currentHp = this.maxHp;
                 this.damage = Math.floor(this.damage * 0.6); // Lower base damage
-                this.xpValue = 7;
+                this.xpValue = Math.floor(this.xpValue * 1.5); // 50% XP Bonus due to high speed/risk
                 this.color = currentPalette.fastSnake; // Dynamic color
                 this.strokeColor = this.color.slice(0, 5) + '00'; 
             }
@@ -1056,7 +1461,17 @@
                 
                 const SNAKE_LENGTH = 20; // Shorter
                 const bodySegments = 3;
-                const wave = Math.sin(Date.now() / 100) * 0.7; 
+                // Faster wave for faster snake
+                const wave = Math.sin(Date.now() / 75) * 0.9; 
+
+                // --- Draw Ice Aura Visual (must be first) ---
+                 if (this.isSlowed) {
+                     const alpha = Math.sin(Date.now() / 100) * 0.3 + 0.4; 
+                     context.fillStyle = `rgba(66, 153, 225, ${alpha})`;
+                     context.beginPath();
+                     context.arc(0, 0, this.radius + 5, 0, Math.PI * 2);
+                     context.fill();
+                }
 
                 // --- Detailed Snake Body with Gradient for Texture/Shading ---
                 const gradientBody = context.createLinearGradient(-SNAKE_LENGTH / 2, -5, SNAKE_LENGTH / 2, 5);
@@ -1106,7 +1521,7 @@
                 this.maxHp = Math.floor(this.maxHp * 3.5); 
                 this.currentHp = this.maxHp;
                 this.damage = Math.floor(this.damage * 2.5); 
-                this.xpValue = 20;
+                this.xpValue = Math.floor(this.xpValue * 3.0); // 3x XP Bonus due to high durability
                 this.color = currentPalette.tankSnake; // Dynamic color
                 this.strokeColor = this.color.slice(0, 5) + '00';
             }
@@ -1117,7 +1532,17 @@
                 
                 const SNAKE_LENGTH = 50; // Longer body
                 const bodySegments = 5;
-                const wave = Math.sin(Date.now() / 300) * 0.3; // Slower wiggle
+                // Slower wave for slower snake
+                const wave = Math.sin(Date.now() / 300) * 0.3; 
+
+                // --- Draw Ice Aura Visual (must be first) ---
+                 if (this.isSlowed) {
+                     const alpha = Math.sin(Date.now() / 100) * 0.3 + 0.4; 
+                     context.fillStyle = `rgba(66, 153, 225, ${alpha})`;
+                     context.beginPath();
+                     context.arc(0, 0, this.radius + 5, 0, Math.PI * 2);
+                     context.fill();
+                }
 
                 // --- Detailed Snake Body with Gradient for Texture/Shading ---
                 const gradientBody = context.createLinearGradient(-SNAKE_LENGTH / 2, -5, SNAKE_LENGTH / 2, 5);
@@ -1167,7 +1592,7 @@
                 this.maxHp = Math.floor(this.maxHp * 0.7); // Moderate HP
                 this.currentHp = this.maxHp;
                 this.damage = 0; // Does not deal collision damage (only explosion)
-                this.xpValue = 15;
+                this.xpValue = Math.floor(this.xpValue * 2.0); // 2x XP Bonus due to high risk
                 this.color = currentPalette.detonatorSnake; // Dynamic Detonator color
                 this.strokeColor = '#ff4500'; // Red
                 
@@ -1181,7 +1606,14 @@
             }
 
             update(player, deltaTime) {
-                const totalSpeed = this.speed * (deltaTime / 16.66);
+                let actualSpeed = this.speed;
+                const SLOW_FACTOR = 0.5; // 50% slow
+                
+                if (this.isSlowed) {
+                    actualSpeed *= SLOW_FACTOR;
+                }
+                
+                const totalSpeed = actualSpeed * (deltaTime / 16.66);
                 const dx = player.x - this.x;
                 const dy = player.y - this.y;
                 const distance = Math.hypot(dx, dy);
@@ -1196,6 +1628,27 @@
                     }
                     return;
                 }
+                
+                // --- OBSTACLE COLLISION CHECK for Detonator Movement ---
+                let hitObstacle = false;
+                let obstacleHit = null;
+                game.obstacles.forEach(o => {
+                    const nextX = this.x + (dx / distance) * totalSpeed;
+                    const nextY = this.y + (dy / distance) * totalSpeed;
+                    const dist = Math.hypot(nextX - o.x, nextY - o.y);
+                    if (dist < this.radius + o.radius) {
+                        hitObstacle = true;
+                        obstacleHit = o;
+                    }
+                });
+
+                if (hitObstacle) {
+                    // If blocked by obstacle, initiate fuse immediately
+                    this.isFusing = true;
+                    this.fuseStart = currentTime;
+                    return; 
+                }
+                // --- END OBSTACLE CHECK ---
 
                 if (distance <= this.detonationRange + player.radius) {
                     // Initiate fuse
@@ -1217,6 +1670,15 @@
                 const SNAKE_LENGTH = 30; 
                 const bodySegments = 4;
                 const wave = Math.sin(Date.now() / 150) * 0.5; 
+
+                // --- Draw Ice Aura Visual (must be first) ---
+                 if (this.isSlowed) {
+                     const alpha = Math.sin(Date.now() / 100) * 0.3 + 0.4; 
+                     context.fillStyle = `rgba(66, 153, 225, ${alpha})`;
+                     context.beginPath();
+                     context.arc(0, 0, this.radius + 5, 0, Math.PI * 2);
+                     context.fill();
+                }
 
                 // Draw body
                 const gradientBody = context.createLinearGradient(-SNAKE_LENGTH / 2, -5, SNAKE_LENGTH / 2, 5);
@@ -1284,17 +1746,72 @@
                 
                 this.speed = 1.5;
                 const bossMultiplier = wave / 10;
-                this.maxHp = Math.floor(500 * bossMultiplier);
+                
+                // --- BOSS HP INCREASE: 10x HP (5000 * multiplier) ---
+                this.maxHp = Math.floor(5000 * bossMultiplier); 
                 this.currentHp = this.maxHp;
+                // --- END BOSS HP INCREASE ---
+
                 this.damage = Math.floor(10 * bossMultiplier) * 0.5; 
                 this.xpValue = Math.floor(200 * bossMultiplier); 
                 this.color = currentPalette.boss; // Dynamic Boss color
                 this.strokeColor = currentPalette.arenaBorder;
             }
 
+            update(player, deltaTime) {
+                let actualSpeed = this.speed;
+                const SLOW_FACTOR = 0.5; // 50% slow
+                
+                if (this.isSlowed) {
+                    actualSpeed *= SLOW_FACTOR;
+                }
+                
+                const totalSpeed = actualSpeed * (deltaTime / 16.66);
+
+                const dx = player.x - this.x;
+                const dy = player.y - this.y;
+                const distance = Math.hypot(dx, dy);
+
+                // --- OBSTACLE COLLISION CHECK for Boss Movement ---
+                let hitObstacle = false;
+                game.obstacles.forEach(o => {
+                    const nextX = this.x + (dx / distance) * totalSpeed;
+                    const nextY = this.y + (dy / distance) * totalSpeed;
+                    const dist = Math.hypot(nextX - o.x, nextY - o.y);
+                    if (dist < this.radius + o.radius) {
+                        hitObstacle = true;
+                    }
+                });
+
+                if (hitObstacle) {
+                    // Boss is deterred by obstacles, but keeps moving toward player
+                    // Try to move around the obstacle instead of stopping
+                    const pushAngle = Math.atan2(this.x - hitObstacle.x, this.y - hitObstacle.y);
+                    this.x += Math.cos(pushAngle) * totalSpeed * 0.5; 
+                    this.y += Math.sin(pushAngle) * totalSpeed * 0.5;
+                    return; 
+                }
+                // --- END OBSTACLE CHECK ---
+
+                if (distance > 0) {
+                    this.x += (dx / distance) * totalSpeed;
+                    this.y += (dy / distance) * totalSpeed;
+                }
+            }
+
+
             draw(context) {
                 context.save();
                 context.translate(this.x, this.y);
+
+                // --- Draw Ice Aura Visual (must be first) ---
+                 if (this.isSlowed) {
+                     const alpha = Math.sin(Date.now() / 100) * 0.3 + 0.4; 
+                     context.fillStyle = `rgba(66, 153, 225, ${alpha})`;
+                     context.beginPath();
+                     context.arc(0, 0, this.radius + 5, 0, Math.PI * 2);
+                     context.fill();
+                }
                 
                 const BOSS_SNAKE_LENGTH = 80;
                 const bodySegments = 8;
@@ -1365,34 +1882,95 @@
 
         class Projectile extends Entity {
             // Updated constructor to receive maxTravelDistance and isExplosive flag
-            constructor(x, y, radius, color, speed, angle, damage, maxTravelDistance, isExplosive = false) {
+            constructor(x, y, radius, color, speed, angle, damage, maxTravelDistance, isExplosive = false, currentBounces = 0) {
                 super(x, y, radius, color, speed);
                 this.angle = angle;
                 this.dx = Math.cos(angle) * speed;
                 this.dy = Math.sin(angle) * speed;
                 this.damage = damage;
+                
+                // Store previous position for drawing trails
+                this.prevX = x; 
+                this.prevY = y;
+
                 this.startX = x;
                 this.startY = y;
                 this.maxTravelDistance = maxTravelDistance;
-                this.isExplosive = isExplosive; // NEW
+                this.isExplosive = isExplosive; 
+                this.currentBounces = currentBounces; // NEW
+                this.maxBounces = currentBounces; // Store original max for shuriken
             }
 
             update(deltaTime) {
+                // Store current position as previous before updating
+                this.prevX = this.x;
+                this.prevY = this.y;
+
                 this.x += this.dx * (deltaTime / 16.66);
                 this.y += this.dy * (deltaTime / 16.66);
 
-                const distToCenter = Math.hypot(this.x - centerX, this.y - centerY);
+                const distToCenter = Math.hypot(this.x - WORLD_CENTER_X, this.y - WORLD_CENTER_Y);
                 const distanceTraveled = Math.hypot(this.x - this.startX, this.y - this.startY); 
 
-                // Return true if projectile is out of arena OR exceeded max range
-                return distToCenter > ARENA_RADIUS || distanceTraveled > this.maxTravelDistance; 
+                // Return true if projectile is out of WORLD OR exceeded max range
+                return distToCenter > WORLD_RADIUS || distanceTraveled > this.maxTravelDistance; 
+            }
+            
+            // NEW: Handle bounce logic
+            bounce(enemies) {
+                if (this.currentBounces <= 0) return false;
+                
+                // 1. Find the nearest *other* enemy (not the one just hit)
+                let nearest = null;
+                let minDistSq = Infinity;
+                
+                // Find all enemies that are alive and not the one just hit (if known)
+                enemies.forEach(e => {
+                    const distSq = (e.x - this.x) ** 2 + (e.y - e.y) ** 2;
+                    // FIX: Ensure the target is outside a small radius from the current impact point
+                    if (distSq > 500 && distSq < minDistSq) { // 500 = approx 22px distance squared.
+                        minDistSq = distSq;
+                        nearest = e;
+                    }
+                });
+                
+                if (nearest) {
+                    // 2. Calculate new angle and velocity towards the new target
+                    const angle = Math.atan2(nearest.y - this.y, nearest.x - this.x);
+                    this.dx = Math.cos(angle) * this.speed;
+                    this.dy = Math.sin(angle) * this.speed;
+                    
+                    // 3. Consume bounce count
+                    this.currentBounces--;
+                    
+                    // 4. Reset travel distance check (so it can travel max range again)
+                    this.startX = this.x;
+                    this.startY = this.y;
+                    
+                    return true;
+                }
+                
+                return false;
             }
 
             draw(context) {
+                context.save();
+                context.strokeStyle = this.color;
+                context.lineWidth = this.radius * 2; // Line width equals diameter for visual thickness
+                context.lineCap = 'round';
+                
+                // Draw a line connecting the previous frame position to the current position
+                // This creates a visible tracer effect for fast projectiles
+                context.beginPath();
+                context.moveTo(this.prevX, this.prevY);
+                context.lineTo(this.x, this.y);
+                context.stroke();
+                context.restore();
+
+                // Draw the endpoint dot for visual reference
                 context.fillStyle = this.color;
                 context.beginPath();
-                // Squashed circle for projectile to hint at isometric perspective
-                context.ellipse(this.x, this.y, this.radius, this.radius * 0.7, 0, 0, Math.PI * 2);
+                context.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
                 context.fill();
                 
                 // NEW: Visual flare for explosive bullets
@@ -1403,6 +1981,21 @@
                     context.arc(this.x, this.y, this.radius * 1.5, 0, Math.PI * 2);
                     context.stroke();
                 }
+                
+                // NEW: Visual flare for bouncing shurikens
+                 if (this.maxBounces > 0) {
+                    context.strokeStyle = this.color;
+                    context.lineWidth = 2;
+                    context.beginPath();
+                    // Draw a star/shuriken pattern
+                    for(let i = 0; i < 4; i++) {
+                        const angle = i * Math.PI / 2;
+                        context.moveTo(this.x + Math.cos(angle) * this.radius * 1.5, this.y + Math.sin(angle) * this.radius * 1.5);
+                        context.lineTo(this.x + Math.cos(angle + Math.PI / 4) * this.radius * 0.5, this.y + Math.sin(angle + Math.PI / 4) * this.radius * 0.5);
+                    }
+                    context.closePath();
+                    context.stroke();
+                 }
             }
         }
 
@@ -1414,6 +2007,7 @@
                 this.enemies = [];
                 this.projectiles = [];
                 this.pickups = []; 
+                this.obstacles = []; // NEW: Obstacles Array
                 this.explosions = []; 
                 this.wave = 0;
                 this.kills = 0;
@@ -1430,12 +2024,14 @@
                 
                 this.currentUpgradeOptions = []; // Stores the currently displayed options data
                 this.currentUpgradeType = null; // 'stat' or 'weapon'
+                
+                this.bestKills = highScore; // Initialize with global high score
 
                 this.keyState = { up: false, down: false, left: false, right: false };
                 
                 // Mouse control variables
-                this.mouseTargetX = centerX;
-                this.mouseTargetY = centerY;
+                this.mouseTargetX = WORLD_CENTER_X; // Mouse target is now in WORLD coordinates
+                this.mouseTargetY = WORLD_CENTER_Y;
                 this.mouseTolerance = 10; // Distance tolerance for stopping
                 this.isMouseMoving = false; // Flag to check if mouse is actively moving the Rat
                 this.isMouseDown = false; // Tracks if the left mouse button is held
@@ -1449,26 +2045,56 @@
                 this.meleeSwingArc = 0;         // New: Arc for drawing cone
 
 
-                this.statUpgrades = [
-                    { name: "Max HP Boost", description: "+20 Max HP", apply: p => p.maxHp += 20, cost: 25, type: 'stat' },
-                    { name: "Movement Speed", description: "+1 Speed", apply: p => p.baseSpeed += 1, cost: 25, type: 'stat' },
-                    { name: "Damage Up", description: "+0.1x Damage Multiplier", apply: p => p.damageMultiplier = parseFloat((p.damageMultiplier + 0.1).toFixed(2)), cost: 25, type: 'stat' },
-                    { name: "Defense: Armor", description: "+1 Armor (Reduces damage taken)", apply: p => p.armor += 1, cost: 25, type: 'stat' },
-                    { name: "Defense: Evasion", description: "+5% Evasion (Max 50%)", apply: p => p.evasion = Math.min(0.5, p.evasion + 0.05), cost: 25, type: 'stat' },
-                    { name: "Healing Potion", description: "Fully Heal HP", apply: p => p.currentHp = p.maxHp, cost: 25, type: 'stat' },
-                    // --- NEW RANGED UPGRADES ---
-                    { name: "More Projectiles", description: "+1 Additional Projectile per shot", apply: p => p.projectileCountBonus += 1, cost: 25, type: 'stat' },
-                    { name: "Attack Speed Boost", description: "+0.1x Fire Rate Multiplier", apply: p => p.fireRateReduction = parseFloat((p.fireRateReduction + 0.1).toFixed(2)), cost: 25, type: 'stat' },
-                    { name: "Projectile Range", description: "+0.1x Range Multiplier", apply: p => p.attackRangeMultiplier = parseFloat((p.attackRangeMultiplier + 0.1).toFixed(2)), cost: 25, type: 'stat' }
-                    // --- END NEW RANGED UPGRADES ---
+                // --- TIERED UPGRADE DEFINITIONS ---
+                // The 'apply' function now uses the 'tier' (0, 1, 2) to determine the bonus.
+                const TIER_BRONZE = 0; // 10% base value
+                const TIER_SILVER = 1; // 25% base value
+                const TIER_GOLD = 2;   // 50% base value
+
+                // MODIFIED: Cost for all tiers is now a uniform 25 Kills. Exponential scaling handles the rest.
+                const INITIAL_COST = 25; 
+
+                this.baseStatUpgrades = [
+                    // Max HP Boost
+                    { name: "Max HP Boost", key: "HP", baseValue: 50, apply: (p, tier) => p.maxHp += [10, 25, 50][tier], cost: INITIAL_COST, description: "+HP" },
+                    // Movement Speed
+                    { name: "Movement Speed", key: "Speed", baseValue: 0.1, apply: (p, tier) => p.baseSpeed += [0.2, 0.4, 0.7][tier], cost: INITIAL_COST, description: "+Speed" },
+                    // Damage Up
+                    { name: "Damage Up", key: "Dmg", baseValue: 0.1, apply: (p, tier) => p.damageMultiplier = parseFloat((p.damageMultiplier + [0.1, 0.25, 0.5][tier]).toFixed(2)), cost: INITIAL_COST, description: "+Damage Multiplier" },
+                    // Defense: Armor
+                    { name: "Defense: Armor", key: "Armor", baseValue: 1, apply: (p, tier) => p.armor += [1, 2, 4][tier], cost: INITIAL_COST, description: "+Armor" },
+                    // Defense: Evasion (Max 50%)
+                    { name: "Defense: Evasion", key: "Eva", baseValue: 0.05, apply: (p, tier) => p.evasion = Math.min(0.5, p.evasion + [0.05, 0.12, 0.25][tier]), cost: INITIAL_COST, description: "+Evasion Chance" },
+                    // Defense: Shield
+                    { name: "Defense: Shield", key: "Shield", baseValue: 15, apply: (p, tier) => p.shield += [10, 25, 50][tier], cost: INITIAL_COST, description: "+Shield HP" }, 
+                    // Ricochet Shots
+                    { name: "Ricochet Shots", key: "Bounce", baseValue: 1, apply: (p, tier) => p.bounceCount += [1, 2, 4][tier], cost: INITIAL_COST, description: "+Projectile Bounces" }, 
+                    // More Projectiles (Dual Effect)
+                    { name: "More Projectiles", key: "Proj", baseValue: 1, 
+                      apply: (p, tier) => {
+                          const projBonus = [1, 2, 4][tier];
+                          p.projectileCountBonus += projBonus;
+                          p.fireRateReduction = parseFloat((p.fireRateReduction + projBonus * 0.1).toFixed(2)); 
+                      }, 
+                      cost: INITIAL_COST, description: "+Projectiles / Melee Attack Speed" }, 
+                    // Attack Speed Boost
+                    { name: "Attack Speed Boost", key: "AS", baseValue: 0.1, apply: (p, tier) => p.fireRateReduction = parseFloat((p.fireRateReduction + [0.1, 0.25, 0.5][tier]).toFixed(2)), cost: INITIAL_COST, description: "+Fire Rate Multiplier" },
+                    // Projectile Range
+                    { name: "Projectile Range", key: "Range", baseValue: 0.1, apply: (p, tier) => p.attackRangeMultiplier = parseFloat((p.attackRangeMultiplier + [0.1, 0.25, 0.5][tier]).toFixed(2)), cost: INITIAL_COST, description: "+Range Multiplier" },
+                    // Vampire Healing
+                    { name: "Vampire Healing", key: "Life", baseValue: 0.005, apply: (p, tier) => p.lifestealPercentage = parseFloat((p.lifestealPercentage + [0.005, 0.015, 0.03][tier]).toFixed(3)), cost: INITIAL_COST, description: "+Lifesteal Percentage" },
+                    // Healing Potion (No stacking, always bronze cost/value for instant heal)
+                    { name: "Healing Potion", key: "Heal", baseValue: 1, apply: p => p.currentHp = p.maxHp, cost: INITIAL_COST, description: "Fully Restore HP" }, 
                 ];
                 
-                this.statUpgradePrices = {}; // Tracks how many times each stat has been bought
+                // Track prices by unique stat NAME for exponential scaling
+                this.statUpgradePrices = {}; 
 
                 this.setupInput();
                 this.setupUpgradeUIEvents(); // NEW: Setup confirm/skip buttons
                 this.updateHUD();
-                this.startNewWave();
+                
+                // MOVED: this.startNewWave() call removed from constructor
             }
             
             // NEW: Setup click handlers for the Confirm/Skip buttons
@@ -1496,15 +2122,12 @@
                 this.mouseListener = (e) => this.handleMouseMovement(e);
                 this.mouseDownListener = (e) => this.handleMouseDown(e); 
                 this.mouseUpListener = (e) => this.handleMouseUp(e);     
-                this.mouseClickListener = (e) => this.handleMouseClick(e); 
-
-
+                canvas.addEventListener('click', this.mouseClickListener); // Keep click listener active
                 document.addEventListener('keydown', this.keyListenerDown);
                 document.addEventListener('keyup', this.keyListenerUp);
                 canvas.addEventListener('mousemove', this.mouseListener);
                 canvas.addEventListener('mousedown', this.mouseDownListener); 
                 canvas.addEventListener('mouseup', this.mouseUpListener);     
-                canvas.addEventListener('click', this.mouseClickListener);
                 restartButton.addEventListener('click', () => this.restart());
             }
             
@@ -1539,11 +2162,17 @@
                     const optionIndex = parseInt(card.dataset.index);
                     const upgrade = this.currentUpgradeOptions[optionIndex];
 
-                    upgrade.apply(this.player);
+                    // Apply the upgrade using its specific tier value
+                    if (this.currentUpgradeType === 'stat') {
+                        upgrade.apply(this.player, upgrade.tier); 
+                    } else {
+                        upgrade.apply(this.player);
+                    }
+
 
                     if (this.currentUpgradeType === 'stat' && !upgrade.isFree) {
-                        // Only track purchased stat upgrades for price increase
-                        this.statUpgradePrices[upgrade.name] = (this.statUpgradePrices[upgrade.name] || 0) + 1;
+                        // Only track purchased stat upgrades by KEY for price increase
+                        this.statUpgradePrices[upgrade.key] = (this.statUpgradePrices[upgrade.key] || 0) + 1;
                     }
                 });
 
@@ -1562,6 +2191,15 @@
                 if (e.button === 0) { // Left click
                     this.isMouseDown = true;
                     this.isMouseMoving = true;
+                    // When mouse is pressed, calculate target based on canvas click
+                    const rect = canvas.getBoundingClientRect();
+                    const scaleX = canvas.width / rect.width;
+                    const scaleY = canvas.height / rect.height;
+                    
+                    // Convert canvas click (viewport) to World coordinates
+                    this.mouseTargetX = this.player.x + (e.clientX - rect.left) * scaleX - centerX;
+                    this.mouseTargetY = this.player.y + (e.clientY - rect.top) * scaleY - centerY;
+                    
                     // When mouse is pressed, clear keyboard state for mouse priority
                     this.keyState = { up: false, down: false, left: false, right: false };
                     this.updateMovementDirection();
@@ -1584,10 +2222,10 @@
                 const rect = canvas.getBoundingClientRect();
                 const scaleX = canvas.width / rect.width;
                 const scaleY = canvas.height / rect.height;
-                this.mouseTargetX = (e.clientX - rect.left) * scaleX;
-                this.mouseTargetY = (e.clientY - rect.top) * scaleY;
                 
-                // If the player clicks, assume they want to move there (handled by Down/Up)
+                // Convert canvas click (viewport) to World coordinates
+                this.mouseTargetX = this.player.x + (e.clientX - rect.left) * scaleX - centerX;
+                this.mouseTargetY = this.player.y + (e.clientY - rect.top) * scaleY - centerY;
             }
 
             handleMouseMovement(e) {
@@ -1597,9 +2235,9 @@
                 const scaleX = canvas.width / rect.width;
                 const scaleY = canvas.height / rect.height;
 
-                // On mouse move, always update the target position
-                this.mouseTargetX = (e.clientX - rect.left) * scaleX;
-                this.mouseTargetY = (e.clientY - rect.top) * scaleY;
+                // On mouse move, update the target position (in WORLD coordinates)
+                this.mouseTargetX = this.player.x + (e.clientX - rect.left) * scaleX - centerX;
+                this.mouseTargetY = this.player.y + (e.clientY - rect.top) * scaleY - centerY;
                 
                 if (this.isMouseDown) {
                     // Only update direction if the mouse button is down
@@ -1684,27 +2322,46 @@
                 }
             }
 
+            // NEW CENTRALIZED DEATH LOGIC
             handleEnemyDefeat(e) {
-                this.kills++;
-                // NEW: Increase currency on kill
-                this.player.gainCurrency(1); 
+                if (e.isDead) return; // Prevent double awarding
+                e.isDead = true; 
+                
+                // BOSS SPECIFIC REWARD
+                if (e instanceof Boss) {
+                    this.player.maxWeapons += 1; // Award boss slot
+                    console.log(`BOSS DEFEATED! Weapon slots increased to ${this.player.maxWeapons}`);
+                }
 
+                this.kills++;
+                this.player.gainCurrency(1); 
                 this.player.gainXp(e.xpValue);
                 
+                // PARTICLE EFFECT
                 for (let k = 0; k < 10; k++) {
-                    // Particle color now uses the dynamic arena border/glow color
                     this.explosions.push(new Particle(e.x, e.y, currentPalette.arenaBorder, Math.random() * 3 + 1));
                 }
 
+                // --- DROP LOGIC ---
                 const healthDropChance = 0.05; 
                 if (Math.random() < healthDropChance) {
                     this.pickups.push(new HealthDrop(e.x, e.y));
                 }
                 
-                // NEW: Explosive Bullet Drop Chance (2%)
                 const explosiveDropChance = 0.02;
-                if (Math.random() < explosiveDropChance) {
+                const iceDropChance = 0.015;
+                const speedDropChance = 0.015;
+                const bombDropChance = 0.005; // 0.5% chance
+
+                const roll = Math.random();
+                if (roll < bombDropChance) {
+                     this.pickups.push(new BombDrop(e.x, e.y));
+                } else if (roll < (bombDropChance + explosiveDropChance)) {
                      this.pickups.push(new ExplosiveBulletDrop(e.x, e.y));
+                } else if (roll < (bombDropChance + explosiveDropChance + iceDropChance)) {
+                     this.pickups.push(new IcePowerupDrop(e.x, e.y));
+                } else if (roll < (bombDropChance + explosiveDropChance + iceDropChance + speedDropChance)) {
+                     this.pickups.push(new SpeedPowerupDrop(e.x, e.y));
                 }
             }
             
@@ -1720,37 +2377,43 @@
                 }
 
                 // Check for enemies within the AoE radius
-                this.enemies = this.enemies.filter(e => {
+                this.enemies.forEach(e => {
                     const distance = Math.hypot(x - e.x, y - e.y);
-                    if (distance < AOE_RADIUS + e.radius) {
+                    if (distance < AOE_RADIUS + e.radius && !e.isDead) {
                         
                         // Apply damage
-                        e.currentHp -= aoeDamage;
+                        e.currentHp = Math.max(0, e.currentHp - aoeDamage);
+                        
+                        // LIFESTEAL
+                        const lifestealAmount = aoeDamage * this.player.lifestealPercentage;
+                        this.player.heal(lifestealAmount);
 
-                        if (e.currentHp <= 0) {
-                            // Note: Do not award currency/xp for AoE kills to prevent exploit loop
-                            for (let k = 0; k < 5; k++) { // Smaller secondary explosion
-                                this.explosions.push(new Particle(e.x, e.y, '#fbd38d', Math.random() * 2 + 1));
-                            }
-                            return false; 
+                        // CHECK FOR DEATH AND AWARD KILL CREDIT
+                        if (e.currentHp <= 0 && !e.isDead) {
+                            this.handleEnemyDefeat(e); 
                         }
                     }
-                    return true;
                 });
             }
             
             // NEW: Handles Detonator explosion damage (affects player and collateral enemies)
             detonate(x, y, damage, radius) {
-                // Apply damage to player if in range
+                // ... (Player damage logic remains the same)
                 const distToPlayer = Math.hypot(x - this.player.x, y - this.player.y);
                 if (distToPlayer < radius + this.player.radius) {
                     
-                    // 1. Evasion Check (Can't evade explosions, but keep logic simple if Evasion is high)
-                    if (Math.random() < this.player.evasion * 0.1) { // 10% effectiveness vs AoE
+                    if (Math.random() < this.player.evasion * 0.1) {
                          // Minimal evasion success
                     } else {
-                        // 2. Armor Calculation and Damage
-                        let damageTaken = damage - this.player.armor;
+                        let damageRemaining = damage;
+
+                        if (this.player.shield > 0) {
+                            const absorbed = Math.min(this.player.shield, damageRemaining);
+                            this.player.shield -= absorbed;
+                            damageRemaining -= absorbed;
+                        }
+
+                        let damageTaken = damageRemaining - this.player.armor;
                         damageTaken = Math.max(1, damageTaken); 
                         
                         this.player.currentHp -= damageTaken;
@@ -1766,19 +2429,21 @@
                 const COLLATERAL_DAMAGE_PERCENT = 0.5;
                 const collateralDamage = damage * COLLATERAL_DAMAGE_PERCENT;
 
-                this.enemies = this.enemies.filter(e => {
+                this.enemies.forEach(e => {
                     const distance = Math.hypot(x - e.x, y - e.y);
-                    // Hit if within radius, AND not the exact explosion source (which should be filtered out later)
-                    if (distance < radius + e.radius) { 
+                    if (distance < radius + e.radius && !e.isDead) { 
                         
-                        e.currentHp -= collateralDamage; 
+                        e.currentHp = Math.max(0, e.currentHp - collateralDamage);
+                        
+                        // LIFESTEAL
+                        const lifestealAmount = collateralDamage * this.player.lifestealPercentage;
+                        this.player.heal(lifestealAmount);
 
-                        if (e.currentHp <= 0) {
+                        // CHECK FOR DEATH AND AWARD KILL CREDIT
+                        if (e.currentHp <= 0 && !e.isDead) {
                             this.handleEnemyDefeat(e);
-                            return false; 
                         }
                     }
-                    return true; 
                 });
 
                 // Create explosion particles
@@ -1786,80 +2451,228 @@
                     this.explosions.push(new Particle(x, y, '#ff4500', Math.random() * 6 + 3));
                 }
             }
+            
+            // NEW: Handles the map-wide bomb explosion (triggered by BombDrop pickup)
+            applyNuclearBomb() {
+                // ... (Visual effect logic remains the same)
+                for (let k = 0; k < 100; k++) {
+                    this.explosions.push(new Particle(centerX, centerY, '#ffc700', Math.random() * 8 + 4));
+                }
+                
+                const EXPLOSION_DAMAGE = 200; 
+                
+                // Apply MASSIVE damage to all enemies
+                this.enemies.forEach(e => {
+                    if (e.isDead) return;
+                    
+                    const damage = e instanceof Boss ? EXPLOSION_DAMAGE * 0.5 : EXPLOSION_DAMAGE;
+                    e.currentHp = Math.max(0, e.currentHp - damage);
+                    
+                    // LIFESTEAL
+                    const lifestealAmount = damage * this.player.lifestealPercentage;
+                    this.player.heal(lifestealAmount);
+
+                    // Massive knockback away from center
+                    const angle = Math.atan2(e.y - WORLD_CENTER_Y, e.x - WORLD_CENTER_X);
+                    e.x += Math.cos(angle) * 100;
+                    e.y += Math.sin(angle) * 100;
+
+                    // CHECK FOR DEATH AND AWARD KILL CREDIT
+                    if (e.currentHp <= 0 && !e.isDead) {
+                        this.handleEnemyDefeat(e);
+                    }
+                });
+            }
 
 
             meleeAttack(x, y, weapon) {
-                // --- CONE MELEE LOGIC ---
-
-                // 1. Find the target angle (direction to the nearest enemy)
-                const nearestEnemy = this.getNearestEnemy(x, y);
-                if (!nearestEnemy) return; // No targets, no attack
-
-                const targetAngle = Math.atan2(nearestEnemy.y - y, nearestEnemy.x - x);
-                
-                // Store angle and radius for visual drawing
-                this.meleeSwingTargetAngle = targetAngle; // Store angle
-                this.meleeSwingRadius = weapon.radius; // Store radius
-                this.meleeSwingArc = weapon.arcAngle; // Store arc
-                
-                // Start swing animation
+                // ... (Melee setup logic remains the same)
                 this.isMeleeSwinging = true;
                 this.meleeSwingTimer = this.MELEE_SWING_DURATION;
 
-                const damage = weapon.damage * this.player.damageMultiplier;
+                const damage = (weapon.damage * weapon.stackDamageFactor) * this.player.damageMultiplier;
                 const knockback = weapon.knockback || 0;
                 
-                this.enemies = this.enemies.filter(e => {
+                this.enemies.forEach(e => {
+                    // ... (Collision and Cone check logic)
                     const distance = Math.hypot(x - e.x, y - e.y);
-                    
                     if (distance < weapon.radius + e.radius) {
-                        
-                        // Check if enemy is within the cone arc
+                        const targetAngle = this.meleeSwingTargetAngle; // Already calculated
                         const enemyAngle = Math.atan2(e.y - y, e.x - x);
                         
-                        // Normalize angles to find the shortest angular distance
                         let angleDifference = enemyAngle - targetAngle;
-                        
-                        // Wrap angle difference to keep it between -PI and PI
                         angleDifference = (angleDifference + Math.PI) % (Math.PI * 2) - Math.PI;
                         if (angleDifference < -Math.PI) angleDifference += Math.PI * 2;
                         
-                        // If the absolute difference is less than half the weapon's arc, it's a hit.
-                        if (Math.abs(angleDifference) <= weapon.arcAngle / 2) {
+                        if (Math.abs(angleDifference) <= weapon.arcAngle / 2 && !e.isDead) {
 
-                            e.currentHp -= damage;
+                            e.currentHp = Math.max(0, e.currentHp - damage);
                             this.player.damageFlashTimer = 5;
+                            
+                            // LIFESTEAL
+                            const lifestealAmount = damage * this.player.lifestealPercentage;
+                            this.player.heal(lifestealAmount);
+
 
                             if (knockback > 0) {
-                                // Radial Knockback: direction away from the Rat
+                                // ... (Knockback logic remains the same)
                                 const angle = Math.atan2(e.y - y, e.x - x);
                                 const KB_FACTOR = 1.5; 
                                 e.x += Math.cos(angle) * knockback * KB_FACTOR;
                                 e.y += Math.sin(angle) * knockback * KB_FACTOR;
                                 
-                                const distToCenter = Math.hypot(e.x - centerX, e.y - centerY);
-                                if (distToCenter + e.radius > ARENA_RADIUS) {
-                                    const clampAngle = Math.atan2(e.y - centerY, e.x - centerX);
-                                    e.x = centerX + Math.cos(clampAngle) * (ARENA_RADIUS - e.radius);
-                                    e.y = centerY + Math.sin(clampAngle) * (ARENA_RADIUS - e.radius);
+                                const distToCenter = Math.hypot(e.x - WORLD_CENTER_X, e.y - WORLD_CENTER_Y);
+                                if (distToCenter + e.radius > WORLD_RADIUS) {
+                                    const clampAngle = Math.atan2(e.y - WORLD_CENTER_Y, e.x - WORLD_CENTER_X);
+                                    e.x = WORLD_CENTER_X + Math.cos(clampAngle) * (WORLD_RADIUS - e.radius);
+                                    e.y = WORLD_CENTER_Y + Math.sin(clampAngle) * (WORLD_RADIUS - e.radius);
                                 }
                             }
 
-                            if (e.currentHp <= 0) {
+                            // CHECK FOR DEATH AND AWARD KILL CREDIT
+                            if (e.currentHp <= 0 && !e.isDead) {
                                 this.handleEnemyDefeat(e);
-                                return false;
                             }
                         }
                     }
-                    return true;
                 });
-                // --- END CONE MELEE LOGIC ---
+            }
+            
+            // NEW: startNewWave moved into constructor property to fix the reference error
+            startNewWave = () => {
+                this.wave++;
+                this.lastWaveTime = Date.now();
+                this.enemyCountThisWave = 0;
+                
+                this.enemies = this.enemies.filter(e => !e.isDead);
+                this.projectiles = [];
+                this.pickups = []; 
+                this.obstacles = []; // NEW: Clear obstacles on new wave
+                this.explosions = []; 
+                this.isBossWave = false;
+                
+                // --- NEW: Add initial scattered pickups and obstacles to the map ---
+                const NUM_HEALTH_DROPS = 5;
+                const NUM_ICE_DROPS = 2;
+                const NUM_SPEED_DROPS = 2;
+                // Scale number of obstacles with wave
+                const NUM_OBSTACLES = 5 + Math.floor(this.wave / 5) * 3; 
+                
+                // Add Obstacles first (Obstacle creation is self-aware of its radius)
+                for (let i = 0; i < NUM_OBSTACLES; i++) {
+                    // Random radius between 30 and 60
+                    const radius = Math.random() * 30 + 30; 
+                    const pos = this.findSafeWorldPlacement(radius + 50); // Ensure obstacle spawns away from rat center AND existing obstacles
+                    this.obstacles.push(new Obstacle(pos.x, pos.y, radius));
+                }
+                
+                // Add Pickups (Pickups now rely on a safe spot, avoiding obstacles)
+                for (let i = 0; i < NUM_HEALTH_DROPS; i++) {
+                    const pos = this.findSafeWorldPlacement(10);
+                    this.pickups.push(new HealthDrop(pos.x, pos.y));
+                }
+                for (let i = 0; i < NUM_ICE_DROPS; i++) {
+                    const pos = this.findSafeWorldPlacement(10);
+                    this.pickups.push(new IcePowerupDrop(pos.x, pos.y));
+                }
+                 for (let i = 0; i < NUM_SPEED_DROPS; i++) {
+                    const pos = this.findSafeWorldPlacement(10);
+                    this.pickups.push(new SpeedPowerupDrop(pos.x, pos.y));
+                }
+                // --- END NEW PICKUPS AND OBSTACLES ---
+                
+                // --- NEW PALETTE SWAP LOGIC ---
+                if (this.wave > 1 && (this.wave - 1) % 10 === 0) {
+                    const paletteKeys = Object.keys(COLOR_PALETTES);
+                    // Cycle through palettes based on wave number (e.g., 1 -> 0, 11 -> 1, 21 -> 2)
+                    const newPaletteIndex = Math.floor(((this.wave - 1) / 10) % paletteKeys.length);
+                    currentPalette = COLOR_PALETTES[paletteKeys[newPaletteIndex]];
+                    console.log(`PALETTE SWAP: Entering ${currentPalette.name} on Wave ${this.wave}`);
+                }
+                // --- END NEW PALETTE SWAP LOGIC ---
+
+
+                if (this.wave > 1 && this.wave % 10 === 0) {
+                    this.isBossWave = true;
+                    this.maxEnemiesThisWave = 1; 
+                    
+                    const BOSS_RADIUS = 40;
+                    const angle = Math.random() * Math.PI * 2;
+                    
+                    // Boss spawns off-screen near the edge of the world
+                    const spawnDist = WORLD_RADIUS - BOSS_RADIUS - 10;
+                    const spawnX = WORLD_CENTER_X + Math.cos(angle) * spawnDist;
+                    const spawnY = WORLD_CENTER_Y + Math.sin(angle) * spawnDist;
+
+                    const boss = new Boss(spawnX, spawnY, this.wave);
+                    this.enemies.push(boss);
+                    
+                    // NEW: Boss defeat grants +1 weapon slot 
+                    // This is now done in update() logic after boss HP hits zero
+                    
+                    console.log(`BOSS WAVE START: Wave ${this.wave} - Boss HP: ${boss.maxHp} | Current Max Slots: ${this.player.maxWeapons}`);
+
+                    this.enemyCountThisWave = 1; 
+
+                } else {
+                    // --- MODIFIED: NO MAX ENEMY LIMIT ---
+                    this.maxEnemiesThisWave = Infinity; 
+                    
+                    // --- MODIFIED SPAWN RATE SCALING (1.5x Aggressiveness after Wave 5) ---
+                    let baseSpawnDecrease = 200; // Normal aggressive scaling (200ms per wave)
+                    
+                    // After Wave 5, increase scaling speed by 1.5x (200ms * 1.5 = 300ms reduction)
+                    if (this.wave >= 6) { 
+                        baseSpawnDecrease = Math.floor(baseSpawnDecrease * 1.5); // 300ms reduction per wave
+                    }
+                    
+                    // Base interval starts at 800ms.
+                    this.enemySpawnInterval = Math.max(150, 800 - (this.wave - 1) * baseSpawnDecrease); 
+                }
+            }
+
+
+            findSafeWorldPlacement(radius) {
+                let x, y;
+                let attempts = 0;
+                
+                do {
+                    // Spawn anywhere within the world bounds
+                    const angle = Math.random() * Math.PI * 2;
+                    const distance = Math.random() * (WORLD_RADIUS - radius); 
+                    x = WORLD_CENTER_X + Math.cos(angle) * distance;
+                    y = WORLD_CENTER_Y + Math.sin(angle) * distance;
+                    
+                    attempts++;
+                    
+                    // Simple check: don't spawn right on top of the player
+                    const distToPlayer = Math.hypot(x - this.player.x, y - this.player.y);
+                
+                    // If it's a safe distance away (e.g., more than half the viewport away)
+                    if (distToPlayer > VIEWPORT_RADIUS / 2) {
+                        
+                        // Check for overlap with existing OBSTACLES before placing a pickup/new obstacle
+                        let overlaps = false;
+                        for(const o of this.obstacles) {
+                            const dist = Math.hypot(x - o.x, y - o.y);
+                            if (dist < radius + o.radius + 10) { // +10 for buffer
+                                overlaps = true;
+                                break;
+                            }
+                        }
+                        if (!overlaps) {
+                            return { x, y };
+                        }
+                    }
+                } while (attempts < 50); // Prevent infinite loop
+
+                // Fallback: spawn near world center
+                return { x: WORLD_CENTER_X, y: WORLD_CENTER_Y }; 
             }
 
             spawnEnemy() {
-                // --- MODIFIED: Spawning now relies ONLY on the timer and is uncapped (unless boss wave) ---
-                if (!this.isBossWave && this.enemies.length >= 1000) {
-                    // Simple failsafe limit for performance
+                // --- MODIFIED: Spawning now relies on the viewport and world boundaries ---
+                if (!this.isBossWave && this.enemies.filter(e => !e.isDead).length >= 1000) {
                     return; 
                 }
 
@@ -1867,11 +2680,39 @@
                     return;
                 }
                 
-                // ... (rest of the spawning logic remains the same)
+                const SPAWN_DISTANCE = VIEWPORT_RADIUS + 50; // Guaranteed off-screen
                 
-                const angle = Math.random() * Math.PI * 2;
-                const spawnX = centerX + Math.cos(angle) * (ARENA_RADIUS - 10);
-                const spawnY = centerY + Math.sin(angle) * (ARENA_RADIUS - 10);
+                let spawnX, spawnY;
+                let attempts = 0;
+
+                do {
+                    // 1. Pick a random direction from the player
+                    const angle = Math.random() * Math.PI * 2;
+                    
+                    // 2. Calculate position relative to the player
+                    spawnX = this.player.x + Math.cos(angle) * SPAWN_DISTANCE;
+                    spawnY = this.player.y + Math.sin(angle) * SPAWN_DISTANCE;
+
+                    attempts++;
+                    
+                    // 3. Check if the spawn is outside the circular world boundary
+                    const distToWorldCenter = Math.hypot(spawnX - WORLD_CENTER_X, spawnY - WORLD_CENTER_Y);
+                    if (distToWorldCenter > WORLD_RADIUS - 10) {
+                        // If outside, clamp it to the edge of the world
+                        const angleFromCenter = Math.atan2(spawnY - WORLD_CENTER_Y, spawnX - WORLD_CENTER_X);
+                        spawnX = WORLD_CENTER_X + Math.cos(angleFromCenter) * (WORLD_RADIUS - 10);
+                        spawnY = WORLD_CENTER_Y + Math.sin(angleFromCenter) * (WORLD_RADIUS - 10);
+                        break; 
+                    }
+                    
+                    // Stop trying if we find a suitable spot (off-screen and inside world)
+                    if (Math.hypot(spawnX - this.player.x, spawnY - this.player.y) >= VIEWPORT_RADIUS) {
+                        break; 
+                    }
+
+                } while (attempts < 10);
+
+                if (attempts === 10) return; // Failsafe
 
                 let enemy;
                 const roll = Math.random();
@@ -1914,88 +2755,73 @@
                 this.enemyCountThisWave++;
             }
 
-            startNewWave() {
-                this.wave++;
-                this.lastWaveTime = Date.now();
-                this.enemyCountThisWave = 0;
-                
-                this.enemies = [];
-                this.projectiles = [];
-                this.pickups = []; 
-                this.isBossWave = false;
-                
-                // --- NEW PALETTE SWAP LOGIC ---
-                if (this.wave > 1 && (this.wave - 1) % 10 === 0) {
-                    const paletteKeys = Object.keys(COLOR_PALETTES);
-                    // Cycle through palettes based on wave number (e.g., 1 -> 0, 11 -> 1, 21 -> 2)
-                    const newPaletteIndex = Math.floor(((this.wave - 1) / 10) % paletteKeys.length);
-                    currentPalette = COLOR_PALETTES[paletteKeys[newPaletteIndex]];
-                    console.log(`PALETTE SWAP: Entering ${currentPalette.name} on Wave ${this.wave}`);
-                }
-                // --- END NEW PALETTE SWAP LOGIC ---
-
-
-                if (this.wave > 1 && this.wave % 10 === 0) {
-                    this.isBossWave = true;
-                    this.maxEnemiesThisWave = 1; 
-                    
-                    const BOSS_RADIUS = 40;
-                    const angle = Math.random() * Math.PI * 2;
-                    const spawnX = centerX + Math.cos(angle) * (ARENA_RADIUS - BOSS_RADIUS);
-                    const spawnY = centerY + Math.sin(angle) * (ARENA_RADIUS - BOSS_RADIUS);
-
-                    const boss = new Boss(spawnX, spawnY, this.wave);
-                    this.enemies.push(boss);
-                    
-                    // NEW: Boss defeat grants +1 weapon slot 
-                    // This is now done in update() logic after boss HP hits zero
-                    
-                    console.log(`BOSS WAVE START: Wave ${this.wave} - Boss HP: ${boss.maxHp} | Current Max Slots: ${this.player.maxWeapons}`);
-
-                    this.enemyCountThisWave = 1; 
-
-                } else {
-                    // --- MODIFIED: NO MAX ENEMY LIMIT ---
-                    this.maxEnemiesThisWave = Infinity; 
-                    
-                    // --- MODIFIED SPAWN RATE SCALING (Doubled Increase) ---
-                    // Base interval starts at 800ms. Decreases by 200ms per wave, down to a minimum of 150ms.
-                    this.enemySpawnInterval = Math.max(150, 800 - (this.wave - 1) * 200); 
-                }
-            }
 
             checkCollisions() {
                 
                 this.projectiles = this.projectiles.filter(p => {
                     let hit = false;
                     
-                    // Filter out destroyed enemies
-                    this.enemies = this.enemies.filter(e => {
+                    // 1. Check Projectile vs. Obstacle Collision
+                    let hitObstacle = false;
+                    this.obstacles.forEach(o => {
+                        const dist = Math.hypot(p.x - o.x, p.y - o.y);
+                        if (dist < p.radius + o.radius) {
+                            hitObstacle = true;
+                        }
+                    });
+
+                    if (hitObstacle) {
+                        // Projectile is immediately destroyed by obstacle
+                        for (let k = 0; k < 5; k++) {
+                            this.explosions.push(new Particle(p.x, p.y, '#606060', Math.random() * 2 + 1));
+                        }
+                        return false; 
+                    }
+
+
+                    // 2. Check Projectile vs. Enemy Collision
+                    this.enemies.forEach(e => {
                         const distance = Math.hypot(p.x - e.x, p.y - e.y);
                         
                         if (distance < p.radius + e.radius) {
                             
-                            // NEW: Handle explosive AoE before applying direct damage
+                            const bounced = p.bounce(this.enemies); 
+                            p.damage = p.damage; // Re-read damage after potential bounce modification (if future logic changes)
+
+                            // Apply damage
+                            e.currentHp = Math.max(0, e.currentHp - p.damage);
+                            
+                            // LIFESTEAL
+                            const lifestealAmount = p.damage * this.player.lifestealPercentage;
+                            this.player.heal(lifestealAmount);
+
+                            
+                            // Handle explosive AoE before applying direct damage
                             if (p.isExplosive) {
                                 this.applyExplosiveAoE(p.x, p.y, p.damage);
                             }
 
-                            // Apply direct damage
-                            e.currentHp -= p.damage;
-                            hit = true; 
-                            if (e.currentHp <= 0) {
+                            // If it bounced, it does NOT get removed from the projectile array yet.
+                            if (bounced) {
+                                hit = false; // Projectile remains in array
+                            } else {
+                                hit = true; // Projectile is marked for removal
+                            }
+
+                            // AWARD KILL CREDIT if fatal damage delivered
+                            if (e.currentHp <= 0 && !e.isDead) {
                                 this.handleEnemyDefeat(e);
-                                return false; 
                             }
                         }
-                        return true; 
                     });
                     
-                    // Projectile removed if hit OR if it exceeded its max range/went out of arena
+                    // Projectile removed if hit (and didn't bounce) OR if it exceeded its max range/went out of arena OR hit obstacle
                     return !(hit || p.update(16.66));
                 });
 
-                // --- ENEMY COLLISION LOGIC (Bounce and Persist) ---
+                // --- PLAYER COLLISION LOGIC ---
+                
+                // 1. Player vs. Enemy Collision (Damage and Knockback)
                 this.enemies.forEach((e) => {
                     const distance = Math.hypot(e.x - this.player.x, e.y - this.player.y);
                     if (distance < e.radius + this.player.radius) {
@@ -2007,8 +2833,18 @@
                                 return; 
                             }
                             
-                            // 2. Armor Calculation and Damage
-                            let damageTaken = e.damage - this.player.armor;
+                            // 2. SHIELD ABSORPTION
+                            let damageRemaining = e.damage;
+
+                            if (this.player.shield > 0) {
+                                const absorbed = Math.min(this.player.shield, damageRemaining);
+                                this.player.shield -= absorbed;
+                                damageRemaining -= absorbed;
+                            }
+                            // --- END SHIELD ABSORPTION ---
+                            
+                            // 3. Armor Calculation and Damage
+                            let damageTaken = damageRemaining - this.player.armor;
                             damageTaken = Math.max(1, damageTaken); 
                             
                             this.player.currentHp -= damageTaken;
@@ -2020,24 +2856,45 @@
                             }
                         }
                         
-                        // 3. Bounce/Knockback effect
+                        // 4. Bounce/Knockback effect
                         const BOUNCE_DISTANCE = 20; 
                         const angle = Math.atan2(e.y - this.player.y, e.x - this.player.x);
                         
                         e.x += Math.cos(angle) * BOUNCE_DISTANCE;
                         e.y += Math.sin(angle) * BOUNCE_DISTANCE;
                         
-                        // 4. Clamp position to Arena 
-                        const distToCenter = Math.hypot(e.x - centerX, e.y - centerY);
-                        if (distToCenter + e.radius > ARENA_RADIUS) {
-                            const clampAngle = Math.atan2(e.y - centerY, e.x - centerX);
-                            e.x = centerX + Math.cos(clampAngle) * (ARENA_RADIUS - e.radius);
-                            e.y = centerY + Math.sin(clampAngle) * (ARENA_RADIUS - e.radius);
+                        // 5. Clamp position to World Boundary
+                        const distToCenter = Math.hypot(e.x - WORLD_CENTER_X, e.y - WORLD_CENTER_Y);
+                        if (distToCenter + e.radius > WORLD_RADIUS) {
+                            const clampAngle = Math.atan2(e.y - WORLD_CENTER_Y, e.x - WORLD_CENTER_X);
+                            e.x = WORLD_CENTER_X + Math.cos(clampAngle) * (WORLD_RADIUS - e.radius);
+                            e.y = WORLD_CENTER_Y + Math.sin(clampAngle) * (WORLD_RADIUS - e.radius);
                         }
                     }
                 });
                 // --- END ENEMY COLLISION LOGIC ---
                 
+                // 2. Player vs. Obstacle Collision (Movement Blocking)
+                this.obstacles.forEach(o => {
+                    const dist = Math.hypot(this.player.x - o.x, this.player.y - o.y);
+                    if (dist < this.player.radius + o.radius) {
+                        // Push player away from the obstacle
+                        const angle = Math.atan2(this.player.y - o.y, this.player.x - o.x);
+                        const overlap = (this.player.radius + o.radius) - dist;
+                        this.player.x += Math.cos(angle) * overlap;
+                        this.player.y += Math.sin(angle) * overlap;
+                        
+                        // Re-clamp player position to world boundary if pushback caused overshoot
+                        const distToCenter = Math.hypot(this.player.x - WORLD_CENTER_X, this.player.y - WORLD_CENTER_Y);
+                        if (distToCenter + this.player.radius > WORLD_RADIUS) {
+                            const clampAngle = Math.atan2(this.player.y - WORLD_CENTER_Y, this.player.x - WORLD_CENTER_X);
+                            this.player.x = WORLD_CENTER_X + Math.cos(clampAngle) * (WORLD_RADIUS - this.player.radius);
+                            this.player.y = WORLD_CENTER_Y + Math.sin(clampAngle) * (WORLD_RADIUS - this.player.radius);
+                        }
+                    }
+                });
+                
+                // 3. Player vs. Pickup Collision
                 this.pickups = this.pickups.filter(p => {
                     const distance = Math.hypot(p.x - this.player.x, p.y - this.player.y);
                     if (distance < p.radius + this.player.radius) {
@@ -2046,6 +2903,12 @@
                             this.player.heal(p.healAmount);
                         } else if (p instanceof ExplosiveBulletDrop) {
                              this.player.applyExplosiveBuff(p.buffDuration);
+                        } else if (p instanceof IcePowerupDrop) {
+                             this.player.applyIceAura(p.buffDuration);
+                        } else if (p instanceof SpeedPowerupDrop) {
+                             this.player.applyExtremeSpeed(p.buffDuration);
+                        } else if (p instanceof BombDrop) { // NEW BOMB PICKUP
+                             this.applyNuclearBomb();
                         }
                         
                         return false;
@@ -2077,56 +2940,66 @@
                     .map(item => item.e);
             }
             
+            // NEW: Updated to generate TIERED options
             generateStatOptions() {
-                // Now pulls 5 random stats (up from 3)
                 const NUM_OPTIONS = 5; 
                 const options = [];
-                const availableStatUpgrades = this.statUpgrades;
+                const availableBaseStats = this.baseStatUpgrades;
                 
-                // Shuffle the stat upgrades to pick 5 random ones
-                const shuffledUpgrades = [...availableStatUpgrades].sort(() => 0.5 - Math.random());
+                // Shuffle the base stats to pick 5 unique stats for the roll
+                const shuffledBaseStats = [...availableBaseStats].sort(() => 0.5 - Math.random());
                 
-                let lowestCost = Infinity;
-                let lowestCostItemName = '';
-                
-                for (let i = 0; i < NUM_OPTIONS && i < shuffledUpgrades.length; i++) {
-                    const stat = shuffledUpgrades[i];
+                const statPool = [];
+                for (let i = 0; i < NUM_OPTIONS && i < shuffledBaseStats.length; i++) {
+                    // Randomly select a tier (0=Bronze, 1=Silver, 2=Gold)
+                    const tier = Math.floor(Math.random() * 3); 
+                    const stat = shuffledBaseStats[i];
                     
-                    // Calculate dynamic cost: Base cost + (Times purchased * 5)
-                    const timesPurchased = this.statUpgradePrices[stat.name] || 0;
-                    const finalCost = stat.cost + (timesPurchased * 5);
+                    // --- Exponential Cost Calculation (based on unique KEY) ---
+                    const timesPurchased = this.statUpgradePrices[stat.key] || 0;
                     
-                    options.push({ 
-                        ...stat, 
+                    // Cost = Base stat cost + (Times purchased * 20)
+                    // The base cost is now normalized and stored directly in stat.cost
+                    const finalCost = stat.cost + (timesPurchased * 20); 
+                    // --- End Exponential Cost ---
+                    
+                    const tierNames = ['Bronze', 'Silver', 'Gold'];
+                    
+                    statPool.push({ 
+                        name: `${stat.name} [${tierNames[tier]}]`,
+                        key: stat.key,
+                        tier: tier, // Pass tier to the apply function
+                        apply: stat.apply, // Reference the base function
+                        description: `[${tierNames[tier]}] ${stat.description.replace(/(\+\d+)/g, '').trim()} TIER EFFECT`, 
                         cost: finalCost,
-                        purchaseCount: timesPurchased // Track count for 'free' selection
+                        canAfford: this.player.currency >= finalCost,
+                        purchaseCount: timesPurchased 
                     });
                 }
                 
                 // Find the absolute lowest cost item (prioritizing lowest purchase count)
-                options.sort((a, b) => {
+                statPool.sort((a, b) => {
                     if (a.cost !== b.cost) {
                         return a.cost - b.cost;
                     }
-                    // Tie-breaker: prefer the item purchased fewest times
                     return a.purchaseCount - b.purchaseCount;
                 });
                 
-                // Apply FREE status to the first item (the lowest cost/lowest purchased)
-                if (options.length > 0) {
-                    options[0].cost = 0;
-                    options[0].isFree = true;
-                    options[0].canAfford = true;
+                // Apply FREE status to the first item 
+                if (statPool.length > 0) {
+                    statPool[0].cost = 0;
+                    statPool[0].isFree = true;
+                    statPool[0].canAfford = true;
                 }
                 
                 // Re-calculate affordability for the rest
-                options.forEach((opt, index) => {
+                statPool.forEach((opt, index) => {
                     if (index > 0) {
                         opt.canAfford = this.player.currency >= opt.cost;
                     }
                 });
 
-                return options.sort(() => Math.random() - 0.5); // Shuffle final display order
+                return statPool.sort(() => Math.random() - 0.5); // Shuffle final display order
             }
 
             // NEW: Updated to allow multi-selection and use confirm button
@@ -2144,12 +3017,20 @@
                 upgradeScreenTitle.textContent = "LEVEL UP! Choose Stat Upgrades";
                 
                 this.currentUpgradeOptions = this.generateStatOptions();
-            
+                
+                const tierColorClasses = ['text-yellow-500', 'text-gray-400', 'text-yellow-600']; // Bronze, Silver, Gold
+                const tierBorderClasses = ['border-yellow-700', 'border-gray-500', 'border-yellow-600'];
+
                 this.currentUpgradeOptions.forEach((upgrade, index) => {
                     const canAfford = upgrade.canAfford;
                     const card = document.createElement('div');
                     
-                    let cardClasses = `upgrade-card stat-card p-4 rounded-lg transition duration-150 border-4 border-yellow-700`;
+                    // Determine tier for color/border
+                    const tierIndex = upgrade.tier || 0;
+                    const tierColor = tierColorClasses[tierIndex];
+                    const tierBorder = tierBorderClasses[tierIndex];
+
+                    let cardClasses = `upgrade-card stat-card p-4 rounded-lg transition duration-150 border-4 ${tierBorder}`;
                     if (!canAfford && !upgrade.isFree) {
                         cardClasses += ' unavailable';
                     }
@@ -2161,10 +3042,11 @@
                     card.dataset.index = index; // Store index for later retrieval
                     
                     const costColor = upgrade.isFree ? 'text-blue-400' : (canAfford ? 'text-green-400' : 'text-red-400');
+                    const descriptionText = upgrade.description; // Use the rich description from the generated options
 
                     card.innerHTML = `
-                        <h3 class="text-xl font-bold ${upgrade.isFree ? 'text-blue-300' : 'text-yellow-300'} mb-2">${upgrade.name}</h3>
-                        <p class="text-sm text-gray-300 mb-2">${upgrade.description}</p>
+                        <h3 class="text-xl font-bold ${upgrade.isFree ? 'text-blue-300' : tierColor} mb-2">${upgrade.name}</h3>
+                        <p class="text-sm text-gray-300 mb-2">${descriptionText}</p>
                         <p class="text-lg font-extrabold ${costColor}">
                             ${upgrade.isFree ? 'FREE' : `Cost: ${upgrade.cost} Kills`}
                         </p>
@@ -2267,8 +3149,15 @@
                         }
                     } else {
                         // WEAPON STACK (Does NOT require new slot, cost scales)
-                        finalCost = 10 + (count * 10); // 10, 20, 30, 40, 50, 60, 70... kills
-                        descriptionText = `Add another instance (Stack x${count + 1}) to boost fire rate.`;
+                        // --- MODIFIED STACK COST: EXPONENTIAL SCALING ---
+                        // Cost = Base 10 + (Stack Count * 25)
+                        finalCost = 10 + (count * 25); 
+                        // --- END MODIFIED STACK COST ---
+                        
+                        // Use the damage factor for the description
+                        const nextDamageFactor = count + 1;
+                        
+                        descriptionText = `Add another instance (Stack x${count + 1}). Damage becomes x${nextDamageFactor.toFixed(1)} base.`;
                     }
                     
                     const canAfford = this.player.currency >= finalCost;
@@ -2286,6 +3175,7 @@
                 });
                 
                 // 3. Select final options to display (5 random, prioritizing options the player has less of)
+                const NUM_OPTIONS_WEAPON = 5;
                 const finalOptions = [];
                 
                 // Sort by current stack count (ascending), then shuffle ties
@@ -2297,7 +3187,7 @@
                 });
                 
                 // Take the top NUM_OPTIONS items
-                while (finalOptions.length < NUM_OPTIONS && tempOptions.length > 0) {
+                while (finalOptions.length < NUM_OPTIONS_WEAPON && tempOptions.length > 0) {
                     finalOptions.push(tempOptions.shift());
                 }
                 
@@ -2306,13 +3196,12 @@
                     
                     let freeOptionIndex = -1;
                     
-                    // Find the lowest cost/lowest stack option (always index 0 after sorting, but we shuffle later)
-                    // We must determine the free item based on the current options.
+                    // Find the lowest cost/lowest stack option 
                     let lowestStackCount = Infinity;
                     let lowestStackIndex = -1;
                     
                     finalOptions.forEach((opt, index) => {
-                        // Acquisition is preferred if slots are tight, but here we prioritize lowest stack count
+                        // We prioritize the lowest stack count item for the freebie
                         if (opt.currentStack < lowestStackCount) {
                             lowestStackCount = opt.currentStack;
                             lowestStackIndex = index;
@@ -2353,8 +3242,11 @@
                 
                 if (this.currentUpgradeOptions.length === 0) {
                     // Fallback if no weapon options can be generated (e.g., maxed out slots and stacks)
-                    const stat = this.statUpgrades[Math.floor(Math.random() * this.statUpgrades.length)];
-                    this.currentUpgradeOptions = [{ ...stat, name: `BONUS STAT: ${stat.name}`, type: 'stat', description: stat.description, cost: 0, canAfford: true }];
+                    const stat = this.baseStatUpgrades[Math.floor(Math.random() * this.baseStatUpgrades.length)];
+                    // Generate a random bronze tier upgrade for the fallback
+                    const statOption = { ...stat, name: `BONUS STAT: ${stat.name}`, type: 'stat', tier: 0, cost: 0, canAfford: true, description: `BONUS ${stat.name}` };
+                    
+                    this.currentUpgradeOptions = [statOption];
                     console.log("No more weapon slots! Granting free bonus stat instead.");
                 }
 
@@ -2377,7 +3269,7 @@
                     const costColor = upgrade.isFree ? 'text-blue-400' : (canAfford ? 'text-green-400' : 'text-red-400');
 
                     card.innerHTML = `
-                        <h3 class="text-xl font-bold ${upgrade.isFree ? 'text-blue-300' : (isWeapon ? 'text-green-300' : 'text-blue-300')} mb-2">${upgrade.name}</h3>
+                        <h3 class="text-xl font-bold ${upgrade.isFree ? 'text-blue-300' : (isWeapon ? 'text-green-300' : 'text-blue-300')} mb-2">${upgrade.name} (${upgrade.cost} Kills)</h3>
                         <p class="text-sm text-gray-300 mb-2">${upgrade.description}</p>
                          <p class="text-lg font-extrabold ${costColor}">
                             ${upgrade.isFree ? 'FREE' : `Cost: ${upgrade.cost} Kills`}
@@ -2404,11 +3296,24 @@
                 this.gameOver = true;
                 this.isPaused = true;
                 cancelAnimationFrame(animationFrameId);
+                
+                let highscoreMessage = '';
+
+                // NEW: High Score Logic
+                if (this.kills > this.bestKills) {
+                    this.bestKills = this.kills;
+                    localStorage.setItem(HIGHSCORE_KEY, this.bestKills);
+                    highscoreMessage = `<span class="text-yellow-400 font-bold">NEW HIGH SCORE!</span>`;
+                } else {
+                    highscoreMessage = `Best Score: ${this.bestKills} Kills`;
+                }
+                // END NEW High Score Logic
 
                 document.getElementById('messageTitle').textContent = "GAME OVER";
                 document.getElementById('messageText').innerHTML = `
-                    You survived ${this.wave - 1} waves and killed ${this.kills} enemies.<br>
-                    Final Level: ${this.player.level}
+                    You survived ${this.wave - 1} waves and earned ${this.kills} Kills.<br>
+                    Final Level: ${this.player.level}<br><br>
+                    ${highscoreMessage}
                 `;
                 messageBox.classList.remove('hidden');
             }
@@ -2422,6 +3327,8 @@
                 canvas.removeEventListener('mouseup', this.mouseUpListener);
 
                 messageBox.classList.add('hidden');
+                // Re-read the global high score just in case another run finished quickly
+                highScore = parseInt(localStorage.getItem(HIGHSCORE_KEY) || '0', 10);
                 showStartScreen();
             }
 
@@ -2438,22 +3345,32 @@
                     const name = WEAPONS[key].name;
                     // Use the emoji from the definition for the HUD text description
                     const emoji = WEAPONS[key].emoji; 
-                    return `${emoji} ${name} (x${count})`;
+                    
+                    // Display actual damage factor based on stack count
+                    const damageFactor = this.player.weapons.find(w => w.key === key)?.stackDamageFactor || 1.0;
+                    
+                    return `${emoji} ${name} (x${count}, Dmg: ${damageFactor.toFixed(1)}x)`;
                 });
+                
+                // NEW: Calculate overall buff display
+                let buffText = '';
+                if (this.player.buffs.explosiveBullets > 0) {
+                    buffText += `💥 E-Rounds: ${Math.ceil(this.player.buffs.explosiveBullets / 1000)}s | `;
+                }
+                if (this.player.buffs.iceAura > 0) {
+                    buffText += `❄️ Frozen: ${Math.ceil(this.player.buffs.iceAura / 1000)}s | `;
+                }
+                if (this.player.buffs.extremeSpeed > 0) {
+                    buffText += `💨 TURBO: ${Math.ceil(this.player.buffs.extremeSpeed / 1000)}s | `;
+                }
+                hud.buffTimer.textContent = buffText.slice(0, -3); // Remove trailing space/pipe
 
                 hud.waveCount.textContent = this.wave + (this.isBossWave ? ' (BOSS)' : '');
                 hud.killCount.textContent = this.player.currency; // Display currency here
+                hud.bestKillCount.textContent = this.bestKills; // Display high score here
                 hud.currentHP.textContent = Math.max(0, Math.floor(this.player.currentHp));
                 hud.maxHP.textContent = this.player.maxHp;
                 
-                // NEW: Update Buff Timer display
-                if (this.player.buffs.explosiveBullets > 0) {
-                    const seconds = Math.ceil(this.player.buffs.explosiveBullets / 1000);
-                    hud.buffTimer.textContent = `💥 Explosive: ${seconds}s`;
-                } else {
-                    hud.buffTimer.textContent = '';
-                }
-
                 // NEW: Update Weapon Slots display
                 // Use uniqueWeaponCount for the current count
                 hud.weaponSlots.textContent = `(Slots: ${uniqueWeaponCount}/${this.player.maxWeapons})`;
@@ -2464,8 +3381,9 @@
                 hud.statEvasion.textContent = (this.player.evasion * 100).toFixed(0); // New
                 hud.statProjectiles.textContent = this.player.projectileCountBonus; // NEW
                 // Display Attack Speed as a percentage increase (e.g., 1.1x multiplier is +10%)
-                hud.statAttackSpeed.textContent = ((this.player.fireRateReduction - 1) * 100).toFixed(0); 
+                hud.statAttackSpeed.textContent = ((this.player.fireRateReduction * (this.player.buffs.extremeSpeed > 0 ? 1.5 : 1.0) - 1) * 100).toFixed(0); 
                 hud.statRange.textContent = this.player.attackRangeMultiplier.toFixed(1); // NEW
+                hud.statShield.textContent = Math.floor(this.player.shield); // NEW
                 hud.weaponList.innerHTML = weaponNames.join(', ');
 
                 const xpRatio = this.player.xp / this.player.xpToNextLevel;
@@ -2473,17 +3391,15 @@
             }
 
             update(deltaTime) {
-                if (this.isPaused || this.gameOver) return;
+                if (!game || game.isPaused) return;
 
                 const currentTime = Date.now();
                 
                 let shouldEndWave = false;
 
                 if (this.isBossWave) {
-                    if (this.enemies.length === 0) {
+                    if (this.enemies.filter(e => !e.isDead).length === 0) { // Check only non-dead enemies
                         shouldEndWave = true;
-                        // Award slot immediately after boss death but before next wave starts
-                        this.player.maxWeapons += 1;
                     }
                 } else {
                     if (currentTime - this.lastWaveTime >= this.waveDuration) {
@@ -2513,11 +3429,16 @@
                 
                 this.player.update(deltaTime);
                 this.enemies.forEach(e => e.update(this.player, deltaTime));
-                this.pickups.forEach(p => p.update(deltaTime));
+                // FIX: Removed p.update(deltaTime) call for pickups as they don't have physics update logic
+                // this.pickups.forEach(p => p.update(deltaTime)); 
 
                 this.explosions = this.explosions.filter(p => !p.update());
 
                 this.checkCollisions();
+
+                // --- NEW CLEANUP FIX: Remove any enemy that died from any source (AoE, Detonator self-destruct) ---
+                this.enemies = this.enemies.filter(e => !e.isDead);
+                // --- END NEW CLEANUP FIX ---
 
                 this.updateHUD();
             }
@@ -2525,57 +3446,66 @@
             draw() {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 
-                // Set background color outside the arena
+                // Set background color outside the arena (currently draws over the whole canvas)
                 ctx.fillStyle = '#1a202c';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 
-                // --- Draw Arena Floor (Textured Dirt - now uses dynamic palette) ---
-                ctx.save();
+                // --- CAMERA TRANSLATION: Shift the world so the player is centered ---
+                // Calculate camera offset
+                const cameraOffsetX = centerX - this.player.x;
+                const cameraOffsetY = centerY - this.player.y;
+                
+                ctx.save(); // Save context state 1 (before translate)
+                ctx.translate(cameraOffsetX, cameraOffsetY);
+
+                // 1. DEFINE CLIPPING PATH (Centered on Rat's world position, which is screen center)
                 ctx.beginPath();
-                ctx.arc(centerX, centerY, ARENA_RADIUS, 0, Math.PI * 2);
-                ctx.fillStyle = currentPalette.arenaBase; // Dynamic base color
+                ctx.arc(this.player.x, this.player.y, VIEWPORT_RADIUS, 0, Math.PI * 2);
+                ctx.clip(); // Apply the circular clip path
+
+                // 2. DRAW WORLD ELEMENTS (Will only be visible inside the clip)
+                
+                // Draw World Boundary (The large explorable area floor)
+                ctx.beginPath();
+                ctx.arc(WORLD_CENTER_X, WORLD_CENTER_Y, WORLD_RADIUS, 0, Math.PI * 2);
+                ctx.fillStyle = currentPalette.arenaBase; 
                 ctx.fill();
-                ctx.clip(); // Clip subsequent drawing to the circle
                 
                 // Add subtle shadow gradient for depth
-                const gradientDepth = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, ARENA_RADIUS);
+                const gradientDepth = ctx.createRadialGradient(WORLD_CENTER_X, WORLD_CENTER_Y, 0, WORLD_CENTER_X, WORLD_CENTER_Y, WORLD_RADIUS);
                 gradientDepth.addColorStop(0, 'rgba(0,0,0,0.05)');
                 gradientDepth.addColorStop(1, 'rgba(0,0,0,0.3)');
                 ctx.fillStyle = gradientDepth;
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.beginPath();
+                ctx.arc(WORLD_CENTER_X, WORLD_CENTER_Y, WORLD_RADIUS, 0, Math.PI * 2);
+                ctx.fill();
 
                 // Add subtle randomized 'pebbles' for texture (dynamic color)
                 ctx.fillStyle = currentPalette.arenaPebbles; 
                 for(let i=0; i<300; i++) {
                     const angle = Math.random() * Math.PI * 2;
-                    const distance = Math.random() * ARENA_RADIUS;
-                    const px = centerX + Math.cos(angle) * distance;
-                    const py = centerY + Math.sin(angle) * distance;
+                    const distance = Math.random() * WORLD_RADIUS;
+                    const px = WORLD_CENTER_X + Math.cos(angle) * distance;
+                    const py = WORLD_CENTER_Y + Math.sin(angle) * distance;
                     ctx.fillRect(px, py, 1, 1);
                 }
 
-                ctx.restore(); // Restore clipping
-
-                // --- Draw Arena Boundary Stroke (dynamic color) ---
+                // Draw World Boundary Stroke (Outer edge of the entire game world)
                 ctx.strokeStyle = currentPalette.arenaBorder;
-                ctx.lineWidth = 4;
+                ctx.lineWidth = 10;
                 ctx.beginPath();
-                ctx.arc(centerX, centerY, ARENA_RADIUS, 0, Math.PI * 2);
+                ctx.arc(WORLD_CENTER_X, WORLD_CENTER_Y, WORLD_RADIUS, 0, Math.PI * 2);
                 ctx.stroke();
                 
-                // Draw mouse target indicator if mouse is controlling the rat
-                if (this.isMouseDown) { // Draw only when the button is held
-                    ctx.save();
-                    ctx.strokeStyle = currentPalette.arenaBorder;
-                    ctx.lineWidth = 2;
-                    ctx.globalAlpha = 0.5;
-                    ctx.beginPath();
-                    ctx.arc(this.mouseTargetX, this.mouseTargetY, 15, 0, Math.PI * 2);
-                    ctx.stroke();
-                    ctx.restore();
-                }
-
-                // --- Draw Melee Slash Animation (Cone) ---
+                // 3. DRAW GAME ENTITIES
+                this.obstacles.forEach(o => o.draw(ctx)); 
+                this.pickups.forEach(p => p.draw(ctx));
+                this.projectiles.forEach(p => p.draw(ctx));
+                this.explosions.forEach(p => p.draw(ctx)); 
+                this.enemies.forEach(e => e.draw(ctx));
+                this.player.draw(ctx); 
+                
+                // 4. Draw Melee Slash Animation (must be inside the translated/clipped context)
                 if (this.isMeleeSwinging) {
                     const alpha = this.meleeSwingTimer / this.MELEE_SWING_DURATION;
                     
@@ -2588,42 +3518,68 @@
                     const endAngle = targetAngle + arcAngle / 2;
 
                     ctx.save();
-                    ctx.translate(this.player.x, this.player.y);
+                    // Melee origin is the player's world position
+                    ctx.translate(this.player.x, this.player.y); 
                     
                     // Use a dynamic color based on the current palette/border
                     ctx.strokeStyle = `rgba(${parseInt(currentPalette.arenaBorder.substring(1, 3), 16)}, ${parseInt(currentPalette.arenaBorder.substring(3, 5), 16)}, ${parseInt(currentPalette.arenaBorder.substring(5, 7), 16)}, ${alpha})`;
                     ctx.lineWidth = 6;
                     
                     ctx.beginPath();
-                    // Move to the center (the rat)
                     ctx.moveTo(0, 0); 
-                    // Draw the first edge of the cone
                     ctx.lineTo(slashRadius * Math.cos(startAngle), slashRadius * Math.sin(startAngle));
-                    // Draw the arc of the cone
                     ctx.arc(0, 0, slashRadius, startAngle, endAngle);
-                    // Draw the second edge of the cone back to the center
                     ctx.lineTo(0, 0); 
                     
-                    ctx.stroke(); // Draw the stroke of the cone
+                    ctx.stroke(); 
                     ctx.restore();
                 }
-
-
-                this.pickups.forEach(p => p.draw(ctx));
-                this.projectiles.forEach(p => p.draw(ctx));
-                this.explosions.forEach(p => p.draw(ctx)); 
-                this.enemies.forEach(e => e.draw(ctx));
-                this.player.draw(ctx);
+                
+                // Restore context state 1 (removes translation and clipping)
+                ctx.restore(); 
+                
+                // 5. Draw Viewport Boundary Stroke (The final circular border - must be in screen coordinates)
+                ctx.strokeStyle = currentPalette.arenaBorder;
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                // Draw circle centered on the screen center (centerX, centerY)
+                ctx.arc(centerX, centerY, VIEWPORT_RADIUS, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                // 6. Draw Mouse Target Indicator (must be in screen coordinates)
+                if (this.isMouseDown) {
+                    // Calculate screen position of mouse target
+                    const screenMouseX = centerX + (this.mouseTargetX - this.player.x);
+                    const screenMouseY = centerY + (this.mouseTargetY - this.player.y);
+                    
+                    ctx.save();
+                    ctx.strokeStyle = currentPalette.arenaBorder;
+                    ctx.lineWidth = 2;
+                    ctx.globalAlpha = 0.5;
+                    ctx.beginPath();
+                    ctx.arc(screenMouseX, screenMouseY, 15, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.restore();
+                }
             }
         }
 
         // --- GAME LOOP ---
 
         function gameLoop(currentTime) {
+            // FIX: Ensure game object exists before accessing its properties
+            if (!game) {
+                window.requestAnimationFrame(gameLoop);
+                return;
+            }
+
             if (!game.isPaused) {
                 const deltaTime = currentTime - game.lastUpdateTime;
-                game.update(deltaTime);
-                game.draw();
+                // FIX: Check if game.update is defined before calling
+                if (typeof game.update === 'function') {
+                    game.update(deltaTime);
+                    game.draw();
+                }
                 game.lastUpdateTime = currentTime;
             }
             if (!game.gameOver) {
@@ -2638,6 +3594,11 @@
             // Reset palette to default on start
             currentPalette = COLOR_PALETTES.dirt; 
             game = new Game(characterKey);
+            
+            // FIX: Move startNewWave() call here to ensure 'game' object is fully instantiated
+            game.startNewWave(); 
+            
+            // Ensure lastUpdateTime is set immediately before the first frame request
             game.lastUpdateTime = performance.now();
             window.requestAnimationFrame(gameLoop);
         }
@@ -2661,6 +3622,8 @@
                         <li>Max Slots: <span class="text-yellow-500 font-bold">${character.initialStats.maxWeapons}</span></li>
                         <li>Armor: <span class="text-white">${character.initialStats.armor}</span></li>
                         <li>Evasion: <span class="text-white">${(character.initialStats.evasion * 100).toFixed(0)}%</span></li>
+                        <li>Shield: <span class="text-blue-400">${character.initialStats.shield}</span></li> <!-- NEW SHIELD DISPLAY -->
+                        <li>Lifesteal: <span class="text-red-400">${(character.initialStats.lifestealPercentage * 100).toFixed(1)}%</span></li> <!-- NEW LIFESTEAL DISPLAY -->
                         <li class="mt-2 text-yellow-500">Starts with: ${WEAPONS[character.starterWeapon].name} ${WEAPONS[character.starterWeapon].emoji}</li>
                         <li class="text-sm mt-3 text-white font-semibold">SKIN: <span style="color: ${character.ratColors.main}">${character.name.split(' ').pop()} Style</span></li>
                     </ul>
@@ -2669,6 +3632,9 @@
                 characterOptionsDiv.appendChild(card);
             });
             // --- END MODIFICATION ---
+            
+            // Initial HUD update for high score display
+            hud.bestKillCount.textContent = highScore;
         }
 
 
