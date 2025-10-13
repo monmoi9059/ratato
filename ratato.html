@@ -197,7 +197,7 @@
         const ARENA_RADIUS = VIEWPORT_RADIUS; // Alias for old code compatibility
         // --- END NEW CONSTANTS ---
 
-        const BASE_PROJECTILE_RANGE = 230; // Base range increased by 50px (was 180)
+        const BASE_PROJECTILE_RANGE = 173; // Was 230, reduced by 25%
         
         const HIGHSCORE_KEY = 'ratato_best_kills'; // Key for localStorage
 
@@ -441,6 +441,20 @@
                 projectileSpeed: 25, 
                 projectiles: 1, spread: 0, radius: 3, description: "Pinpoint accuracy with a very high velocity energy bolt.", iconColor: '#9f7aea',
             },
+            // --- NEW RANGED WEAPONS ---
+            railgun: {
+                key: 'railgun', name: "Railgun", emoji: "💥", damage: 150, fireRate: 2500, projectileSpeed: 30, projectiles: 1, spread: 0, radius: 8, description: "Charges for a devastating, high-velocity shot. Pierces through reality.", iconColor: '#00ffff',
+            },
+            pulseRifle: {
+                key: 'pulseRifle', name: "Pulse Rifle", emoji: "📡", damage: 12, fireRate: 800, projectileSpeed: 14, projectiles: 3, spread: 0.1, radius: 5, description: "Fires a tight three-shot burst. Excellent for focused fire.", iconColor: '#b794f4',
+            },
+            discLauncher: {
+                key: 'discLauncher', name: "Disc Launcher", emoji: "💿", damage: 40, fireRate: 900, projectileSpeed: 5, projectiles: 1, spread: 0, radius: 25, description: "Launches a large, slow-moving disc that cleaves through enemies.", iconColor: '#f56565',
+            },
+            acidSprayer: {
+                key: 'acidSprayer', name: "Acid Sprayer", emoji: "🧪", damage: 3, fireRate: 80, projectileSpeed: 7, projectiles: 1, spread: 0.6, radius: 4, description: "Sprays a short-range cone of corrosive acid. Melts armor.", iconColor: '#9ae6b4',
+            },
+
             // --- MELEE WEAPONS WITH CONE PROPERTIES ---
             sledgehammer: {
                 key: 'sledgehammer', name: "Sledgehammer", emoji: "🔨", damage: 50, fireRate: 400, radius: 60, arcAngle: Math.PI / 3, isMelee: true, knockback: 15, description: "Instant hit, high damage, forward sweeping attack.", iconColor: '#b8860b',
@@ -458,6 +472,19 @@
                 key: 'lance', name: "Lance", emoji: "🗡️", damage: 80, fireRate: 750, 
                 radius: 80, 
                 arcAngle: Math.PI * 0.75, isMelee: true, knockback: 25, description: "Fast thrust, high damage, massive forward arc.", iconColor: '#4a5568',
+            },
+            // --- NEW MELEE WEAPONS ---
+            dagger: {
+                key: 'dagger', name: "Dagger", emoji: "匕", damage: 8, fireRate: 100, radius: 35, arcAngle: Math.PI / 6, isMelee: true, knockback: 2, description: "A lightning-fast stab with very short reach. Death by a thousand cuts.", iconColor: '#718096',
+            },
+            scythe: {
+                key: 'scythe', name: "Scythe", emoji: "💀", damage: 100, fireRate: 1800, radius: 100, arcAngle: Math.PI * 2, isMelee: true, knockback: 15, description: "A slow, sweeping 360-degree attack that reaps all nearby foes.", iconColor: '#2d3748',
+            },
+            warhammer: {
+                key: 'warhammer', name: "Warhammer", emoji: "🔨", damage: 70, fireRate: 1100, radius: 75, arcAngle: Math.PI / 1.5, isMelee: true, knockback: 30, description: "A colossal hammer that sends enemies flying with a wide, crushing blow.", iconColor: '#4a5568',
+            },
+            katana: {
+                key: 'katana', name: "Katana", emoji: "🈹", damage: 25, fireRate: 180, radius: 85, arcAngle: Math.PI / 5, isMelee: true, knockback: 4, description: "A swift, precise slash with exceptional reach. The blade is sworn to a single path.", iconColor: '#e2e8f0',
             },
         };
 
@@ -539,6 +566,13 @@
                 context.save();
                 context.translate(this.x, this.y);
 
+                // NEW: Add a drop shadow for depth
+                context.fillStyle = 'rgba(0,0,0,0.25)';
+                context.beginPath();
+                context.ellipse(0, this.radius * 0.8, this.radius, this.radius * 0.4, 0, 0, Math.PI * 2);
+                context.fill();
+
+
                 // Draw main rock body (rounded shape with a gradient for texture)
                 const gradient = context.createRadialGradient(
                     this.radius * 0.3, -this.radius * 0.3, 0,
@@ -578,6 +612,31 @@
                 context.beginPath();
                 context.arc(-this.radius * 0.5, -this.radius * 0.5, this.radius * 0.15, 0, Math.PI * 2);
                 context.fill();
+                
+                // NEW: Palette-specific visual flair
+                context.globalCompositeOperation = 'lighter'; // Additive blending for glows
+                let effectApplied = false;
+                switch (currentPalette.name) {
+                    case "Toxic Swamp":
+                        const toxicGlow = context.createRadialGradient(0, 0, this.radius * 0.5, 0, 0, this.radius);
+                        toxicGlow.addColorStop(0, 'rgba(154, 230, 180, 0.4)');
+                        toxicGlow.addColorStop(1, 'rgba(154, 230, 180, 0)');
+                        context.fillStyle = toxicGlow;
+                        context.beginPath();
+                        context.arc(0, 0, this.radius * 1.2, 0, Math.PI * 2);
+                        context.fill();
+                        effectApplied = true;
+                        break;
+                    case "Ice Cave":
+                        context.fillStyle = 'rgba(255, 255, 255, 0.3)';
+                        context.fill(); // Re-fill with a white sheen
+                        effectApplied = true;
+                        break;
+                }
+                if (effectApplied) {
+                    context.globalCompositeOperation = 'source-over'; // Reset blending mode
+                }
+
 
                 context.restore();
             }
@@ -874,11 +933,16 @@
                              // BASE RADIUS is multiplied by the CHARACTER's affinity multiplier (3.0 for Brawler/Swordsman)
                             const initialBaseRadius = BASE_RADIUS * this.meleeRangeMultiplier;
                             
+                            // UPDATED: Added new melee weapons to the scaling logic
                             const radiusIncrease = (weaponKey === 'sledgehammer') ? 10 * newTotalStacks : 
                                                      (weaponKey === 'axe') ? 5 * newTotalStacks :
                                                      (weaponKey === 'sword') ? 3 * newTotalStacks :
                                                      (weaponKey === 'spear') ? 7 * newTotalStacks :
-                                                     (weaponKey === 'lance') ? 12 * newTotalStacks : 0;
+                                                     (weaponKey === 'lance') ? 12 * newTotalStacks :
+                                                     (weaponKey === 'warhammer') ? 15 * newTotalStacks :
+                                                     (weaponKey === 'dagger') ? 2 * newTotalStacks :
+                                                     (weaponKey === 'katana') ? 6 * newTotalStacks :
+                                                     (weaponKey === 'scythe') ? 8 * newTotalStacks : 0;
                             
                             w.radius = initialBaseRadius + radiusIncrease;
                         }
@@ -922,7 +986,12 @@
             levelUp() {
                 this.xp -= this.xpToNextLevel;
                 this.level += 1;
-                this.xpToNextLevel = Math.floor(this.xpToNextLevel * 1.5); 
+                
+                // NEW leveling curve: Steeper at the start, flatter at higher levels.
+                // The growth factor starts high and decreases as the player levels up.
+                const growthFactor = Math.max(1.1, 1.8 - (this.level / 50));
+                this.xpToNextLevel = Math.floor(this.xpToNextLevel * growthFactor);
+                
                 game.pauseAndShowStatUpgrades();
             }
 
@@ -968,78 +1037,73 @@
 
                 const currentTime = Date.now();
                 
-                // Group weapons by type to check fire rates
+                // NEW TARGETING LOGIC
+                // Get all enemies sorted by distance, once per frame.
+                const sortedEnemies = game.enemies
+                    .map(e => ({ e, distance: Math.hypot(e.x - this.x, e.y - this.y) }))
+                    .sort((a, b) => a.distance - b.distance)
+                    .map(item => item.e);
+
+                // Group weapons by type but keep a deterministic order based on the player's weapon list
+                const weaponTypeOrder = [];
                 const weaponsByType = this.weapons.reduce((acc, weapon) => {
-                    (acc[weapon.key] = acc[weapon.key] || []).push(weapon);
+                    if (!acc[weapon.key]) {
+                        acc[weapon.key] = [];
+                        weaponTypeOrder.push(weapon.key); // Store the order of first appearance
+                    }
+                    acc[weapon.key].push(weapon);
                     return acc;
                 }, {});
                 
                 // Calculate temporary speed boost from power-up
                 const speedBuffFactor = this.buffs.extremeSpeed > 0 ? 1.5 : 1.0; 
 
-                Object.entries(weaponsByType).forEach(([key, stacks]) => {
-                    // Check if the overall weapon type timer has reset (using the fire rate adjusted by player stat)
+                let globalWeaponIndex = 0;
+
+                // Iterate using the deterministic order to ensure target "slots" are consistent
+                weaponTypeOrder.forEach(key => {
+                    const stacks = weaponsByType[key];
                     const baseFireRate = stacks[0].fireRate;
-                    
-                    // Apply player stat AND speed power-up buff
                     const totalFireRateReduction = this.fireRateReduction * speedBuffFactor;
-                    
                     const adjustedFireRate = Math.max(10, baseFireRate / totalFireRateReduction);
 
                     if (currentTime - this.weaponTimers[key] > adjustedFireRate) {
-                        this.shootWeaponStacks(key, stacks);
+                        // This weapon type is ready to fire. Pass its starting "target slot" index.
+                        this.shootWeaponStacks(key, stacks, sortedEnemies, globalWeaponIndex);
                         this.weaponTimers[key] = currentTime; 
                     }
+                    
+                    // Move the global index along for the next weapon type
+                    globalWeaponIndex += stacks.length;
                 });
             }
 
-            shootWeaponStacks(weaponKey, stacks) {
-                // --- MULTI-TARGETING LOGIC ---
-                // Get all enemies sorted by distance from the Rat
-                const sortedEnemies = game.enemies
-                    .map(e => ({ e, distance: Math.hypot(e.x - this.x, e.y - this.y) }))
-                    .sort((a, b) => a.distance - b.distance)
-                    .map(item => item.e);
-
-                // Track which stacks have fired to ensure consistent logic across types
-                let stacksFired = 0; 
-
+            shootWeaponStacks(weaponKey, stacks, sortedEnemies, startingGlobalIndex) {
+                // Each stack of this weapon type will fire.
                 stacks.forEach((weapon, stackIndex) => {
-                    if (stacksFired < stacks.length) {
-                        
-                        let initialAngle;
-                        let targetEnemy = null;
+                    // The "target slot" for this specific weapon instance is its global index.
+                    const currentGlobalIndex = startingGlobalIndex + stackIndex;
+                    
+                    let initialAngle;
 
-                        if (weapon.isMelee) {
-                             // Melee weapons only need the nearest target to determine the CONE direction, 
-                             // all stacks share the same single melee attack instance logic.
-                             if (stackIndex === 0) {
-                                game.meleeAttack(this.x, this.y, weapon);
-                             }
-                             return; 
-                        } else {
-                            // RANGED WEAPONS: Target the next available enemy based on stackIndex
-                            targetEnemy = sortedEnemies[stackIndex];
-
-                            if (targetEnemy) {
-                                initialAngle = Math.atan2(targetEnemy.y - this.y, targetEnemy.x - this.x);
-                            } else if (game.enemies.length > 0) {
-                                // If we run out of unique targets, loop back to the nearest one for overflow stacks
-                                const nearestEnemy = sortedEnemies[0];
-                                initialAngle = Math.atan2(nearestEnemy.y - this.y, nearestEnemy.x - this.x);
-                            } else {
-                                // No enemies to shoot at, exit stack loop
-                                return; 
-                            }
-                            
-                            // Proceed to fire the individual ranged stack
-                            this.fireSingleWeaponStack(weapon, initialAngle);
-                        }
-                        
-                        stacksFired++;
+                    // Handle Melee weapons separately. They don't consume a target slot and only attack once per type.
+                    if (weapon.isMelee) {
+                         if (stackIndex === 0) {
+                            game.meleeAttack(this.x, this.y, weapon);
+                         }
+                         return; // Go to next stack in forEach (but do nothing)
+                    } 
+                    
+                    // RANGED WEAPONS:
+                    if (sortedEnemies.length > 0) {
+                        // Use the global index to pick a target. Loop around if not enough enemies.
+                        const targetIndex = currentGlobalIndex % sortedEnemies.length;
+                        let targetEnemy = sortedEnemies[targetIndex];
+                        initialAngle = Math.atan2(targetEnemy.y - this.y, targetEnemy.x - this.x);
+                        this.fireSingleWeaponStack(weapon, initialAngle);
                     }
+                    // If no enemies, do nothing.
                 });
-                // --- END MULTI-TARGETING LOGIC ---
             }
             
             fireSingleWeaponStack(weapon, initialAngle) {
@@ -1073,7 +1137,7 @@
 
                 // --- FLAMETHROWER/SPREAD FIX ---
                 // The flamethrower relies on spreading around the target line.
-                if (weapon.key === 'flamethrower') {
+                if (weapon.key === 'flamethrower' || weapon.key === 'acidSprayer') {
                     // Ensure the angle spread is centered correctly
                     startingAngle = initialAngle - halfSpread;
                 } else if (totalProjectiles > 1) {
@@ -1104,20 +1168,30 @@
                     // --- FIX: Pass total bounces (weapon base + global player stat) ---
                     const totalBounces = initialBounces + this.bounceCount; 
                     
-                    const bullet = new Projectile(this.x, this.y, weapon.radius, bulletColor, finalSpeed, angle, finalDamage, maxTravelDistance, isExplosive, totalBounces);
+                    const bullet = new Projectile(this.x, this.y, weapon.radius, bulletColor, finalSpeed, angle, finalDamage, maxTravelDistance, isExplosive, totalBounces, weapon.key);
                     game.projectiles.push(bullet);
                 }
             }
 
 
             drawRatBody(context) {
-                context.save();
-                context.translate(this.x, this.y);
-
                 const isMoving = this.moveDirection.x !== 0 || this.moveDirection.y !== 0;
+                // NEW: Add idle bobbing animation
+                const idleBob = isMoving ? 0 : Math.sin(Date.now() / 200) * 1.5;
+
+                context.save();
+                // Apply bob to entire rat drawing
+                context.translate(this.x, this.y + idleBob); 
+
                 const bodyLength = this.radius * 2.5;
                 const bodyHeight = this.radius * 1.2;
                 const headRadius = this.radius * 0.8;
+
+                // NEW: Add a drop shadow for depth, drawn first
+                context.beginPath();
+                context.ellipse(0, bodyHeight / 2 + 3, bodyLength / 2, bodyHeight / 4, 0, 0, Math.PI * 2);
+                context.fillStyle = 'rgba(0, 0, 0, 0.2)';
+                context.fill();
                 
                 // Flip horizontally if facing left
                 if (!this.facingRight) {
@@ -1369,63 +1443,83 @@
                 }
             }
 
+            // NEW VISUALS: Redesigned enemy drawing logic
             draw(context) {
                 context.save();
                 context.translate(this.x, this.y);
-                
-                const SNAKE_LENGTH = 30;
-                const bodySegments = 4;
-                // Increased wave frequency for more visible slithering animation
-                const wave = Math.sin(Date.now() / 100) * 0.8; 
 
-                // --- Draw Ice Aura Visual ---
+                const bodySegments = 8;
+                const pathLength = this.radius * 2;
+                const wave = Date.now() / 200 + this.x / 10;
+
+                // --- Draw Ice Aura Visual (if slowed) ---
                 if (this.isSlowed) {
-                     const alpha = Math.sin(Date.now() / 100) * 0.3 + 0.4; // Pulsing light blue
+                     const alpha = Math.sin(Date.now() / 100) * 0.3 + 0.4;
                      context.fillStyle = `rgba(66, 153, 225, ${alpha})`;
                      context.beginPath();
                      context.arc(0, 0, this.radius + 5, 0, Math.PI * 2);
                      context.fill();
                 }
-                // --- End Ice Aura Visual ---
 
+                // --- New Segmented Body Drawing ---
+                const segmentPositions = [];
+                for (let i = 0; i < bodySegments; i++) {
+                    const progress = i / (bodySegments - 1);
+                    const x = (progress - 0.5) * pathLength;
+                    const y = Math.sin(progress * Math.PI * 2 + wave) * this.radius * 0.5;
+                    segmentPositions.push({ x, y });
+                }
 
-                // --- Detailed Snake Body with Gradient for Texture/Shading ---
-                const gradientBody = context.createLinearGradient(-SNAKE_LENGTH / 2, -5, SNAKE_LENGTH / 2, 5);
-                gradientBody.addColorStop(0, this.strokeColor); // Dark tail
-                gradientBody.addColorStop(0.3, this.color); // Body color
-                gradientBody.addColorStop(0.7, this.color); // Body color
-                gradientBody.addColorStop(1, this.strokeColor); // Dark head
-                
-                context.strokeStyle = gradientBody; 
-                context.lineJoin = 'round';
-                context.lineCap = 'round';
-
-                context.beginPath();
-                
-                for (let i = 0; i <= bodySegments; i++) {
-                    const x = (i / bodySegments) * SNAKE_LENGTH - SNAKE_LENGTH / 2;
-                    // Apply wave to both Y position and X position slightly for realistic slither
-                    const y = Math.sin(x / 5 + this.x / 10 + wave) * 3; 
-                    
-                    if (i === 0) {
-                        context.moveTo(x, y);
-                    } else {
-                        context.lineTo(x, y);
-                    }
+                // Draw shadow first (from back to front)
+                context.fillStyle = 'rgba(0, 0, 0, 0.15)';
+                for (let i = bodySegments - 1; i >= 0; i--) {
+                    const seg = segmentPositions[i];
+                    context.beginPath();
+                    context.arc(seg.x, seg.y + 4, this.radius, 0, Math.PI * 2);
+                    context.fill();
                 }
                 
-                context.lineWidth = this.radius * 1.5; 
-                context.stroke();
-                // --- End Body Drawing ---
+                // Draw body segments (from back to front for correct overlap)
+                for (let i = bodySegments - 1; i >= 0; i--) {
+                    const seg = segmentPositions[i];
+                    
+                    const gradient = context.createRadialGradient(seg.x - this.radius * 0.2, seg.y - this.radius * 0.2, 1, seg.x, seg.y, this.radius);
+                    gradient.addColorStop(0, '#ffffff44'); // Highlight
+                    gradient.addColorStop(0.5, this.color);
+                    gradient.addColorStop(1, this.strokeColor || this.color);
+
+                    context.fillStyle = gradient;
+                    context.beginPath();
+                    context.arc(seg.x, seg.y, this.radius, 0, Math.PI * 2);
+                    context.fill();
+                }
+
+                // Draw Head and Eyes
+                const head = segmentPositions[bodySegments - 1];
+                const headGradient = context.createRadialGradient(head.x - this.radius * 0.3, head.y - this.radius * 0.3, 1, head.x, head.y, this.radius * 1.2);
+                headGradient.addColorStop(0, '#ffffff66');
+                headGradient.addColorStop(0.5, this.color);
+                headGradient.addColorStop(1, this.strokeColor || this.color);
                 
-                const headX = SNAKE_LENGTH / 2;
-                const headY = Math.sin(headX / 5 + this.x / 10 + wave) * 3;
-                context.fillStyle = currentPalette.boss; // Use boss color for head highlight (dynamic color)
+                context.fillStyle = headGradient;
                 context.beginPath();
-                context.arc(headX, headY, this.radius * 0.8, 0, Math.PI * 2);
+                context.arc(head.x, head.y, this.radius * 1.2, 0, Math.PI * 2);
                 context.fill();
-                
-                this._drawHpBar(context); 
+
+                // Eyes
+                context.fillStyle = '#fff';
+                context.beginPath();
+                context.arc(head.x + this.radius * 0.5, head.y - this.radius * 0.3, this.radius * 0.25, 0, Math.PI * 2);
+                context.arc(head.x + this.radius * 0.5, head.y + this.radius * 0.3, this.radius * 0.25, 0, Math.PI * 2);
+                context.fill();
+                context.fillStyle = '#000';
+                context.beginPath();
+                context.arc(head.x + this.radius * 0.6, head.y - this.radius * 0.3, this.radius * 0.1, 0, Math.PI * 2);
+                context.arc(head.x + this.radius * 0.6, head.y + this.radius * 0.3, this.radius * 0.1, 0, Math.PI * 2);
+                context.fill();
+
+
+                this._drawHpBar(context, this.radius * 2, 3, -this.radius - 8); 
                 context.restore();
             }
         }
@@ -1454,63 +1548,6 @@
                 this.color = currentPalette.fastSnake; // Dynamic color
                 this.strokeColor = this.color.slice(0, 5) + '00'; 
             }
-            
-            draw(context) {
-                context.save();
-                context.translate(this.x, this.y);
-                
-                const SNAKE_LENGTH = 20; // Shorter
-                const bodySegments = 3;
-                // Faster wave for faster snake
-                const wave = Math.sin(Date.now() / 75) * 0.9; 
-
-                // --- Draw Ice Aura Visual (must be first) ---
-                 if (this.isSlowed) {
-                     const alpha = Math.sin(Date.now() / 100) * 0.3 + 0.4; 
-                     context.fillStyle = `rgba(66, 153, 225, ${alpha})`;
-                     context.beginPath();
-                     context.arc(0, 0, this.radius + 5, 0, Math.PI * 2);
-                     context.fill();
-                }
-
-                // --- Detailed Snake Body with Gradient for Texture/Shading ---
-                const gradientBody = context.createLinearGradient(-SNAKE_LENGTH / 2, -5, SNAKE_LENGTH / 2, 5);
-                gradientBody.addColorStop(0, this.strokeColor); 
-                gradientBody.addColorStop(0.3, this.color); 
-                gradientBody.addColorStop(0.7, this.color); 
-                gradientBody.addColorStop(1, this.strokeColor); 
-                
-                context.strokeStyle = gradientBody; 
-                context.lineJoin = 'round';
-                context.lineCap = 'round';
-
-                context.beginPath();
-                
-                for (let i = 0; i <= bodySegments; i++) {
-                    const x = (i / bodySegments) * SNAKE_LENGTH - SNAKE_LENGTH / 2;
-                    const y = Math.sin(x / 3 + this.x / 5 + wave) * 2; 
-                    
-                    if (i === 0) {
-                        context.moveTo(x, y);
-                    } else {
-                        context.lineTo(x, y);
-                    }
-                }
-                
-                context.lineWidth = this.radius * 1.0; 
-                context.stroke();
-                // --- End Body Drawing ---
-                
-                const headX = SNAKE_LENGTH / 2;
-                const headY = Math.sin(headX / 3 + this.x / 5 + wave) * 2;
-                context.fillStyle = currentPalette.arenaBorder; // Use arena glow for head highlight
-                context.beginPath();
-                context.arc(headX, headY, this.radius * 0.8, 0, Math.PI * 2);
-                context.fill();
-                
-                this._drawHpBar(context, 20, 3, -10); 
-                context.restore();
-            }
         }
 
         class TankSnake extends Enemy {
@@ -1524,63 +1561,6 @@
                 this.xpValue = Math.floor(this.xpValue * 3.0); // 3x XP Bonus due to high durability
                 this.color = currentPalette.tankSnake; // Dynamic color
                 this.strokeColor = this.color.slice(0, 5) + '00';
-            }
-            
-            draw(context) {
-                context.save();
-                context.translate(this.x, this.y);
-                
-                const SNAKE_LENGTH = 50; // Longer body
-                const bodySegments = 5;
-                // Slower wave for slower snake
-                const wave = Math.sin(Date.now() / 300) * 0.3; 
-
-                // --- Draw Ice Aura Visual (must be first) ---
-                 if (this.isSlowed) {
-                     const alpha = Math.sin(Date.now() / 100) * 0.3 + 0.4; 
-                     context.fillStyle = `rgba(66, 153, 225, ${alpha})`;
-                     context.beginPath();
-                     context.arc(0, 0, this.radius + 5, 0, Math.PI * 2);
-                     context.fill();
-                }
-
-                // --- Detailed Snake Body with Gradient for Texture/Shading ---
-                const gradientBody = context.createLinearGradient(-SNAKE_LENGTH / 2, -5, SNAKE_LENGTH / 2, 5);
-                gradientBody.addColorStop(0, this.strokeColor); 
-                gradientBody.addColorStop(0.3, this.color); 
-                gradientBody.addColorStop(0.7, this.color); 
-                gradientBody.addColorStop(1, this.strokeColor); 
-                
-                context.strokeStyle = gradientBody; 
-                context.lineJoin = 'round';
-                context.lineCap = 'round';
-
-                context.beginPath();
-                
-                for (let i = 0; i <= bodySegments; i++) {
-                    const x = (i / bodySegments) * SNAKE_LENGTH - SNAKE_LENGTH / 2;
-                    const y = Math.sin(x / 8 + this.x / 15 + wave) * 5; 
-                    
-                    if (i === 0) {
-                        context.moveTo(x, y);
-                    } else {
-                        context.lineTo(x, y);
-                    }
-                }
-                
-                context.lineWidth = this.radius * 1.8; // Thicker body
-                context.stroke();
-                // --- End Body Drawing ---
-
-                const headX = SNAKE_LENGTH / 2;
-                const headY = Math.sin(headX / 8 + this.x / 15 + wave) * 5;
-                context.fillStyle = currentPalette.arenaBorder; // Arena glow for head
-                context.beginPath();
-                context.arc(headX, headY, this.radius * 0.7, 0, Math.PI * 2);
-                context.fill();
-                
-                this._drawHpBar(context, 40, 5, -15); // Larger HP bar
-                context.restore();
             }
         }
         
@@ -1664,78 +1644,31 @@
             }
             
             draw(context) {
-                context.save();
-                context.translate(this.x, this.y);
-                
-                const SNAKE_LENGTH = 30; 
-                const bodySegments = 4;
-                const wave = Math.sin(Date.now() / 150) * 0.5; 
-
-                // --- Draw Ice Aura Visual (must be first) ---
-                 if (this.isSlowed) {
-                     const alpha = Math.sin(Date.now() / 100) * 0.3 + 0.4; 
-                     context.fillStyle = `rgba(66, 153, 225, ${alpha})`;
-                     context.beginPath();
-                     context.arc(0, 0, this.radius + 5, 0, Math.PI * 2);
-                     context.fill();
-                }
-
-                // Draw body
-                const gradientBody = context.createLinearGradient(-SNAKE_LENGTH / 2, -5, SNAKE_LENGTH / 2, 5);
-                gradientBody.addColorStop(0, this.strokeColor); 
-                gradientBody.addColorStop(0.3, this.color); 
-                gradientBody.addColorStop(0.7, this.color); 
-                gradientBody.addColorStop(1, this.strokeColor); 
-                
-                context.strokeStyle = gradientBody; 
-                context.lineJoin = 'round';
-                context.lineCap = 'round';
-
-                // --- Fuse Flash Effect ---
-                let flashColor = this.color;
-                
-                const currentTime = Date.now(); // FIX: Defined currentTime here
-
+                const originalColor = this.color;
                 if (this.isFusing) {
                     // Flash rapidly between red and yellow
-                    flashColor = (Math.floor(currentTime / 75) % 2 === 0) ? '#ff4500' : '#ffc700'; 
+                    this.color = (Math.floor(Date.now() / 75) % 2 === 0) ? '#ff4500' : '#ffc700';
                 }
-                context.strokeStyle = flashColor;
-                
-                context.beginPath();
-                for (let i = 0; i <= bodySegments; i++) {
-                    const x = (i / bodySegments) * SNAKE_LENGTH - SNAKE_LENGTH / 2;
-                    const y = Math.sin(x / 5 + this.x / 10 + wave) * 3; 
-                    
-                    if (i === 0) {
-                        context.moveTo(x, y);
-                    } else {
-                        context.lineTo(x, y);
-                    }
-                }
-                
-                context.lineWidth = this.radius * 1.6; 
-                context.stroke();
-                
-                // Draw head
-                const headX = SNAKE_LENGTH / 2;
-                const headY = Math.sin(headX / 5 + this.x / 10 + wave) * 3;
-                context.fillStyle = flashColor; 
-                context.beginPath();
-                context.arc(headX, headY, this.radius * 0.9, 0, Math.PI * 2);
-                context.fill();
 
+                // Call the new, improved drawing logic from the parent class
+                // It will use the temporarily modified `this.color`
+                super.draw(context);
+
+                this.color = originalColor; // Reset color so it doesn't stick
+
+                // Draw the fuse timer text on top
                 if (this.isFusing) {
-                    // Draw fuse timer text
-                    const remaining = ((this.fuseTime - (currentTime - this.fuseStart)) / 1000).toFixed(1);
-                    context.fillStyle = '#1a202c'; 
-                    context.font = 'bold 10px Inter';
+                    context.save();
+                    context.translate(this.x, this.y);
+                    const remaining = ((this.fuseTime - (Date.now() - this.fuseStart)) / 1000).toFixed(1);
+                    context.fillStyle = '#fff';
+                    context.font = 'bold 12px Inter';
                     context.textAlign = 'center';
-                    context.fillText(remaining, headX, headY + 3);
+                    context.shadowColor = 'black';
+                    context.shadowBlur = 3;
+                    context.fillText(remaining, 0, -this.radius - 15);
+                    context.restore();
                 }
-                
-                this._drawHpBar(context, 25, 3, -12); 
-                context.restore();
             }
         }
 
@@ -1760,7 +1693,7 @@
 
             update(player, deltaTime) {
                 let actualSpeed = this.speed;
-                const SLOW_FACTOR = 0.5; // 50% slow
+                const SLOW_FACTOR = 0.5;
                 
                 if (this.isSlowed) {
                     actualSpeed *= SLOW_FACTOR;
@@ -1773,20 +1706,21 @@
                 const distance = Math.hypot(dx, dy);
 
                 // --- OBSTACLE COLLISION CHECK for Boss Movement ---
-                let hitObstacle = false;
+                let obstacleHit = null; // Changed from boolean to object holder
                 game.obstacles.forEach(o => {
+                    if (obstacleHit) return; // Already found one, no need to check more
                     const nextX = this.x + (dx / distance) * totalSpeed;
                     const nextY = this.y + (dy / distance) * totalSpeed;
                     const dist = Math.hypot(nextX - o.x, nextY - o.y);
                     if (dist < this.radius + o.radius) {
-                        hitObstacle = true;
+                        obstacleHit = o; // Store the obstacle object
                     }
                 });
 
-                if (hitObstacle) {
+                if (obstacleHit) { // Check if an object was stored
                     // Boss is deterred by obstacles, but keeps moving toward player
                     // Try to move around the obstacle instead of stopping
-                    const pushAngle = Math.atan2(this.x - hitObstacle.x, this.y - hitObstacle.y);
+                    const pushAngle = Math.atan2(this.x - obstacleHit.x, this.y - obstacleHit.y);
                     this.x += Math.cos(pushAngle) * totalSpeed * 0.5; 
                     this.y += Math.sin(pushAngle) * totalSpeed * 0.5;
                     return; 
@@ -1798,68 +1732,20 @@
                     this.y += (dy / distance) * totalSpeed;
                 }
             }
-
-
+            
+            // Boss uses the default enhanced enemy draw method, but we can add its crown
             draw(context) {
+                super.draw(context); // Draw the enhanced snake body first
+                
+                // Draw Crown on top
                 context.save();
                 context.translate(this.x, this.y);
+                const headX = this.radius; // Approximate head position
+                const headY = 0;
 
-                // --- Draw Ice Aura Visual (must be first) ---
-                 if (this.isSlowed) {
-                     const alpha = Math.sin(Date.now() / 100) * 0.3 + 0.4; 
-                     context.fillStyle = `rgba(66, 153, 225, ${alpha})`;
-                     context.beginPath();
-                     context.arc(0, 0, this.radius + 5, 0, Math.PI * 2);
-                     context.fill();
-                }
-                
-                const BOSS_SNAKE_LENGTH = 80;
-                const bodySegments = 8;
-                const wave = Math.sin(Date.now() / 250) * 0.5;
-
-                // --- Detailed Boss Snake Body with Gradient for Texture/Shading ---
-                const gradientBody = context.createLinearGradient(-BOSS_SNAKE_LENGTH / 2, -5, BOSS_SNAKE_LENGTH / 2, 5);
-                gradientBody.addColorStop(0, this.strokeColor); 
-                gradientBody.addColorStop(0.3, this.color); 
-                gradientBody.addColorStop(0.7, this.color); 
-                gradientBody.addColorStop(1, this.strokeColor); 
-
-                context.lineJoin = 'round';
-                context.lineCap = 'round';
-
-                context.beginPath();
-                
-                for (let i = 0; i <= bodySegments; i++) {
-                    const x = (i / bodySegments) * BOSS_SNAKE_LENGTH - BOSS_SNAKE_LENGTH / 2;
-                    const y = Math.sin(x / 10 + this.x / 20 + wave) * 8; 
-                    
-                    if (i === 0) {
-                        context.moveTo(x, y);
-                    } else {
-                        context.lineTo(x, y);
-                    }
-                }
-                
-                context.lineWidth = this.radius * 1.5; 
-                context.strokeStyle = gradientBody; // Main color stroke
-                context.stroke();
-                
-                context.lineWidth = this.radius * 1.7;
-                context.strokeStyle = this.strokeColor; // Darker border
-                context.stroke(); 
-                // --- End Body Drawing ---
-
-
-                // Draw Head 
-                const headX = BOSS_SNAKE_LENGTH / 2;
-                const headY = Math.sin(headX / 10 + this.x / 20 + wave) * 8;
-                context.fillStyle = currentPalette.arenaBorder; // Gold head
-                context.beginPath();
-                context.arc(headX, headY, this.radius * 0.6, 0, Math.PI * 2);
-                context.fill();
-                
-                // Draw Crown
                 context.fillStyle = '#fbd38d'; 
+                context.strokeStyle = '#000';
+                context.lineWidth = 1;
                 context.beginPath();
                 context.moveTo(headX, headY - this.radius * 0.6); 
                 context.lineTo(headX - 10, headY - this.radius * 1.5);
@@ -1869,27 +1755,20 @@
                 context.lineTo(headX + 10, headY - this.radius * 1.5);
                 context.closePath();
                 context.fill();
-                context.strokeStyle = '#000';
-                context.lineWidth = 1;
                 context.stroke();
-
-                this._drawHpBar(context, 100, 8, -20);
-                
                 context.restore();
             }
         }
 
 
         class Projectile extends Entity {
-            // Updated constructor to receive maxTravelDistance and isExplosive flag
-            constructor(x, y, radius, color, speed, angle, damage, maxTravelDistance, isExplosive = false, currentBounces = 0) {
+            constructor(x, y, radius, color, speed, angle, damage, maxTravelDistance, isExplosive = false, currentBounces = 0, weaponKey) {
                 super(x, y, radius, color, speed);
                 this.angle = angle;
                 this.dx = Math.cos(angle) * speed;
                 this.dy = Math.sin(angle) * speed;
                 this.damage = damage;
                 
-                // Store previous position for drawing trails
                 this.prevX = x; 
                 this.prevY = y;
 
@@ -1897,8 +1776,10 @@
                 this.startY = y;
                 this.maxTravelDistance = maxTravelDistance;
                 this.isExplosive = isExplosive; 
-                this.currentBounces = currentBounces; // NEW
-                this.maxBounces = currentBounces; // Store original max for shuriken
+                this.currentBounces = currentBounces;
+                this.maxBounces = currentBounces;
+                this.weaponKey = weaponKey; // NEW: Store the weapon key for custom drawing
+                this.hitEnemies = new Set(); // NEW: To track which enemies this projectile has hit
             }
 
             update(deltaTime) {
@@ -1920,17 +1801,18 @@
             bounce(enemies) {
                 if (this.currentBounces <= 0) return false;
                 
-                // 1. Find the nearest *other* enemy (not the one just hit)
                 let nearest = null;
                 let minDistSq = Infinity;
                 
-                // Find all enemies that are alive and not the one just hit (if known)
+                // Find all enemies that are alive and not already hit by this projectile
                 enemies.forEach(e => {
-                    const distSq = (e.x - this.x) ** 2 + (e.y - e.y) ** 2;
-                    // FIX: Ensure the target is outside a small radius from the current impact point
-                    if (distSq > 500 && distSq < minDistSq) { // 500 = approx 22px distance squared.
-                        minDistSq = distSq;
-                        nearest = e;
+                    // NEW: Check if the projectile has already hit this enemy
+                    if (!this.hitEnemies.has(e)) {
+                        const distSq = (e.x - this.x) ** 2 + (e.y - this.y) ** 2;
+                        if (distSq < minDistSq) {
+                            minDistSq = distSq;
+                            nearest = e;
+                        }
                     }
                 });
                 
@@ -1954,26 +1836,71 @@
             }
 
             draw(context) {
+                // --- SPECIALIZED DRAWING LOGIC ---
+                switch (this.weaponKey) {
+                    case 'flamethrower':
+                    case 'acidSprayer':
+                        context.fillStyle = this.color;
+                        context.globalAlpha = Math.random() * 0.5 + 0.3; // flicker
+                        for (let i=0; i < 3; i++) {
+                            const offsetX = (Math.random() - 0.5) * this.radius * 3;
+                            const offsetY = (Math.random() - 0.5) * this.radius * 3;
+                            const size = Math.random() * this.radius * 1.5;
+                            context.beginPath();
+                            context.arc(this.x + offsetX, this.y + offsetY, size, 0, Math.PI * 2);
+                            context.fill();
+                        }
+                        context.globalAlpha = 1.0;
+                        return;
+
+                    case 'lightningRod':
+                        context.strokeStyle = this.color;
+                        context.lineWidth = this.radius * 0.5;
+                        context.globalAlpha = 0.8;
+                        context.shadowBlur = 15;
+                        context.shadowColor = this.color;
+                        context.beginPath();
+                        context.moveTo(this.prevX, this.prevY);
+                        const midX = (this.x + this.prevX) / 2 + (Math.random() - 0.5) * 10;
+                        const midY = (this.y + this.prevY) / 2 + (Math.random() - 0.5) * 10;
+                        context.quadraticCurveTo(midX, midY, this.x, this.y);
+                        context.stroke();
+                        context.shadowBlur = 0;
+                        context.globalAlpha = 1.0;
+                        return;
+                        
+                    case 'railgun':
+                         context.strokeStyle = this.color;
+                         context.lineWidth = this.radius * 0.75;
+                         context.globalAlpha = 0.9;
+                         context.shadowBlur = 25;
+                         context.shadowColor = this.color;
+                         context.beginPath();
+                         context.moveTo(this.prevX, this.prevY);
+                         context.lineTo(this.x, this.y);
+                         context.stroke();
+                         context.shadowBlur = 0;
+                         context.globalAlpha = 1.0;
+                         return;
+                }
+
+                // --- DEFAULT DRAWING LOGIC ---
                 context.save();
                 context.strokeStyle = this.color;
-                context.lineWidth = this.radius * 2; // Line width equals diameter for visual thickness
+                context.lineWidth = this.radius * 2;
                 context.lineCap = 'round';
                 
-                // Draw a line connecting the previous frame position to the current position
-                // This creates a visible tracer effect for fast projectiles
                 context.beginPath();
                 context.moveTo(this.prevX, this.prevY);
                 context.lineTo(this.x, this.y);
                 context.stroke();
                 context.restore();
 
-                // Draw the endpoint dot for visual reference
                 context.fillStyle = this.color;
                 context.beginPath();
                 context.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
                 context.fill();
                 
-                // NEW: Visual flare for explosive bullets
                 if (this.isExplosive) {
                     context.strokeStyle = '#fff';
                     context.lineWidth = 1;
@@ -1982,12 +1909,10 @@
                     context.stroke();
                 }
                 
-                // NEW: Visual flare for bouncing shurikens
                  if (this.maxBounces > 0) {
                     context.strokeStyle = this.color;
                     context.lineWidth = 2;
                     context.beginPath();
-                    // Draw a star/shuriken pattern
                     for(let i = 0; i < 4; i++) {
                         const angle = i * Math.PI / 2;
                         context.moveTo(this.x + Math.cos(angle) * this.radius * 1.5, this.y + Math.sin(angle) * this.radius * 1.5);
@@ -2486,21 +2411,35 @@
 
 
             meleeAttack(x, y, weapon) {
-                // ... (Melee setup logic remains the same)
                 this.isMeleeSwinging = true;
                 this.meleeSwingTimer = this.MELEE_SWING_DURATION;
+
+                // --- FIXED: Find nearest enemy to determine attack angle ---
+                const nearestEnemy = this.getNearestEnemy(x, y);
+                let targetAngle = 0;
+
+                if (nearestEnemy) {
+                    targetAngle = Math.atan2(nearestEnemy.y - y, nearestEnemy.x - x);
+                } else {
+                    // Default to facing direction if no enemies are present
+                    targetAngle = this.player.facingRight ? 0 : Math.PI;
+                }
+
+                // Store the parameters for the draw() function to create the visual slash
+                this.meleeSwingTargetAngle = targetAngle;
+                this.meleeSwingRadius = weapon.radius;
+                this.meleeSwingArc = weapon.arcAngle;
+                // --- END FIX ---
 
                 const damage = (weapon.damage * weapon.stackDamageFactor) * this.player.damageMultiplier;
                 const knockback = weapon.knockback || 0;
                 
                 this.enemies.forEach(e => {
-                    // ... (Collision and Cone check logic)
                     const distance = Math.hypot(x - e.x, y - e.y);
                     if (distance < weapon.radius + e.radius) {
-                        const targetAngle = this.meleeSwingTargetAngle; // Already calculated
                         const enemyAngle = Math.atan2(e.y - y, e.x - x);
                         
-                        let angleDifference = enemyAngle - targetAngle;
+                        let angleDifference = enemyAngle - targetAngle; // Use the calculated targetAngle
                         angleDifference = (angleDifference + Math.PI) % (Math.PI * 2) - Math.PI;
                         if (angleDifference < -Math.PI) angleDifference += Math.PI * 2;
                         
@@ -2779,43 +2718,44 @@
                     }
 
 
-                    // 2. Check Projectile vs. Enemy Collision
-                    this.enemies.forEach(e => {
+                    // 2. Check Projectile vs. Enemy Collision for Chaining
+                    for (const e of this.enemies) {
                         const distance = Math.hypot(p.x - e.x, p.y - e.y);
                         
-                        if (distance < p.radius + e.radius) {
+                        // Check if in range AND this projectile hasn't hit this enemy before
+                        if (distance < p.radius + e.radius && !p.hitEnemies.has(e)) {
                             
-                            const bounced = p.bounce(this.enemies); 
-                            p.damage = p.damage; // Re-read damage after potential bounce modification (if future logic changes)
+                            // 1. Mark this enemy as hit by this specific projectile
+                            p.hitEnemies.add(e);
 
-                            // Apply damage
+                            // 2. Apply damage and on-hit effects
                             e.currentHp = Math.max(0, e.currentHp - p.damage);
                             
-                            // LIFESTEAL
                             const lifestealAmount = p.damage * this.player.lifestealPercentage;
                             this.player.heal(lifestealAmount);
-
                             
-                            // Handle explosive AoE before applying direct damage
                             if (p.isExplosive) {
                                 this.applyExplosiveAoE(p.x, p.y, p.damage);
                             }
 
-                            // If it bounced, it does NOT get removed from the projectile array yet.
-                            if (bounced) {
-                                hit = false; // Projectile remains in array
-                            } else {
-                                hit = true; // Projectile is marked for removal
-                            }
-
-                            // AWARD KILL CREDIT if fatal damage delivered
                             if (e.currentHp <= 0 && !e.isDead) {
                                 this.handleEnemyDefeat(e);
                             }
+
+                            // 3. Attempt to bounce (chain) to a new target
+                            const bounced = p.bounce(this.enemies);
+                            
+                            // 4. If it can't bounce anymore, the projectile is destroyed
+                            if (!bounced) {
+                                hit = true; // Mark for removal from the game
+                            }
+
+                            // 5. A projectile can only hit one new enemy per frame to create the chain effect
+                            break; 
                         }
-                    });
+                    }
                     
-                    // Projectile removed if hit (and didn't bounce) OR if it exceeded its max range/went out of arena OR hit obstacle
+                    // Projectile removed if 'hit' is true (and it couldn't bounce) OR it's out of bounds.
                     return !(hit || p.update(16.66));
                 });
 
@@ -2826,14 +2766,11 @@
                     const distance = Math.hypot(e.x - this.player.x, e.y - this.player.y);
                     if (distance < e.radius + this.player.radius) {
                         
-                        // Check for collision damage only if enemy actually deals melee damage
                         if (e.damage > 0) {
-                            // 1. Evasion Check
                             if (Math.random() < this.player.evasion) {
                                 return; 
                             }
                             
-                            // 2. SHIELD ABSORPTION
                             let damageRemaining = e.damage;
 
                             if (this.player.shield > 0) {
@@ -2841,9 +2778,7 @@
                                 this.player.shield -= absorbed;
                                 damageRemaining -= absorbed;
                             }
-                            // --- END SHIELD ABSORPTION ---
                             
-                            // 3. Armor Calculation and Damage
                             let damageTaken = damageRemaining - this.player.armor;
                             damageTaken = Math.max(1, damageTaken); 
                             
@@ -2856,14 +2791,12 @@
                             }
                         }
                         
-                        // 4. Bounce/Knockback effect
                         const BOUNCE_DISTANCE = 20; 
                         const angle = Math.atan2(e.y - this.player.y, e.x - this.player.x);
                         
                         e.x += Math.cos(angle) * BOUNCE_DISTANCE;
                         e.y += Math.sin(angle) * BOUNCE_DISTANCE;
                         
-                        // 5. Clamp position to World Boundary
                         const distToCenter = Math.hypot(e.x - WORLD_CENTER_X, e.y - WORLD_CENTER_Y);
                         if (distToCenter + e.radius > WORLD_RADIUS) {
                             const clampAngle = Math.atan2(e.y - WORLD_CENTER_Y, e.x - WORLD_CENTER_X);
@@ -2872,19 +2805,16 @@
                         }
                     }
                 });
-                // --- END ENEMY COLLISION LOGIC ---
                 
                 // 2. Player vs. Obstacle Collision (Movement Blocking)
                 this.obstacles.forEach(o => {
                     const dist = Math.hypot(this.player.x - o.x, this.player.y - o.y);
                     if (dist < this.player.radius + o.radius) {
-                        // Push player away from the obstacle
                         const angle = Math.atan2(this.player.y - o.y, this.player.x - o.x);
                         const overlap = (this.player.radius + o.radius) - dist;
                         this.player.x += Math.cos(angle) * overlap;
                         this.player.y += Math.sin(angle) * overlap;
                         
-                        // Re-clamp player position to world boundary if pushback caused overshoot
                         const distToCenter = Math.hypot(this.player.x - WORLD_CENTER_X, this.player.y - WORLD_CENTER_Y);
                         if (distToCenter + this.player.radius > WORLD_RADIUS) {
                             const clampAngle = Math.atan2(this.player.y - WORLD_CENTER_Y, this.player.x - WORLD_CENTER_X);
@@ -2951,8 +2881,16 @@
                 
                 const statPool = [];
                 for (let i = 0; i < NUM_OPTIONS && i < shuffledBaseStats.length; i++) {
-                    // Randomly select a tier (0=Bronze, 1=Silver, 2=Gold)
-                    const tier = Math.floor(Math.random() * 3); 
+                    // Randomly select a tier (0=Bronze, 1=Silver, 2=Gold) with new rarity
+                    let tier;
+                    const roll = Math.random();
+                    if (roll < 0.65) { // 65% chance for Bronze
+                        tier = 0;
+                    } else if (roll < 0.90) { // 25% chance for Silver
+                        tier = 1;
+                    } else { // 10% chance for Gold
+                        tier = 2;
+                    }
                     const stat = shuffledBaseStats[i];
                     
                     // --- Exponential Cost Calculation (based on unique KEY) ---
@@ -3507,31 +3445,47 @@
                 
                 // 4. Draw Melee Slash Animation (must be inside the translated/clipped context)
                 if (this.isMeleeSwinging) {
-                    const alpha = this.meleeSwingTimer / this.MELEE_SWING_DURATION;
-                    
-                    const slashRadius = this.meleeSwingRadius; 
-                    const targetAngle = this.meleeSwingTargetAngle;
-                    const arcAngle = this.meleeSwingArc; 
+                    const progress = (this.MELEE_SWING_DURATION - this.meleeSwingTimer) / this.MELEE_SWING_DURATION;
+                    // Animate alpha to be brightest mid-swing
+                    const alpha = Math.sin(progress * Math.PI); 
 
-                    // Calculate start and end angles of the cone sweep
-                    const startAngle = targetAngle - arcAngle / 2;
-                    const endAngle = targetAngle + arcAngle / 2;
+                    const radius = this.meleeSwingRadius;
+                    const totalArc = this.meleeSwingArc;
+                    const centerAngle = this.meleeSwingTargetAngle;
+
+                    // Define the start of the full swing arc
+                    const swingStartAngle = centerAngle - totalArc / 2;
+                    
+                    // The current angle of the slash moves across the total arc
+                    const currentAngle = swingStartAngle + (totalArc * progress);
+
+                    // The slash itself is a small arc
+                    const slashWidth = Math.PI / 6; // How wide the swoosh is
+                    const slashStart = currentAngle - slashWidth / 2;
+                    const slashEnd = currentAngle + slashWidth / 2;
 
                     ctx.save();
-                    // Melee origin is the player's world position
-                    ctx.translate(this.player.x, this.player.y); 
+                    ctx.translate(this.player.x, this.player.y);
                     
-                    // Use a dynamic color based on the current palette/border
-                    ctx.strokeStyle = `rgba(${parseInt(currentPalette.arenaBorder.substring(1, 3), 16)}, ${parseInt(currentPalette.arenaBorder.substring(3, 5), 16)}, ${parseInt(currentPalette.arenaBorder.substring(5, 7), 16)}, ${alpha})`;
-                    ctx.lineWidth = 6;
+                    // White core of the slash
+                    ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.9})`;
+                    ctx.lineWidth = 4;
+                    ctx.lineCap = 'round';
                     
                     ctx.beginPath();
-                    ctx.moveTo(0, 0); 
-                    ctx.lineTo(slashRadius * Math.cos(startAngle), slashRadius * Math.sin(startAngle));
-                    ctx.arc(0, 0, slashRadius, startAngle, endAngle);
-                    ctx.lineTo(0, 0); 
+                    ctx.arc(0, 0, radius, slashStart, slashEnd);
+                    ctx.stroke();
+
+                    // Colored glow around the slash
+                    ctx.strokeStyle = `rgba(${parseInt(currentPalette.arenaBorder.substring(1, 3), 16)}, ${parseInt(currentPalette.arenaBorder.substring(3, 5), 16)}, ${parseInt(currentPalette.arenaBorder.substring(5, 7), 16)}, ${alpha * 0.7})`;
+                    ctx.lineWidth = 12;
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = `rgba(${parseInt(currentPalette.arenaBorder.substring(1, 3), 16)}, ${parseInt(currentPalette.arenaBorder.substring(3, 5), 16)}, ${parseInt(currentPalette.arenaBorder.substring(5, 7), 16)}, ${alpha * 0.5})`;
+
+                    ctx.beginPath();
+                    ctx.arc(0, 0, radius, slashStart, slashEnd);
+                    ctx.stroke();
                     
-                    ctx.stroke(); 
                     ctx.restore();
                 }
                 
@@ -3645,3 +3599,4 @@
     </script>
 </body>
 </html>
+
