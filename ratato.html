@@ -2702,23 +2702,18 @@
                     tankChance = 0.20;
                     fastChance = 0.25;
                 }
-                if (this.wave >= 15) {
-                    rangedChance = 0.15; // Ranged snakes start appearing after wave 15
-                }
                 if (this.wave >= 20) {
                     detonatorChance = 0.15;
                 }
                 
-                const totalSpecialChance = tankChance + fastChance + detonatorChance + rangedChance;
+                const totalSpecialChance = tankChance + fastChance + detonatorChance;
                 
                 if (roll < tankChance) {
                     enemy = new TankSnake(spawnX, spawnY, this.wave);
                 } else if (roll < (tankChance + fastChance)) {
                     enemy = new FastSnake(spawnX, spawnY, this.wave);
-                } else if (roll < (tankChance + fastChance + detonatorChance)) {
-                     enemy = new DetonatorSnake(spawnX, spawnY, this.wave); // NEW ENEMY
                 } else if (roll < totalSpecialChance) {
-                    enemy = new RangedSnake(spawnX, spawnY, this.wave);
+                     enemy = new DetonatorSnake(spawnX, spawnY, this.wave); // NEW ENEMY
                 }
                  else {                    // Default Snake
                     enemy = new DefaultSnake(spawnX, spawnY, this.wave); 
