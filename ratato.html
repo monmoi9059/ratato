@@ -218,6 +218,7 @@
                 fastSnake: '#f6ad55',    // Orange
                 tankSnake: '#744210',    // Brown
                 detonatorSnake: '#ffc700', // Bright Yellow
+                rangedSnake: '#b794f4', // Purple
                 boss: '#3182ce',         // Blue Boss
             },
             // Toxic Swamp (Wave 11-19, 51-59, etc.)
@@ -230,6 +231,7 @@
                 fastSnake: '#b9a5c8',    // Purple/Violet fast
                 tankSnake: '#581c87',    // Deep Purple tank
                 detonatorSnake: '#ff4d4d', // Bright Red
+                rangedSnake: '#f56565', // Red
                 boss: '#7f3697',         // Neon Purple Boss
             },
             // Desert (Wave 21-29, 61-69, etc.)
@@ -242,6 +244,7 @@
                 fastSnake: '#e53e3e',    // Red fast
                 tankSnake: '#4a0e0e',    // Dark red/black tank
                 detonatorSnake: '#f59e0b', // Desert Gold
+                rangedSnake: '#9f7aea', // Purple
                 boss: '#f6ad55',         // Gold/Orange Boss
             },
             // Ice Cave (Wave 31-39, 71-79, etc.)
@@ -254,6 +257,7 @@
                 fastSnake: '#ff4d4d',    // Red fast (frozen)
                 tankSnake: '#3182ce',    // Dark blue tank
                 detonatorSnake: '#ff4d4d', // Bright Red
+                rangedSnake: '#ed64a6', // Pink
                 boss: '#00ccff',         // Cyan Boss
             }
         };
@@ -1353,6 +1357,68 @@
             }
         }
 
+        class RangedSnake extends Enemy {
+            constructor(x, y, waveFactor) {
+                super(x, y, 12, waveFactor);
+                this.speed = 1.5 + (waveFactor - 1) * 0.1;
+                this.maxHp = Math.floor(this.maxHp * 0.8);
+                this.currentHp = this.maxHp;
+                this.damage = Math.floor(this.damage * 0.5);
+                this.xpValue = Math.floor(this.xpValue * 1.8);
+                this.color = currentPalette.rangedSnake;
+                this.strokeColor = this.color.slice(0, 5) + '00';
+
+                this.fireRate = 2000; // Milliseconds
+                this.lastAttackTime = Date.now();
+                this.projectileSpeed = 5;
+                this.attackRange = 300;
+            }
+
+            shoot(player) {
+                const angle = Math.atan2(player.y - this.y, player.x - this.x);
+                const projectile = new EnemyProjectile(this.x, this.y, 5, this.color, this.projectileSpeed, angle, this.damage);
+                game.enemyProjectiles.push(projectile);
+            }
+
+            update(player, deltaTime) {
+                const distanceToPlayer = Math.hypot(player.x - this.x, player.y - this.y);
+
+                if (distanceToPlayer <= this.attackRange) {
+                    // Stop moving and shoot
+                    if (Date.now() - this.lastAttackTime > this.fireRate) {
+                        this.shoot(player);
+                        this.lastAttackTime = Date.now();
+                    }
+                } else {
+                    // Move towards player
+                    super.update(player, deltaTime);
+                }
+            }
+        }
+
+        class EnemyProjectile extends Entity {
+            constructor(x, y, radius, color, speed, angle, damage) {
+                super(x, y, radius, color, speed);
+                this.dx = Math.cos(angle) * speed;
+                this.dy = Math.sin(angle) * speed;
+                this.damage = damage;
+            }
+
+            update(deltaTime) {
+                this.x += this.dx * (deltaTime / 16.66);
+                this.y += this.dy * (deltaTime / 16.66);
+                const distToCenter = Math.hypot(this.x - WORLD_CENTER_X, this.y - WORLD_CENTER_Y);
+                return distToCenter > WORLD_RADIUS; // Remove if out of world
+            }
+
+            draw(context) {
+                context.fillStyle = this.color;
+                context.beginPath();
+                context.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                context.fill();
+            }
+        }
+
         // --- RE-INTRODUCED BASE ENEMY CLASS ---
         class Enemy extends Entity { 
             constructor(x, y, radius = 10, waveFactor = 1) { 
@@ -1932,6 +1998,7 @@
                 this.MAX_PARTICLES = 300;
                 this.enemies = [];
                 this.projectiles = [];
+                this.enemyProjectiles = [];
                 this.pickups = []; 
                 this.obstacles = []; // NEW: Obstacles Array
                 this.explosions = []; 
@@ -2662,6 +2729,7 @@
                 let fastChance = 0.15;
                 let tankChance = 0.05;
                 let detonatorChance = 0.0; // Starts at 0%
+                let rangedChance = 0.0; // Starts at 0%
                 
                 // Increase specialty enemy chances
                 if (this.wave >= 5) {
@@ -3439,6 +3507,7 @@
                 this.obstacles.forEach(o => o.draw(ctx)); 
                 this.pickups.forEach(p => p.draw(ctx));
                 this.projectiles.forEach(p => p.draw(ctx));
+                this.enemyProjectiles.forEach(p => p.draw(ctx));
                 this.explosions.forEach(p => p.draw(ctx)); 
                 this.enemies.forEach(e => e.draw(ctx));
                 this.player.draw(ctx); 
