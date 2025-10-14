@@ -1929,6 +1929,7 @@
         class Game {
             constructor(characterKey) {
                 this.player = new Rat(characterKey);
+                this.MAX_PARTICLES = 300;
                 this.enemies = [];
                 this.projectiles = [];
                 this.pickups = []; 
@@ -2263,9 +2264,7 @@
                 this.player.gainXp(e.xpValue);
                 
                 // PARTICLE EFFECT
-                for (let k = 0; k < 10; k++) {
-                    this.explosions.push(new Particle(e.x, e.y, currentPalette.arenaBorder, Math.random() * 3 + 1));
-                }
+                this.addExplosionParticles(5, e.x, e.y, currentPalette.arenaBorder, 3);
 
                 // --- DROP LOGIC ---
                 const healthDropChance = 0.05; 
@@ -2289,6 +2288,15 @@
                      this.pickups.push(new SpeedPowerupDrop(e.x, e.y));
                 }
             }
+
+            addExplosionParticles(count, x, y, color, size) {
+                for (let i = 0; i < count; i++) {
+                    if (this.explosions.length >= this.MAX_PARTICLES) {
+                        break;
+                    }
+                    this.explosions.push(new Particle(x, y, color, Math.random() * size + 1));
+                }
+            }
             
             // NEW: Handles the AoE damage when an explosive projectile hits
             applyExplosiveAoE(x, y, baseDamage) {
@@ -2297,9 +2305,7 @@
                 const aoeDamage = baseDamage * AOE_DAMAGE_PERCENT;
                 
                 // Visual effect: large red flash/explosion particles
-                for (let k = 0; k < 20; k++) {
-                    this.explosions.push(new Particle(x, y, '#ff4500', Math.random() * 4 + 2));
-                }
+                this.addExplosionParticles(10, x, y, '#ff4500', 4);
 
                 // Check for enemies within the AoE radius
                 this.enemies.forEach(e => {
@@ -2372,17 +2378,13 @@
                 });
 
                 // Create explosion particles
-                for (let k = 0; k < 30; k++) {
-                    this.explosions.push(new Particle(x, y, '#ff4500', Math.random() * 6 + 3));
-                }
+                this.addExplosionParticles(15, x, y, '#ff4500', 6);
             }
             
             // NEW: Handles the map-wide bomb explosion (triggered by BombDrop pickup)
             applyNuclearBomb() {
                 // ... (Visual effect logic remains the same)
-                for (let k = 0; k < 100; k++) {
-                    this.explosions.push(new Particle(centerX, centerY, '#ffc700', Math.random() * 8 + 4));
-                }
+                this.addExplosionParticles(50, centerX, centerY, '#ffc700', 8);
                 
                 const EXPLOSION_DAMAGE = 200; 
                 
@@ -2711,9 +2713,7 @@
 
                     if (hitObstacle) {
                         // Projectile is immediately destroyed by obstacle
-                        for (let k = 0; k < 5; k++) {
-                            this.explosions.push(new Particle(p.x, p.y, '#606060', Math.random() * 2 + 1));
-                        }
+                        this.addExplosionParticles(3, p.x, p.y, '#606060', 2);
                         return false; 
                     }
 
