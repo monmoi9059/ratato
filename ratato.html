@@ -218,6 +218,7 @@
                 fastSnake: '#f6ad55',    // Orange
                 tankSnake: '#744210',    // Brown
                 detonatorSnake: '#ffc700', // Bright Yellow
+                rangedSnake: '#b794f4', // Purple
                 boss: '#3182ce',         // Blue Boss
             },
             // Toxic Swamp (Wave 11-19, 51-59, etc.)
@@ -230,6 +231,7 @@
                 fastSnake: '#b9a5c8',    // Purple/Violet fast
                 tankSnake: '#581c87',    // Deep Purple tank
                 detonatorSnake: '#ff4d4d', // Bright Red
+                rangedSnake: '#f56565', // Red
                 boss: '#7f3697',         // Neon Purple Boss
             },
             // Desert (Wave 21-29, 61-69, etc.)
@@ -242,6 +244,7 @@
                 fastSnake: '#e53e3e',    // Red fast
                 tankSnake: '#4a0e0e',    // Dark red/black tank
                 detonatorSnake: '#f59e0b', // Desert Gold
+                rangedSnake: '#9f7aea', // Purple
                 boss: '#f6ad55',         // Gold/Orange Boss
             },
             // Ice Cave (Wave 31-39, 71-79, etc.)
@@ -254,6 +257,7 @@
                 fastSnake: '#ff4d4d',    // Red fast (frozen)
                 tankSnake: '#3182ce',    // Dark blue tank
                 detonatorSnake: '#ff4d4d', // Bright Red
+                rangedSnake: '#ed64a6', // Pink
                 boss: '#00ccff',         // Cyan Boss
             }
         };
@@ -1353,6 +1357,29 @@
             }
         }
 
+        class EnemyProjectile extends Entity {
+            constructor(x, y, radius, color, speed, angle, damage) {
+                super(x, y, radius, color, speed);
+                this.dx = Math.cos(angle) * speed;
+                this.dy = Math.sin(angle) * speed;
+                this.damage = damage;
+            }
+
+            update(deltaTime) {
+                this.x += this.dx * (deltaTime / 16.66);
+                this.y += this.dy * (deltaTime / 16.66);
+                const distToCenter = Math.hypot(this.x - WORLD_CENTER_X, this.y - WORLD_CENTER_Y);
+                return distToCenter > WORLD_RADIUS; // Remove if out of world
+            }
+
+            draw(context) {
+                context.fillStyle = this.color;
+                context.beginPath();
+                context.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                context.fill();
+            }
+        }
+
         // --- RE-INTRODUCED BASE ENEMY CLASS ---
         class Enemy extends Entity { 
             constructor(x, y, radius = 10, waveFactor = 1) { 
@@ -1929,8 +1956,10 @@
         class Game {
             constructor(characterKey) {
                 this.player = new Rat(characterKey);
+                this.MAX_PARTICLES = 300;
                 this.enemies = [];
                 this.projectiles = [];
+                this.enemyProjectiles = [];
                 this.pickups = []; 
                 this.obstacles = []; // NEW: Obstacles Array
                 this.explosions = []; 
@@ -2263,9 +2292,7 @@
                 this.player.gainXp(e.xpValue);
                 
                 // PARTICLE EFFECT
-                for (let k = 0; k < 10; k++) {
-                    this.explosions.push(new Particle(e.x, e.y, currentPalette.arenaBorder, Math.random() * 3 + 1));
-                }
+                this.addExplosionParticles(5, e.x, e.y, currentPalette.arenaBorder, 3);
 
                 // --- DROP LOGIC ---
                 const healthDropChance = 0.05; 
@@ -2289,6 +2316,15 @@
                      this.pickups.push(new SpeedPowerupDrop(e.x, e.y));
                 }
             }
+
+            addExplosionParticles(count, x, y, color, size) {
+                for (let i = 0; i < count; i++) {
+                    if (this.explosions.length >= this.MAX_PARTICLES) {
+                        break;
+                    }
+                    this.explosions.push(new Particle(x, y, color, Math.random() * size + 1));
+                }
+            }
             
             // NEW: Handles the AoE damage when an explosive projectile hits
             applyExplosiveAoE(x, y, baseDamage) {
@@ -2297,9 +2333,7 @@
                 const aoeDamage = baseDamage * AOE_DAMAGE_PERCENT;
                 
                 // Visual effect: large red flash/explosion particles
-                for (let k = 0; k < 20; k++) {
-                    this.explosions.push(new Particle(x, y, '#ff4500', Math.random() * 4 + 2));
-                }
+                this.addExplosionParticles(10, x, y, '#ff4500', 4);
 
                 // Check for enemies within the AoE radius
                 this.enemies.forEach(e => {
@@ -2372,17 +2406,13 @@
                 });
 
                 // Create explosion particles
-                for (let k = 0; k < 30; k++) {
-                    this.explosions.push(new Particle(x, y, '#ff4500', Math.random() * 6 + 3));
-                }
+                this.addExplosionParticles(15, x, y, '#ff4500', 6);
             }
             
             // NEW: Handles the map-wide bomb explosion (triggered by BombDrop pickup)
             applyNuclearBomb() {
                 // ... (Visual effect logic remains the same)
-                for (let k = 0; k < 100; k++) {
-                    this.explosions.push(new Particle(centerX, centerY, '#ffc700', Math.random() * 8 + 4));
-                }
+                this.addExplosionParticles(50, centerX, centerY, '#ffc700', 8);
                 
                 const EXPLOSION_DAMAGE = 200; 
                 
@@ -2660,6 +2690,7 @@
                 let fastChance = 0.15;
                 let tankChance = 0.05;
                 let detonatorChance = 0.0; // Starts at 0%
+                let rangedChance = 0.0; // Starts at 0%
                 
                 // Increase specialty enemy chances
                 if (this.wave >= 5) {
@@ -2671,21 +2702,25 @@
                     tankChance = 0.20;
                     fastChance = 0.25;
                 }
+                if (this.wave >= 15) {
+                    rangedChance = 0.15; // Ranged snakes start appearing after wave 15
+                }
                 if (this.wave >= 20) {
                     detonatorChance = 0.15;
                 }
                 
-                const totalSpecialChance = tankChance + fastChance + detonatorChance;
+                const totalSpecialChance = tankChance + fastChance + detonatorChance + rangedChance;
                 
                 if (roll < tankChance) {
                     enemy = new TankSnake(spawnX, spawnY, this.wave);
                 } else if (roll < (tankChance + fastChance)) {
                     enemy = new FastSnake(spawnX, spawnY, this.wave);
-                } else if (roll < totalSpecialChance) {
+                } else if (roll < (tankChance + fastChance + detonatorChance)) {
                      enemy = new DetonatorSnake(spawnX, spawnY, this.wave); // NEW ENEMY
+                } else if (roll < totalSpecialChance) {
+                    enemy = new RangedSnake(spawnX, spawnY, this.wave);
                 }
-                 else {
-                    // Default Snake
+                 else {                    // Default Snake
                     enemy = new DefaultSnake(spawnX, spawnY, this.wave); 
                 }
                 // --- End Spawn Chance Logic ---
@@ -2711,9 +2746,7 @@
 
                     if (hitObstacle) {
                         // Projectile is immediately destroyed by obstacle
-                        for (let k = 0; k < 5; k++) {
-                            this.explosions.push(new Particle(p.x, p.y, '#606060', Math.random() * 2 + 1));
-                        }
+                        this.addExplosionParticles(3, p.x, p.y, '#606060', 2);
                         return false; 
                     }
 
