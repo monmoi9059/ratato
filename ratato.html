@@ -99,7 +99,7 @@
                 <div class="flex flex-col space-y-2 text-sm">
                     <div class="hud-stat text-lg text-yellow-400">Wave: <span id="waveCount">1</span></div>
                     <div class="hud-stat text-lg text-red-400">Best Kills: <span id="bestKillCount">0</span></div>
-                    <div class="hud-stat text-lg text-green-400">Currency (Kills): <span id="killCount">0</span></div>
+                    <div class="hud-stat text-lg text-green-400">Currency (Points): <span id="killCount">0</span></div>
                     <div class="hud-stat">
                         HP: <span id="currentHP"></span> / <span id="maxHP"></span> 
                         <span id="buffTimer" class="text-xs text-red-400 ml-1"></span>
@@ -159,14 +159,14 @@
             <div class="bg-gray-900 p-8 rounded-lg shadow-2xl text-white max-w-4xl w-full text-center border-4 border-yellow-400">
                 <h2 id="upgradeScreenTitle" class="text-4xl font-extrabold mb-8 text-yellow-400">LEVEL UP! Choose an Upgrade</h2>
                 <div id="upgradeOptionsContainer" class="flex flex-col items-center">
-                    <div id="upgradeOptions" class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+                    <div id="upgradeOptions" class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                         <!-- Upgrade cards will be dynamically inserted here -->
                     </div>
                     <div id="purchaseSummary" class="text-xl font-bold text-gray-300 mb-4">
-                        Total Cost: 0 Kills | Remaining: 0 Kills
+                        Total Cost: 0 Points | Remaining: 0 Points
                     </div>
                     <button id="confirmPurchase" class="px-8 py-4 bg-green-600 hover:bg-green-500 text-white font-extrabold rounded-lg transition text-2xl shadow-lg border-2 border-green-400">
-                        CONFIRM PURCHASE (0 Kills)
+                        CONFIRM PURCHASE (0 Points)
                     </button>
                     <button id="skipButton" class="mt-3 text-gray-400 hover:text-gray-200 underline">
                         Skip
@@ -952,6 +952,7 @@
             
             // NEW: Add currency handling
             gainCurrency(amount) {
+                console.log(`Gaining ${amount} currency`);
                 this.currency += amount;
             }
 
@@ -1530,6 +1531,7 @@
                 super(x, y, 10, waveFactor);
                 // Health and Damage set in base Enemy constructor
                 this.speed = 2.0 + (waveFactor - 1) * 0.3; // INCREASED Speed Scaling: was * 0.1
+                this.pointValue = 1;
                 // XP is base scaled (5 + 3 * (W-1))
                 this.color = currentPalette.defaultSnake;
                 this.strokeColor = this.color.slice(0, 5) + '00'; // Darken base color
@@ -1545,6 +1547,7 @@
                 this.currentHp = this.maxHp;
                 this.damage = Math.floor(this.damage * 0.6); // Lower base damage
                 this.xpValue = Math.floor(this.xpValue * 1.5); // 50% XP Bonus due to high speed/risk
+                this.pointValue = 2;
                 this.color = currentPalette.fastSnake; // Dynamic color
                 this.strokeColor = this.color.slice(0, 5) + '00'; 
             }
@@ -1559,6 +1562,7 @@
                 this.currentHp = this.maxHp;
                 this.damage = Math.floor(this.damage * 2.5); 
                 this.xpValue = Math.floor(this.xpValue * 3.0); // 3x XP Bonus due to high durability
+                this.pointValue = 3;
                 this.color = currentPalette.tankSnake; // Dynamic color
                 this.strokeColor = this.color.slice(0, 5) + '00';
             }
@@ -1573,6 +1577,7 @@
                 this.currentHp = this.maxHp;
                 this.damage = 0; // Does not deal collision damage (only explosion)
                 this.xpValue = Math.floor(this.xpValue * 2.0); // 2x XP Bonus due to high risk
+                this.pointValue = 5;
                 this.color = currentPalette.detonatorSnake; // Dynamic Detonator color
                 this.strokeColor = '#ff4500'; // Red
                 
@@ -1686,7 +1691,8 @@
                 // --- END BOSS HP INCREASE ---
 
                 this.damage = Math.floor(10 * bossMultiplier) * 0.5; 
-                this.xpValue = Math.floor(200 * bossMultiplier); 
+                this.xpValue = Math.floor(200 * bossMultiplier);
+                this.pointValue = 100;
                 this.color = currentPalette.boss; // Dynamic Boss color
                 this.strokeColor = currentPalette.arenaBorder;
             }
@@ -2260,7 +2266,7 @@
                 }
 
                 this.kills++;
-                this.player.gainCurrency(1); 
+                this.player.gainCurrency(e.pointValue || 1);
                 this.player.gainXp(e.xpValue);
                 
                 // PARTICLE EFFECT
@@ -2872,7 +2878,7 @@
             
             // NEW: Updated to generate TIERED options
             generateStatOptions() {
-                const NUM_OPTIONS = 5; 
+                const NUM_OPTIONS = 3;
                 const options = [];
                 const availableBaseStats = this.baseStatUpgrades;
                 
@@ -2986,7 +2992,7 @@
                         <h3 class="text-xl font-bold ${upgrade.isFree ? 'text-blue-300' : tierColor} mb-2">${upgrade.name}</h3>
                         <p class="text-sm text-gray-300 mb-2">${descriptionText}</p>
                         <p class="text-lg font-extrabold ${costColor}">
-                            ${upgrade.isFree ? 'FREE' : `Cost: ${upgrade.cost} Kills`}
+                            ${upgrade.isFree ? 'FREE' : `Cost: ${upgrade.cost} Points`}
                         </p>
                     `;
                     
@@ -3112,8 +3118,8 @@
                     });
                 });
                 
-                // 3. Select final options to display (5 random, prioritizing options the player has less of)
-                const NUM_OPTIONS_WEAPON = 5;
+                // 3. Select final options to display (3 random, prioritizing options the player has less of)
+                const NUM_OPTIONS_WEAPON = 3;
                 const finalOptions = [];
                 
                 // Sort by current stack count (ascending), then shuffle ties
@@ -3207,10 +3213,10 @@
                     const costColor = upgrade.isFree ? 'text-blue-400' : (canAfford ? 'text-green-400' : 'text-red-400');
 
                     card.innerHTML = `
-                        <h3 class="text-xl font-bold ${upgrade.isFree ? 'text-blue-300' : (isWeapon ? 'text-green-300' : 'text-blue-300')} mb-2">${upgrade.name} (${upgrade.cost} Kills)</h3>
+                        <h3 class="text-xl font-bold ${upgrade.isFree ? 'text-blue-300' : (isWeapon ? 'text-green-300' : 'text-blue-300')} mb-2">${upgrade.name} (${upgrade.cost} Points)</h3>
                         <p class="text-sm text-gray-300 mb-2">${upgrade.description}</p>
                          <p class="text-lg font-extrabold ${costColor}">
-                            ${upgrade.isFree ? 'FREE' : `Cost: ${upgrade.cost} Kills`}
+                            ${upgrade.isFree ? 'FREE' : `Cost: ${upgrade.cost} Points`}
                         </p>
                     `;
                     
@@ -3238,18 +3244,18 @@
                 let highscoreMessage = '';
 
                 // NEW: High Score Logic
-                if (this.kills > this.bestKills) {
-                    this.bestKills = this.kills;
+                if (this.player.currency > this.bestKills) {
+                    this.bestKills = this.player.currency;
                     localStorage.setItem(HIGHSCORE_KEY, this.bestKills);
                     highscoreMessage = `<span class="text-yellow-400 font-bold">NEW HIGH SCORE!</span>`;
                 } else {
-                    highscoreMessage = `Best Score: ${this.bestKills} Kills`;
+                    highscoreMessage = `Best Score: ${this.bestKills} Points`;
                 }
                 // END NEW High Score Logic
 
                 document.getElementById('messageTitle').textContent = "GAME OVER";
                 document.getElementById('messageText').innerHTML = `
-                    You survived ${this.wave - 1} waves and earned ${this.kills} Kills.<br>
+                    You survived ${this.wave - 1} waves and earned ${this.player.currency} Points.<br>
                     Final Level: ${this.player.level}<br><br>
                     ${highscoreMessage}
                 `;
@@ -3304,8 +3310,8 @@
                 hud.buffTimer.textContent = buffText.slice(0, -3); // Remove trailing space/pipe
 
                 hud.waveCount.textContent = this.wave + (this.isBossWave ? ' (BOSS)' : '');
-                hud.killCount.textContent = this.player.currency; // Display currency here
-                hud.bestKillCount.textContent = this.bestKills; // Display high score here
+                hud.killCount.textContent = this.player.currency;
+                hud.bestKillCount.textContent = this.bestKills;
                 hud.currentHP.textContent = Math.max(0, Math.floor(this.player.currentHp));
                 hud.maxHP.textContent = this.player.maxHp;
                 
