@@ -83,9 +83,72 @@
              box-shadow: 0 0 15px #63b3ed, 0 0 25px #63b3ed;
              border-color: #63b3ed !important;
         }
+
+        /* Mobile Joystick Styles */
+        #mobileControls {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 100;
+            display: none; /* Hidden by default */
+        }
+        .joystick-zone {
+            width: 150px;
+            height: 150px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            position: relative;
+            touch-action: none;
+        }
+        .joystick-nipple {
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+
+        /* Landscape Warning Overlay */
+        #landscapeWarning {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: #1a202c;
+            z-index: 9999;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            color: white;
+        }
+        /* Only show warning if mobile mode is active (class on body) AND in portrait */
+        body.mobile-mode #landscapeWarning {
+            display: flex;
+        }
+        @media (orientation: landscape) {
+            body.mobile-mode #landscapeWarning {
+                display: none;
+            }
+        }
     </style>
 </head>
 <body class="p-4 flex items-center justify-center min-h-screen">
+    <div id="landscapeWarning">
+        <div class="text-4xl mb-4">📱➡️🔄</div>
+        <h2 class="text-2xl font-bold">Please Rotate Your Device</h2>
+        <p class="text-gray-400 mt-2">Landscape mode is required for the best experience.</p>
+    </div>
+
+    <div id="mobileControls">
+        <div id="joystickZone" class="joystick-zone">
+            <div id="joystickNipple" class="joystick-nipple"></div>
+        </div>
+    </div>
 
     <div id="gameContainer" class="max-w-4xl w-full relative">
         <h1 class="text-3xl font-extrabold text-center mb-4 text-white">
@@ -135,6 +198,14 @@
         <div id="startScreen" class="absolute inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
             <div class="bg-gray-900 p-10 rounded-xl shadow-2xl text-white max-w-5xl w-full text-center border-4 border-yellow-500">
                 <h2 class="text-4xl font-extrabold mb-8 text-yellow-400">CHOOSE YOUR HERO</h2>
+
+                <div class="mb-6 flex items-center justify-center space-x-3">
+                    <input type="checkbox" id="mobileModeToggle" class="w-6 h-6 text-yellow-500 rounded focus:ring-yellow-500">
+                    <label for="mobileModeToggle" class="text-xl text-gray-300 cursor-pointer select-none">
+                        Enable Mobile Controls (Joystick)
+                    </label>
+                </div>
+
                 <div id="characterOptions" class="grid grid-cols-1 md:grid-cols-3 gap-8">
                     </div>
             </div>
@@ -525,6 +596,17 @@
         const purchaseSummary = document.getElementById('purchaseSummary');
         const confirmPurchaseButton = document.getElementById('confirmPurchase');
         const skipButton = document.getElementById('skipButton');
+
+        const mobileModeToggle = document.getElementById('mobileModeToggle');
+        const mobileControlsDiv = document.getElementById('mobileControls');
+        const joystickZone = document.getElementById('joystickZone');
+        const joystickNipple = document.getElementById('joystickNipple');
+
+        let isMobileMode = false;
+        let joystickActive = false;
+        let joystickCenter = { x: 0, y: 0 };
+        let joystickTouchId = null;
+        let joystickVector = { x: 0, y: 0 };
 
         // --- GAME OBJECTS ---
 
@@ -2197,13 +2279,91 @@
                 this.mouseListener = (e) => this.handleMouseMovement(e);
                 this.mouseDownListener = (e) => this.handleMouseDown(e);
                 this.mouseUpListener = (e) => this.handleMouseUp(e);
-                canvas.addEventListener('click', this.mouseClickListener); // Keep click listener active
+                canvas.addEventListener('click', this.mouseClickListener);
                 document.addEventListener('keydown', this.keyListenerDown);
                 document.addEventListener('keyup', this.keyListenerUp);
                 canvas.addEventListener('mousemove', this.mouseListener);
                 canvas.addEventListener('mousedown', this.mouseDownListener);
                 canvas.addEventListener('mouseup', this.mouseUpListener);
                 restartButton.addEventListener('click', () => this.restart());
+
+                // Remove previous joystick listeners if any
+                joystickZone.removeEventListener('touchstart', this.handleTouchStart);
+                joystickZone.removeEventListener('touchmove', this.handleTouchMove);
+                joystickZone.removeEventListener('touchend', this.handleTouchEnd);
+
+                if (isMobileMode) {
+                    this.handleTouchStart = (e) => this.onTouchStart(e);
+                    this.handleTouchMove = (e) => this.onTouchMove(e);
+                    this.handleTouchEnd = (e) => this.onTouchEnd(e);
+
+                    joystickZone.addEventListener('touchstart', this.handleTouchStart, {passive: false});
+                    joystickZone.addEventListener('touchmove', this.handleTouchMove, {passive: false});
+                    joystickZone.addEventListener('touchend', this.handleTouchEnd, {passive: false});
+                }
+            }
+
+            onTouchStart(e) {
+                e.preventDefault();
+                const touch = e.changedTouches[0];
+                joystickTouchId = touch.identifier;
+                joystickActive = true;
+
+                const rect = joystickZone.getBoundingClientRect();
+                joystickCenter = {
+                    x: rect.left + rect.width / 2,
+                    y: rect.top + rect.height / 2
+                };
+
+                this.updateJoystick(touch.clientX, touch.clientY);
+            }
+
+            onTouchMove(e) {
+                e.preventDefault();
+                if (!joystickActive) return;
+
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    if (e.changedTouches[i].identifier === joystickTouchId) {
+                        this.updateJoystick(e.changedTouches[i].clientX, e.changedTouches[i].clientY);
+                        break;
+                    }
+                }
+            }
+
+            onTouchEnd(e) {
+                e.preventDefault();
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    if (e.changedTouches[i].identifier === joystickTouchId) {
+                        joystickActive = false;
+                        joystickTouchId = null;
+                        joystickVector = { x: 0, y: 0 };
+                        joystickNipple.style.transform = `translate(-50%, -50%)`; // Reset nipple
+                        this.updateMovementDirection();
+                        break;
+                    }
+                }
+            }
+
+            updateJoystick(clientX, clientY) {
+                const maxDist = 50; // Max radius of joystick movement
+                let dx = clientX - joystickCenter.x;
+                let dy = clientY - joystickCenter.y;
+                const distance = Math.hypot(dx, dy);
+
+                if (distance > maxDist) {
+                    dx = (dx / distance) * maxDist;
+                    dy = (dy / distance) * maxDist;
+                }
+
+                joystickNipple.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+
+                // Normalize vector for movement
+                joystickVector = {
+                    x: dx / maxDist,
+                    y: dy / maxDist
+                };
+
+                this.updateMovementDirection();
             }
 
             // NEW: Handle confirmation of multiple selected items
@@ -2369,6 +2529,17 @@
                     if (ks.up) dy -= 1;
                     if (ks.down) dy += 1;
                     isKeyboardActive = true;
+                }
+
+                // 2. Check Joystick State (Mobile Mode)
+                if (!isKeyboardActive && isMobileMode && (joystickVector.x !== 0 || joystickVector.y !== 0)) {
+                    dx = joystickVector.x;
+                    dy = joystickVector.y;
+                    // Joystick vector is already normalized 0-1, but we treat it as directional input
+                    // We directly apply it to moveDirection below
+                    this.player.moveDirection.x = dx;
+                    this.player.moveDirection.y = dy;
+                    return; // Skip mouse/keyboard logic
                 }
 
                 // 2. Check Mouse State (only if keyboard is not active AND mouse button is held)
@@ -3725,6 +3896,18 @@
 
         function startGame(characterKey) {
             startScreen.classList.add('hidden');
+
+            // CHECK MOBILE TOGGLE
+            isMobileMode = mobileModeToggle.checked;
+
+            if (isMobileMode) {
+                document.body.classList.add('mobile-mode');
+                mobileControlsDiv.style.display = 'block';
+            } else {
+                document.body.classList.remove('mobile-mode');
+                mobileControlsDiv.style.display = 'none';
+            }
+
             // Reset palette to default on start
             currentPalette = COLOR_PALETTES.dirt;
             game = new Game(characterKey);
