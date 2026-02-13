@@ -1,0 +1,77 @@
+/* Custom styles for the game canvas and feel */
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #1a202c; /* Dark background */
+}
+#gameCanvas {
+    border: 4px solid #fbd38d; /* Gold border - controlled dynamically in JS now */
+    box-shadow: 0 0 20px rgba(251, 211, 141, 0.5); /* Glowing effect - controlled dynamically */
+    background-color: #3b4455; /* Arena floor color - controlled dynamically */
+    display: block;
+    margin: 0 auto;
+    touch-action: none; /* Prevents default mobile touch behavior */
+}
+.hud-stat {
+    font-weight: bold;
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 4px;
+}
+.xp-bar-fill {
+    background-color: #63b3ed; /* Blue */
+    height: 100%;
+    border-radius: 6px;
+    transition: width 0.3s;
+}
+.upgrade-card, .weapon-card {
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.1s;
+    border: 3px solid transparent;
+}
+.upgrade-card {
+    background-color: #2d3748;
+}
+/* Style for stat cards (yellow/gold) */
+.upgrade-card.stat-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 15px rgba(251, 211, 141, 0.2);
+    border-color: #fbd38d;
+}
+/* Style for weapon cards (green) */
+.upgrade-card.weapon-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 15px rgba(72, 187, 120, 0.4);
+    border-color: #48bb78;
+}
+.character-card {
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.1s;
+    border: 3px solid transparent;
+    background-color: #2d3748;
+}
+.character-card:hover {
+    transform: translateY(-4px);
+    border-color: #63b3ed; /* Blue hover border for character selection */
+    box-shadow: 0 10px 15px rgba(99, 179, 237, 0.4);
+}
+.unavailable {
+    opacity: 0.5;
+    cursor: not-allowed;
+    filter: grayscale(100%);
+}
+.free-upgrade {
+    box-shadow: 0 0 15px #63b3ed; /* Blue glow for free item */
+    border-color: #63b3ed !important;
+}
+.free-upgrade:hover {
+    box-shadow: 0 0 20px #63b3ed;
+}
+/* New class for selected/staged items */
+.selected-item {
+    box-shadow: 0 0 10px #fbd38d, 0 0 20px #fbd38d;
+    border-color: #fbd38d !important;
+}
+.selected-item.free-upgrade {
+     box-shadow: 0 0 15px #63b3ed, 0 0 25px #63b3ed;
+     border-color: #63b3ed !important;
+}
