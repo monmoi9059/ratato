@@ -2266,9 +2266,6 @@ class Game {
 
         if (selectedCards.length === 0) {
             this.resume();
-            if (this.currentUpgradeType === 'weapon') {
-                 this.startNewWave();
-            }
             return;
         }
 
@@ -3601,8 +3598,8 @@ function startGame(characterKey) {
     currentPalette = COLOR_PALETTES.dirt;
     game = new Game(characterKey);
 
-    // FIX: Move startNewWave() call here to ensure 'game' object is fully instantiated
-    game.startNewWave();
+    // FIX: Move initializeGame() call here to ensure 'game' object is fully instantiated
+    game.initializeGame();
 
     // Ensure lastUpdateTime is set immediately before the first frame request
     game.lastUpdateTime = performance.now();
