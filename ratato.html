@@ -99,9 +99,9 @@ body {
         <div id="gameUI" class="flex flex-col lg:flex-row justify-between mb-4 space-y-4 lg:space-y-0 lg:space-x-4">
             <div class="w-full lg:w-1/3 bg-gray-800 p-4 rounded-lg shadow-xl border border-gray-700">
                 <div class="flex flex-col space-y-2 text-sm">
-                    <div class="hud-stat text-lg text-yellow-400">Wave: <span id="waveCount">1</span></div>
+                    <div class="hud-stat text-lg text-yellow-400">Time: <span id="waveCount">00:00</span></div>
                     <div class="hud-stat text-lg text-red-400">Best Kills: <span id="bestKillCount">0</span></div>
-                    <div class="hud-stat text-lg text-green-400">Currency (Kills): <span id="killCount">0</span></div>
+                    <div class="hud-stat text-lg text-green-400">Score: <span id="killCount">0</span></div>
                     <div class="hud-stat">
                         HP: <span id="currentHP"></span> / <span id="maxHP"></span>
                         <span id="buffTimer" class="text-xs text-red-400 ml-1"></span>
@@ -117,7 +117,7 @@ body {
 
             <div class="w-full lg:w-2/3 bg-gray-800 p-4 rounded-lg shadow-xl border border-gray-700 text-sm text-gray-200">
                 <h2 class="text-lg font-semibold mb-2 text-yellow-400">Rat Stats & Inventory</h2>
-                <div class="grid grid-cols-4 gap-2">
+                <div class="grid grid-cols-4 gap-2 mb-2">
                     <div>Movement Speed: <span id="statSpeed"></span></div>
                     <div>Damage Multiplier: <span id="statDamage"></span>x</div>
                     <div>Armor: <span id="statArmor"></span></div>
@@ -126,9 +126,21 @@ body {
                     <div>Attack Speed: <span id="statAttackSpeed"></span>%</div>
                     <div>Attack Range: <span id="statRange"></span>x</div>
                     <div>Shield: <span id="statShield"></span></div>
-                    <div class="col-span-4">
-                        Weapons: <span id="weaponList" class="text-green-400 font-medium"></span>
-                        <span id="weaponSlots" class="text-gray-500">(Slots: 0/0)</span>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-gray-600 pt-2">
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-yellow-400 font-bold">Weapons</span>
+                            <span id="weaponSlots" class="text-gray-400 text-xs">(0/6)</span>
+                        </div>
+                        <div id="weaponList" class="text-green-300 font-medium text-xs space-y-1"></div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-blue-400 font-bold">Passives</span>
+                            <span id="passiveSlots" class="text-gray-400 text-xs">(0/6)</span>
+                        </div>
+                        <div id="passiveList" class="text-blue-300 font-medium text-xs space-y-1"></div>
                     </div>
                 </div>
             </div>
@@ -158,14 +170,11 @@ body {
                 <div id="upgradeOptionsContainer" class="flex flex-col items-center">
                     <div id="upgradeOptions" class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
                         </div>
-                    <div id="purchaseSummary" class="text-xl font-bold text-gray-300 mb-4">
-                        Total Cost: 0 Kills | Remaining: 0 Kills
-                    </div>
-                    <button id="confirmPurchase" class="px-8 py-4 bg-green-600 hover:bg-green-500 text-white font-extrabold rounded-lg transition text-2xl shadow-lg border-2 border-green-400">
-                        CONFIRM PURCHASE (0 Kills)
+                    <button id="confirmPurchase" class="hidden px-8 py-4 bg-green-600 hover:bg-green-500 text-white font-extrabold rounded-lg transition text-2xl shadow-lg border-2 border-green-400">
+                        CONFIRM SELECTION
                     </button>
                     <button id="skipButton" class="mt-3 text-gray-400 hover:text-gray-200 underline">
-                        Skip
+                        Skip Level Up (Heal 25 HP)
                     </button>
                 </div>
             </div>
@@ -579,6 +588,79 @@ const WEAPONS = {
     },
 };
 
+// --- PASSIVE ITEMS DEFINITIONS ---
+const PASSIVE_ITEMS = {
+    spinach: {
+        key: 'spinach', name: "Spinach", emoji: "🍃", description: "Increases damage by 10%.",
+        maxLevel: 5,
+        apply: (rat) => { rat.damageMultiplier = parseFloat((rat.damageMultiplier + 0.1).toFixed(2)); }
+    },
+    armor: {
+        key: 'armor', name: "Armor", emoji: "🛡️", description: "Reduces incoming damage by 1.",
+        maxLevel: 5,
+        apply: (rat) => { rat.armor += 1; }
+    },
+    emptyHeart: {
+        key: 'emptyHeart', name: "Hollow Heart", emoji: "❤️", description: "Increases Max Health by 20%.",
+        maxLevel: 5,
+        apply: (rat) => {
+            const boost = Math.floor(rat.maxHp * 0.2);
+            rat.maxHp += boost;
+            rat.currentHp += boost;
+        }
+    },
+    emptyTome: {
+        key: 'emptyTome', name: "Empty Tome", emoji: "📖", description: "Increases attack speed by 8%.",
+        maxLevel: 5,
+        apply: (rat) => { rat.fireRateReduction = parseFloat((rat.fireRateReduction + 0.08).toFixed(2)); }
+    },
+    candelabrador: {
+        key: 'candelabrador', name: "Candelabrador", emoji: "🕯️", description: "Increases attack range by 10%.",
+        maxLevel: 5,
+        apply: (rat) => { rat.attackRangeMultiplier = parseFloat((rat.attackRangeMultiplier + 0.1).toFixed(2)); }
+    },
+    bracer: {
+        key: 'bracer', name: "Bracer", emoji: "🧤", description: "Increases projectile speed by 10%.",
+        maxLevel: 5,
+        apply: (rat) => { /* Not implemented yet globally, but placeholder */ }
+    },
+    spellbinder: {
+        key: 'spellbinder', name: "Spellbinder", emoji: "🔮", description: "Increases duration of weapon effects.",
+        maxLevel: 5,
+        apply: (rat) => { /* Placeholder for duration */ }
+    },
+    duplicator: {
+        key: 'duplicator', name: "Duplicator", emoji: "💍", description: "Weapons fire more projectiles.",
+        maxLevel: 2,
+        apply: (rat) => { rat.projectileCountBonus += 1; }
+    },
+    wings: {
+        key: 'wings', name: "Wings", emoji: "🪽", description: "Increases movement speed by 10%.",
+        maxLevel: 5,
+        apply: (rat) => { rat.baseSpeed = parseFloat((rat.baseSpeed * 1.1).toFixed(1)); }
+    },
+    attractorb: {
+        key: 'attractorb', name: "Attractorb", emoji: "🧲", description: "Increases pickup range.",
+        maxLevel: 5,
+        apply: (rat) => { rat.magnetRange += 30; }
+    },
+    clover: {
+        key: 'clover', name: "Clover", emoji: "🍀", description: "Increases luck (crit/drops).",
+        maxLevel: 5,
+        apply: (rat) => { rat.luck += 0.1; } // Placeholder property
+    },
+    crown: {
+        key: 'crown', name: "Crown", emoji: "👑", description: "Gains 8% more experience.",
+        maxLevel: 5,
+        apply: (rat) => { rat.xpMultiplier = parseFloat((rat.xpMultiplier + 0.08).toFixed(2)); }
+    },
+    pummarola: {
+        key: 'pummarola', name: "Pummarola", emoji: "🍅", description: "Recover 0.2 HP per second.",
+        maxLevel: 5,
+        apply: (rat) => { rat.hpRegen += 0.2; }
+    }
+};
+
 // UI Elements
 const hud = {
     waveCount: document.getElementById('waveCount'),
@@ -597,6 +679,8 @@ const hud = {
     statShield: document.getElementById('statShield'),
     weaponList: document.getElementById('weaponList'),
     weaponSlots: document.getElementById('weaponSlots'),
+    passiveList: document.getElementById('passiveList'), // NEW
+    passiveSlots: document.getElementById('passiveSlots'), // NEW
     buffTimer: document.getElementById('buffTimer')
 };
 const startScreen = document.getElementById('startScreen');
@@ -611,6 +695,91 @@ const restartButton = document.getElementById('restartButton');
 const purchaseSummary = document.getElementById('purchaseSummary');
 const confirmPurchaseButton = document.getElementById('confirmPurchase');
 const skipButton = document.getElementById('skipButton');
+
+// --- SPATIAL GRID FOR COLLISION OPTIMIZATION ---
+class SpatialGrid {
+    constructor(width, height, cellSize) {
+        this.width = width;
+        this.height = height;
+        this.cellSize = cellSize;
+        this.cells = new Map();
+    }
+
+    _getKey(x, y) {
+        return `${Math.floor(x / this.cellSize)},${Math.floor(y / this.cellSize)}`;
+    }
+
+    clear() {
+        this.cells.clear();
+    }
+
+    insert(entity) {
+        // We only insert based on the center point for simplicity, assuming entities are smaller than cells
+        // For large entities, we might need to insert into multiple cells, but center point is usually enough for
+        // broad phase if we check neighbors.
+        // Actually, let's insert into all cells the entity's bounding box touches to be safe.
+
+        const startX = Math.floor((entity.x - entity.radius) / this.cellSize);
+        const endX = Math.floor((entity.x + entity.radius) / this.cellSize);
+        const startY = Math.floor((entity.y - entity.radius) / this.cellSize);
+        const endY = Math.floor((entity.y + entity.radius) / this.cellSize);
+
+        for (let x = startX; x <= endX; x++) {
+            for (let y = startY; y <= endY; y++) {
+                const key = `${x},${y}`;
+                if (!this.cells.has(key)) {
+                    this.cells.set(key, []);
+                }
+                this.cells.get(key).push(entity);
+            }
+        }
+    }
+
+    retrieve(entity) {
+        // Retrieve entities from the cells this entity touches
+        const startX = Math.floor((entity.x - entity.radius) / this.cellSize);
+        const endX = Math.floor((entity.x + entity.radius) / this.cellSize);
+        const startY = Math.floor((entity.y - entity.radius) / this.cellSize);
+        const endY = Math.floor((entity.y + entity.radius) / this.cellSize);
+
+        const retrieved = new Set();
+
+        for (let x = startX; x <= endX; x++) {
+            for (let y = startY; y <= endY; y++) {
+                const key = `${x},${y}`;
+                const cell = this.cells.get(key);
+                if (cell) {
+                    for (const other of cell) {
+                        retrieved.add(other);
+                    }
+                }
+            }
+        }
+        return Array.from(retrieved);
+    }
+}
+
+// --- SPRITE CACHE FOR RENDERING OPTIMIZATION ---
+const spriteCache = {
+    canvases: {},
+
+    get(key, width, height, drawFn) {
+        if (!this.canvases[key]) {
+            const c = document.createElement('canvas');
+            c.width = width;
+            c.height = height;
+            const ctx = c.getContext('2d');
+            drawFn(ctx, width / 2, height / 2);
+            this.canvases[key] = c;
+        }
+        return this.canvases[key];
+    },
+
+    clear() {
+        this.canvases = {};
+    }
+};
+
 
 // --- GAME OBJECTS ---
 
@@ -729,6 +898,30 @@ class Obstacle extends Entity {
         }
 
 
+        context.restore();
+    }
+}
+
+class Gem extends Entity {
+    constructor(x, y, value) {
+        let color = '#4299e1'; // Blue (1 XP)
+        if (value >= 10) color = '#48bb78'; // Green (10 XP)
+        if (value >= 50) color = '#ed64a6'; // Pink (50 XP)
+
+        super(x, y, 6, color, 0);
+        this.value = value;
+    }
+    draw(context) {
+        context.save();
+        context.translate(this.x, this.y);
+        context.rotate(Date.now() / 1000);
+        context.fillStyle = this.color;
+        context.beginPath();
+        context.moveTo(0, -this.radius);
+        context.lineTo(this.radius * 0.7, 0);
+        context.lineTo(0, this.radius);
+        context.lineTo(-this.radius * 0.7, 0);
+        context.fill();
         context.restore();
     }
 }
@@ -915,6 +1108,34 @@ class BombDrop extends Entity {
     }
 }
 
+// NEW CLASS: Treasure Chest
+class Chest extends Entity {
+    constructor(x, y) {
+        super(x, y, 20, '#d69e2e', 0); // Gold color
+        this.color = '#d69e2e';
+    }
+    draw(context) {
+        context.save();
+        context.translate(this.x, this.y);
+
+        // Glow
+        const pulse = Math.sin(Date.now() / 200) * 5;
+        context.shadowBlur = 20 + pulse;
+        context.shadowColor = '#ecc94b';
+
+        // Box
+        context.fillStyle = '#744210';
+        context.fillRect(-15, -10, 30, 20);
+
+        // Lid (gold trim)
+        context.fillStyle = '#d69e2e';
+        context.fillRect(-15, -10, 30, 6);
+        context.fillRect(-4, -10, 8, 20); // Lock
+
+        context.restore();
+    }
+}
+
 // END NEW POWERUP CLASSES
 
 class Rat extends Entity {
@@ -941,14 +1162,20 @@ class Rat extends Entity {
         // NEW AFFINITY STAT
         this.meleeRangeMultiplier = initialStats.meleeRangeMultiplier;
 
-        // NEW CURRENCY STAT
+        // NEW CURRENCY STAT (Used as score now)
         this.currency = initialStats.currency;
         // NEW WEAPON SLOTS
-        this.maxWeapons = initialStats.maxWeapons;
+        this.maxWeapons = 6; // Standard Survivor limit
+        this.maxPassives = 6; // Standard Survivor limit
 
         this.level = 1;
         this.xp = 0;
         this.xpToNextLevel = 10;
+        this.xpMultiplier = 1.0; // New XP Multiplier
+        this.magnetRange = 50;   // New Magnet Range
+        this.luck = 1.0;         // New Luck stat
+        this.hpRegen = 0;        // New HP Regen
+
         this.moveDirection = { x: 0, y: 0 };
         this.damageFlashTimer = 0;
         this.animationFrame = 0;
@@ -956,6 +1183,7 @@ class Rat extends Entity {
 
         this.weapons = [];
         this.weaponTimers = {};
+        this.passives = []; // Array of { key, level, name }
 
         // Set character-specific colors
         this.ratColor = colors.main;
@@ -980,6 +1208,7 @@ class Rat extends Entity {
 
         if (uniqueWeaponCount >= this.maxWeapons && this.weapons.filter(w => w.key === weaponKey).length === 0) {
             // Prevent adding a NEW type if slots are full
+            console.warn("Weapon slots full!");
             return;
         }
         // --- END MODIFIED SLOT CHECK ---
@@ -1041,13 +1270,31 @@ class Rat extends Entity {
         });
     }
 
+    addPassive(passiveKey) {
+        if (!PASSIVE_ITEMS[passiveKey]) return;
+
+        const existingPassive = this.passives.find(p => p.key === passiveKey);
+
+        if (existingPassive) {
+            if (existingPassive.level < PASSIVE_ITEMS[passiveKey].maxLevel) {
+                existingPassive.level++;
+                PASSIVE_ITEMS[passiveKey].apply(this);
+            }
+        } else {
+            if (this.passives.length < this.maxPassives) {
+                this.passives.push({ key: passiveKey, level: 1 });
+                PASSIVE_ITEMS[passiveKey].apply(this);
+            }
+        }
+    }
+
     // NEW: Add currency handling
     gainCurrency(amount) {
         this.currency += amount;
     }
 
     gainXp(amount, game) {
-        this.xp += amount;
+        this.xp += amount * this.xpMultiplier;
         while (this.xp >= this.xpToNextLevel) {
             this.levelUp(game);
         }
@@ -1080,12 +1327,11 @@ class Rat extends Entity {
         this.xp -= this.xpToNextLevel;
         this.level += 1;
 
-        // NEW leveling curve: Steeper at the start, flatter at higher levels.
-        // The growth factor starts high and decreases as the player levels up.
-        const growthFactor = Math.max(1.1, 1.8 - (this.level / 50));
-        this.xpToNextLevel = Math.floor(this.xpToNextLevel * growthFactor);
+        // NEW leveling curve: Standard survivor scaling
+        // Base 10, increases by 10 each level, plus small exponential
+        this.xpToNextLevel = Math.floor(this.xpToNextLevel + 10 + (this.level * 2));
 
-        if (game) game.pauseAndShowStatUpgrades();
+        if (game) game.showLevelUpScreen();
     }
 
     update(game, deltaTime) {
@@ -1579,7 +1825,7 @@ class Enemy extends Entity {
              context.fill();
         }
 
-        // --- New Segmented Body Drawing ---
+        // Calculate positions
         const segmentPositions = [];
         for (let i = 0; i < bodySegments; i++) {
             const progress = i / (bodySegments - 1);
@@ -1597,23 +1843,37 @@ class Enemy extends Entity {
             context.fill();
         }
 
-        // Draw body segments (from back to front for correct overlap)
-        for (let i = bodySegments - 1; i >= 0; i--) {
-            const seg = segmentPositions[i];
+        // OPTIMIZATION: Use cached sprite for segments
+        // Key based on color and radius
+        const segmentKey = `seg_${this.color}_${this.radius}`;
+        const segmentSize = this.radius * 2.5; // Slightly larger for padding
 
-            const gradient = context.createRadialGradient(seg.x - this.radius * 0.2, seg.y - this.radius * 0.2, 1, seg.x, seg.y, this.radius);
+        const segmentSprite = spriteCache.get(segmentKey, segmentSize, segmentSize, (ctx, cx, cy) => {
+            const gradient = ctx.createRadialGradient(cx - this.radius * 0.2, cy - this.radius * 0.2, 1, cx, cy, this.radius);
             gradient.addColorStop(0, '#ffffff44'); // Highlight
             gradient.addColorStop(0.5, this.color);
             gradient.addColorStop(1, this.strokeColor || this.color);
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(cx, cy, this.radius, 0, Math.PI * 2);
+            ctx.fill();
+        });
 
-            context.fillStyle = gradient;
-            context.beginPath();
-            context.arc(seg.x, seg.y, this.radius, 0, Math.PI * 2);
-            context.fill();
+        // Draw body segments using cached sprite
+        for (let i = bodySegments - 1; i >= 0; i--) {
+            const seg = segmentPositions[i];
+            context.drawImage(segmentSprite, seg.x - segmentSize/2, seg.y - segmentSize/2);
         }
 
-        // Draw Head and Eyes
+        // Draw Head (Could also be cached, but has eyes, slightly more complex.
+        // For now, let's keep head dynamic or cache it separately if needed.
+        // Drawing one head is cheap compared to 8 gradient segments.)
         const head = segmentPositions[bodySegments - 1];
+
+        // Simple head draw (optimized gradient)
+        // Check if we can reuse the segment sprite for the base head?
+        // The head is radius * 1.2.
+
         const headGradient = context.createRadialGradient(head.x - this.radius * 0.3, head.y - this.radius * 0.3, 1, head.x, head.y, this.radius * 1.2);
         headGradient.addColorStop(0, '#ffffff66');
         headGradient.addColorStop(0.5, this.color);
@@ -2046,6 +2306,46 @@ class Projectile extends Entity {
     }
 }
 
+// --- SPAWN DIRECTOR (Replaces Wave System) ---
+class SpawnDirector {
+    constructor(game) {
+        this.game = game;
+        this.phases = [
+            { start: 0, end: 60, spawnInterval: 800, maxEnemies: 50, types: ['default'] },
+            { start: 60, end: 180, spawnInterval: 600, maxEnemies: 100, types: ['default', 'fast'] },
+            { start: 180, end: 300, spawnInterval: 400, maxEnemies: 200, types: ['default', 'fast', 'tank'] },
+            { start: 300, end: 600, spawnInterval: 200, maxEnemies: 400, types: ['default', 'fast', 'tank', 'detonator'] },
+            { start: 600, end: 1200, spawnInterval: 100, maxEnemies: 800, types: ['default', 'fast', 'tank', 'detonator', 'ranged'] }, // Ranged not impl yet
+            { start: 1200, end: 99999, spawnInterval: 50, maxEnemies: 1500, types: ['default', 'fast', 'tank', 'detonator'] }
+        ];
+        this.nextBossTime = 60 * 5; // First boss at 5 minutes
+    }
+
+    update(deltaTime) {
+        const timeInSeconds = (Date.now() - this.game.startTime) / 1000;
+
+        // Find current phase
+        const currentPhase = this.phases.find(p => timeInSeconds >= p.start && timeInSeconds < p.end) || this.phases[this.phases.length - 1];
+
+        this.game.enemySpawnInterval = currentPhase.spawnInterval;
+        this.game.maxEnemiesThisWave = currentPhase.maxEnemies;
+        this.game.allowedEnemyTypes = currentPhase.types;
+
+        // Palette Swap every minute
+        const minute = Math.floor(timeInSeconds / 60);
+        if (minute > this.game.currentMinute) {
+            this.game.currentMinute = minute;
+            this.game.handlePaletteSwap();
+        }
+
+        // Boss Spawn Logic
+        if (timeInSeconds > this.nextBossTime) {
+            this.game.spawnBoss();
+            this.nextBossTime += 60 * 5; // Every 5 minutes
+        }
+    }
+}
+
 // --- GAME LOGIC ---
 
 class Game {
@@ -2058,18 +2358,20 @@ class Game {
         this.pickups = [];
         this.obstacles = []; // NEW: Obstacles Array
         this.explosions = [];
-        this.wave = 0;
+        // Continuous Logic
+        this.startTime = Date.now();
         this.kills = 0;
-        this.lastWaveTime = Date.now();
-        this.waveDuration = 30000; // Waves now last 30 seconds (30000ms)
         this.enemySpawnInterval = 1000;
         this.lastSpawnTime = 0;
-        this.enemyCountThisWave = 0;
-        this.maxEnemiesThisWave = 0;
+        this.maxEnemiesThisWave = 100; // Controlled by Director
+        this.allowedEnemyTypes = ['default'];
+        this.currentMinute = 0;
+
+        this.spawnDirector = new SpawnDirector(this);
+
         this.isPaused = false;
         this.gameOver = false;
         this.lastUpdateTime = performance.now();
-        this.isBossWave = false;
 
         this.currentUpgradeOptions = []; // Stores the currently displayed options data
         this.currentUpgradeType = null; // 'stat' or 'weapon'
@@ -2093,57 +2395,18 @@ class Game {
         this.meleeSwingRadius = 0;      // New: Radius for drawing cone
         this.meleeSwingArc = 0;         // New: Arc for drawing cone
 
-
-        // --- TIERED UPGRADE DEFINITIONS ---
-        // The 'apply' function now uses the 'tier' (0, 1, 2) to determine the bonus.
-        const TIER_BRONZE = 0; // 10% base value
-        const TIER_SILVER = 1; // 25% base value
-        const TIER_GOLD = 2;   // 50% base value
-
-        // MODIFIED: Cost for all tiers is now a uniform 25 Kills. Exponential scaling handles the rest.
-        const INITIAL_COST = 25;
-
-        this.baseStatUpgrades = [
-            // Max HP Boost
-            { name: "Max HP Boost", key: "HP", baseValue: 50, apply: (p, tier) => p.maxHp += [10, 25, 50][tier], cost: INITIAL_COST, description: "+HP" },
-            // Movement Speed
-            { name: "Movement Speed", key: "Speed", baseValue: 0.1, apply: (p, tier) => p.baseSpeed += [0.2, 0.4, 0.7][tier], cost: INITIAL_COST, description: "+Speed" },
-            // Damage Up
-            { name: "Damage Up", key: "Dmg", baseValue: 0.1, apply: (p, tier) => p.damageMultiplier = parseFloat((p.damageMultiplier + [0.1, 0.25, 0.5][tier]).toFixed(2)), cost: INITIAL_COST, description: "+Damage Multiplier" },
-            // Defense: Armor
-            { name: "Defense: Armor", key: "Armor", baseValue: 1, apply: (p, tier) => p.armor += [1, 2, 4][tier], cost: INITIAL_COST, description: "+Armor" },
-            // Defense: Evasion (Max 50%)
-            { name: "Defense: Evasion", key: "Eva", baseValue: 0.05, apply: (p, tier) => p.evasion = Math.min(0.5, p.evasion + [0.05, 0.12, 0.25][tier]), cost: INITIAL_COST, description: "+Evasion Chance" },
-            // Defense: Shield
-            { name: "Defense: Shield", key: "Shield", baseValue: 15, apply: (p, tier) => p.shield += [10, 25, 50][tier], cost: INITIAL_COST, description: "+Shield HP" },
-            // Ricochet Shots
-            { name: "Ricochet Shots", key: "Bounce", baseValue: 1, apply: (p, tier) => p.bounceCount += [1, 2, 4][tier], cost: INITIAL_COST, description: "+Projectile Bounces" },
-            // More Projectiles (Dual Effect)
-            { name: "More Projectiles", key: "Proj", baseValue: 1,
-              apply: (p, tier) => {
-                  const projBonus = [1, 2, 4][tier];
-                  p.projectileCountBonus += projBonus;
-                  p.fireRateReduction = parseFloat((p.fireRateReduction + projBonus * 0.1).toFixed(2));
-              },
-              cost: INITIAL_COST, description: "+Projectiles / Melee Attack Speed" },
-            // Attack Speed Boost
-            { name: "Attack Speed Boost", key: "AS", baseValue: 0.1, apply: (p, tier) => p.fireRateReduction = parseFloat((p.fireRateReduction + [0.1, 0.25, 0.5][tier]).toFixed(2)), cost: INITIAL_COST, description: "+Fire Rate Multiplier" },
-            // Projectile Range
-            { name: "Projectile Range", key: "Range", baseValue: 0.1, apply: (p, tier) => p.attackRangeMultiplier = parseFloat((p.attackRangeMultiplier + [0.1, 0.25, 0.5][tier]).toFixed(2)), cost: INITIAL_COST, description: "+Range Multiplier" },
-            // Vampire Healing
-            { name: "Vampire Healing", key: "Life", baseValue: 0.005, apply: (p, tier) => p.lifestealPercentage = parseFloat((p.lifestealPercentage + [0.005, 0.015, 0.03][tier]).toFixed(3)), cost: INITIAL_COST, description: "+Lifesteal Percentage" },
-            // Healing Potion (No stacking, always bronze cost/value for instant heal)
-            { name: "Healing Potion", key: "Heal", baseValue: 1, apply: p => p.currentHp = p.maxHp, cost: INITIAL_COST, description: "Fully Restore HP" },
-        ];
-
-        // Track prices by unique stat NAME for exponential scaling
-        this.statUpgradePrices = {};
+        // Spatial Grid for Optimization (150px cells)
+        this.spatialGrid = new SpatialGrid(WORLD_RADIUS * 2, WORLD_RADIUS * 2, 150);
 
         this.setupInput();
         this.setupUpgradeUIEvents(); // NEW: Setup confirm/skip buttons
         this.updateHUD();
 
-        // MOVED: this.startNewWave() call removed from constructor
+        this.initializeGame();
+    }
+
+    initializeGame() {
+        this.spawnInitialEntities();
     }
 
     // NEW: Setup click handlers for the Confirm/Skip buttons
@@ -2151,10 +2414,6 @@ class Game {
         confirmPurchaseButton.onclick = () => this.handleConfirmPurchase();
         skipButton.onclick = () => {
             this.resume();
-            // If skipping a weapon choice, start the next wave immediately
-            if (this.currentUpgradeType === 'weapon') {
-                 this.startNewWave();
-            }
         };
     }
 
@@ -2230,9 +2489,7 @@ class Game {
         this.updateHUD();
 
         // If confirming a weapon choice, start the next wave immediately
-        if (this.currentUpgradeType === 'weapon') {
-            this.startNewWave();
-        }
+        // (No logic needed here for continuous loop, resume handles it)
     }
 
 
@@ -2388,13 +2645,14 @@ class Game {
 
         // BOSS SPECIFIC REWARD
         if (e instanceof Boss) {
-            this.player.maxWeapons += 1; // Award boss slot
-            console.log(`BOSS DEFEATED! Weapon slots increased to ${this.player.maxWeapons}`);
+            this.pickups.push(new Chest(e.x, e.y));
+            console.log(`BOSS DEFEATED! Chest Spawned.`);
+        } else {
+            this.pickups.push(new Gem(e.x, e.y, e.xpValue));
         }
 
         this.kills++;
         this.player.gainCurrency(1);
-        this.player.gainXp(e.xpValue, this);
 
         // PARTICLE EFFECT
         this.addExplosionParticles(5, e.x, e.y, currentPalette.arenaBorder, 3);
@@ -2612,27 +2870,6 @@ class Game {
         });
     }
 
-    // NEW: startNewWave moved into constructor property to fix the reference error
-    startNewWave = () => {
-        this.wave++;
-        this.resetWaveState();
-        this.spawnInitialEntities();
-        this.handlePaletteSwap();
-        this.handleDifficultyProgression();
-    }
-
-    resetWaveState() {
-        this.lastWaveTime = Date.now();
-        this.enemyCountThisWave = 0;
-
-        this.enemies = this.enemies.filter(e => !e.isDead);
-        this.projectiles = [];
-        this.pickups = [];
-        this.obstacles = []; // NEW: Clear obstacles on new wave
-        this.explosions = [];
-        this.isBossWave = false;
-    }
-
     spawnInitialEntities() {
         // --- NEW: Add initial scattered pickups and obstacles to the map ---
         const NUM_HEALTH_DROPS = 5;
@@ -2673,48 +2910,30 @@ class Game {
             const newPaletteIndex = Math.floor(((this.wave - 1) / 10) % paletteKeys.length);
             currentPalette = COLOR_PALETTES[paletteKeys[newPaletteIndex]];
             console.log(`PALETTE SWAP: Entering ${currentPalette.name} on Wave ${this.wave}`);
+
+            // Clear sprite cache on palette swap to regenerate with new colors
+            spriteCache.clear();
         }
         // --- END NEW PALETTE SWAP LOGIC ---
     }
 
-    handleDifficultyProgression() {
-        if (this.wave > 1 && this.wave % 10 === 0) {
-            this.isBossWave = true;
-            this.maxEnemiesThisWave = 1;
+    spawnBoss() {
+        const BOSS_RADIUS = 40;
+        const angle = Math.random() * Math.PI * 2;
 
-            const BOSS_RADIUS = 40;
-            const angle = Math.random() * Math.PI * 2;
+        // Boss spawns off-screen near the edge of the world
+        const spawnDist = WORLD_RADIUS - BOSS_RADIUS - 10;
+        const spawnX = WORLD_CENTER_X + Math.cos(angle) * spawnDist;
+        const spawnY = WORLD_CENTER_Y + Math.sin(angle) * spawnDist;
 
-            // Boss spawns off-screen near the edge of the world
-            const spawnDist = WORLD_RADIUS - BOSS_RADIUS - 10;
-            const spawnX = WORLD_CENTER_X + Math.cos(angle) * spawnDist;
-            const spawnY = WORLD_CENTER_Y + Math.sin(angle) * spawnDist;
+        // Calculate scaling based on minutes
+        const minutes = this.currentMinute + 1;
+        const boss = new Boss(spawnX, spawnY, minutes * 10); // Pass "wave" equivalent
 
-            const boss = new Boss(spawnX, spawnY, this.wave);
-            this.enemies.push(boss);
+        this.enemies.push(boss);
+        this.spatialGrid.insert(boss);
 
-            // NEW: Boss defeat grants +1 weapon slot
-            // This is now done in update() logic after boss HP hits zero
-
-            console.log(`BOSS WAVE START: Wave ${this.wave} - Boss HP: ${boss.maxHp} | Current Max Slots: ${this.player.maxWeapons}`);
-
-            this.enemyCountThisWave = 1;
-
-        } else {
-            // --- MODIFIED: NO MAX ENEMY LIMIT ---
-            this.maxEnemiesThisWave = Infinity;
-
-            // --- MODIFIED SPAWN RATE SCALING (1.5x Aggressiveness after Wave 5) ---
-            let baseSpawnDecrease = 200; // Normal aggressive scaling (200ms per wave)
-
-            // After Wave 5, increase scaling speed by 1.5x (200ms * 1.5 = 300ms reduction)
-            if (this.wave >= 6) {
-                baseSpawnDecrease = Math.floor(baseSpawnDecrease * 1.5); // 300ms reduction per wave
-            }
-
-            // Base interval starts at 800ms.
-            this.enemySpawnInterval = Math.max(150, 800 - (this.wave - 1) * baseSpawnDecrease);
-        }
+        console.log(`BOSS SPAWNED! Time: ${minutes}m`);
     }
 
 
@@ -2757,88 +2976,45 @@ class Game {
     }
 
     spawnEnemy() {
-        // --- MODIFIED: Spawning now relies on the viewport and world boundaries ---
-        if (!this.isBossWave && this.enemies.filter(e => !e.isDead).length >= 1000) {
-            return;
-        }
+        if (this.enemies.length >= this.maxEnemiesThisWave) return;
 
-        if (this.enemyCountThisWave >= this.maxEnemiesThisWave && !this.isBossWave) {
-            return;
-        }
-
-        const SPAWN_DISTANCE = VIEWPORT_RADIUS + 50; // Guaranteed off-screen
+        const SPAWN_DISTANCE = VIEWPORT_RADIUS + 50;
 
         let spawnX, spawnY;
         let attempts = 0;
 
         do {
-            // 1. Pick a random direction from the player
             const angle = Math.random() * Math.PI * 2;
-
-            // 2. Calculate position relative to the player
             spawnX = this.player.x + Math.cos(angle) * SPAWN_DISTANCE;
             spawnY = this.player.y + Math.sin(angle) * SPAWN_DISTANCE;
-
             attempts++;
 
-            // 3. Check if the spawn is outside the circular world boundary
             const distToWorldCenter = Math.hypot(spawnX - WORLD_CENTER_X, spawnY - WORLD_CENTER_Y);
             if (distToWorldCenter > WORLD_RADIUS - 10) {
-                // If outside, clamp it to the edge of the world
                 const angleFromCenter = Math.atan2(spawnY - WORLD_CENTER_Y, spawnX - WORLD_CENTER_X);
                 spawnX = WORLD_CENTER_X + Math.cos(angleFromCenter) * (WORLD_RADIUS - 10);
                 spawnY = WORLD_CENTER_Y + Math.sin(angleFromCenter) * (WORLD_RADIUS - 10);
                 break;
             }
-
-            // Stop trying if we find a suitable spot (off-screen and inside world)
             if (Math.hypot(spawnX - this.player.x, spawnY - this.player.y) >= VIEWPORT_RADIUS) {
                 break;
             }
-
         } while (attempts < 10);
 
-        if (attempts === 10) return; // Failsafe
+        if (attempts === 10) return;
 
         let enemy;
-        const roll = Math.random();
+        const allowed = this.allowedEnemyTypes || ['default'];
+        const type = allowed[Math.floor(Math.random() * allowed.length)];
+        const waveFactor = this.currentMinute + 1;
 
-        // --- Spawn Chance Logic (Increases difficulty over waves) ---
-        let fastChance = 0.15;
-        let tankChance = 0.05;
-        let detonatorChance = 0.0; // Starts at 0%
-        let rangedChance = 0.0; // Starts at 0%
-
-        // Increase specialty enemy chances
-        if (this.wave >= 5) {
-            fastChance = 0.25;
-            tankChance = 0.15;
-        }
-        if (this.wave >= 10) {
-            detonatorChance = 0.10; // Detonators start appearing after wave 10
-            tankChance = 0.20;
-            fastChance = 0.25;
-        }
-        if (this.wave >= 20) {
-            detonatorChance = 0.15;
-        }
-
-        const totalSpecialChance = tankChance + fastChance + detonatorChance;
-
-        if (roll < tankChance) {
-            enemy = new TankSnake(spawnX, spawnY, this.wave);
-        } else if (roll < (tankChance + fastChance)) {
-            enemy = new FastSnake(spawnX, spawnY, this.wave);
-        } else if (roll < totalSpecialChance) {
-             enemy = new DetonatorSnake(spawnX, spawnY, this.wave); // NEW ENEMY
-        }
-         else {                    // Default Snake
-            enemy = new DefaultSnake(spawnX, spawnY, this.wave);
-        }
-        // --- End Spawn Chance Logic ---
+        if (type === 'tank') enemy = new TankSnake(spawnX, spawnY, waveFactor);
+        else if (type === 'fast') enemy = new FastSnake(spawnX, spawnY, waveFactor);
+        else if (type === 'detonator') enemy = new DetonatorSnake(spawnX, spawnY, waveFactor);
+        else enemy = new DefaultSnake(spawnX, spawnY, waveFactor);
 
         this.enemies.push(enemy);
-        this.enemyCountThisWave++;
+        this.spatialGrid.insert(enemy); // Optimization
     }
 
 
@@ -2847,14 +3023,20 @@ class Game {
         this.projectiles = this.projectiles.filter(p => {
             let hit = false;
 
+            // Retrieve nearby entities from grid
+            const potentialTargets = this.spatialGrid.retrieve(p);
+
             // 1. Check Projectile vs. Obstacle Collision
             let hitObstacle = false;
-            this.obstacles.forEach(o => {
-                const dist = Math.hypot(p.x - o.x, p.y - o.y);
-                if (dist < p.radius + o.radius) {
-                    hitObstacle = true;
+            for (const o of potentialTargets) {
+                if (o instanceof Obstacle) {
+                    const dist = Math.hypot(p.x - o.x, p.y - o.y);
+                    if (dist < p.radius + o.radius) {
+                        hitObstacle = true;
+                        break;
+                    }
                 }
-            });
+            }
 
             if (hitObstacle) {
                 // Projectile is immediately destroyed by obstacle
@@ -2864,8 +3046,10 @@ class Game {
 
 
             // 2. Check Projectile vs. Enemy Collision for Chaining
-            for (const e of this.enemies) {
-                if (e.isDead) continue; // Skip dead enemies to prevent overkill
+            for (const e of potentialTargets) {
+                if (!(e instanceof Enemy)) continue; // Skip non-enemies
+                if (e.isDead) continue; // Skip dead enemies
+
                 const distance = Math.hypot(p.x - e.x, p.y - e.y);
 
                 // Check if in range AND this projectile hasn't hit this enemy before
@@ -2888,7 +3072,12 @@ class Game {
                         this.handleEnemyDefeat(e);
                     }
 
-                    // 3. Attempt to bounce (chain) to a new target
+                    // 3. Attempt to bounce (chain) to a new target (using ALL enemies for bounce search, not just local)
+                    // Note: Bounce search might be expensive if searching all enemies.
+                    // Optimization: Use spatial grid for bounce search too?
+                    // For now, pass 'this.enemies' as before to ensure correct behavior,
+                    // but could pass 'potentialTargets' if bounce range is small.
+                    // Let's stick to global search for bounce reliability for now.
                     const bounced = p.bounce(this.enemies);
 
                     // 4. If it can't bounce anymore, the projectile is destroyed
@@ -3001,11 +3190,27 @@ class Game {
 
         // 3. Player vs. Pickup Collision
         this.pickups = this.pickups.filter(p => {
+            let pickupRadius = this.player.radius;
+
+            // Magnet logic for Gems
+            if (p instanceof Gem) {
+                const dist = Math.hypot(p.x - this.player.x, p.y - this.player.y);
+                if (dist < this.player.magnetRange) {
+                    const angle = Math.atan2(this.player.y - p.y, this.player.x - p.x);
+                    p.x += Math.cos(angle) * 8; // Fly to player
+                    p.y += Math.sin(angle) * 8;
+                }
+            }
+
             const distance = Math.hypot(p.x - this.player.x, p.y - this.player.y);
-            if (distance < p.radius + this.player.radius) {
+            if (distance < p.radius + pickupRadius) {
 
                 if (p instanceof HealthDrop) {
                     this.player.heal(p.healAmount);
+                } else if (p instanceof Gem) {
+                    this.player.gainXp(p.value, this);
+                } else if (p instanceof Chest) {
+                    this.openChest();
                 } else if (p instanceof ExplosiveBulletDrop) {
                      this.player.applyExplosiveBuff(p.buffDuration);
                 } else if (p instanceof IcePowerupDrop) {
@@ -3045,358 +3250,221 @@ class Game {
             .map(item => item.e);
     }
 
-    // NEW: Updated to generate TIERED options
-    generateStatOptions() {
-        const NUM_OPTIONS = 5;
+    generateLevelUpOptions() {
         const options = [];
-        const availableBaseStats = this.baseStatUpgrades;
 
-        // Shuffle the base stats to pick 5 unique stats for the roll
-        const shuffledBaseStats = [...availableBaseStats].sort(() => 0.5 - Math.random());
+        // 1. WEAPON CANDIDATES
+        // Existing weapons (if not maxed? weapons don't have max yet, just stack)
+        // New weapons (if slots < 6)
 
-        const statPool = [];
-        for (let i = 0; i < NUM_OPTIONS && i < shuffledBaseStats.length; i++) {
-            // Randomly select a tier (0=Bronze, 1=Silver, 2=Gold) with new rarity
-            let tier;
-            const roll = Math.random();
-            if (roll < 0.65) { // 65% chance for Bronze
-                tier = 0;
-            } else if (roll < 0.90) { // 25% chance for Silver
-                tier = 1;
-            } else { // 10% chance for Gold
-                tier = 2;
-            }
-            const stat = shuffledBaseStats[i];
-
-            // --- Exponential Cost Calculation (based on unique KEY) ---
-            const timesPurchased = this.statUpgradePrices[stat.key] || 0;
-
-            // Cost = Base stat cost + (Times purchased * 20)
-            // The base cost is now normalized and stored directly in stat.cost
-            const finalCost = stat.cost + (timesPurchased * 20);
-            // --- End Exponential Cost ---
-
-            const tierNames = ['Bronze', 'Silver', 'Gold'];
-
-            statPool.push({
-                name: `${stat.name} [${tierNames[tier]}]`,
-                key: stat.key,
-                tier: tier, // Pass tier to the apply function
-                apply: stat.apply, // Reference the base function
-                description: `[${tierNames[tier]}] ${stat.description.replace(/(\+\d+)/g, '').trim()} TIER EFFECT`,
-                cost: finalCost,
-                canAfford: this.player.currency >= finalCost,
-                purchaseCount: timesPurchased
-            });
-        }
-
-        // Find the absolute lowest cost item (prioritizing lowest purchase count)
-        statPool.sort((a, b) => {
-            if (a.cost !== b.cost) {
-                return a.cost - b.cost;
-            }
-            return a.purchaseCount - b.purchaseCount;
-        });
-
-        // Apply FREE status to the first item
-        if (statPool.length > 0) {
-            statPool[0].cost = 0;
-            statPool[0].isFree = true;
-            statPool[0].canAfford = true;
-        }
-
-        // Re-calculate affordability for the rest
-        statPool.forEach((opt, index) => {
-            if (index > 0) {
-                opt.canAfford = this.player.currency >= opt.cost;
-            }
-        });
-
-        return statPool.sort(() => Math.random() - 0.5); // Shuffle final display order
-    }
-
-    // NEW: Updated to allow multi-selection and use confirm button
-    pauseAndShowStatUpgrades() {
-        // Standard pause routine
-        this.player.moveDirection = { x: 0, y: 0 };
-        this.keyState = { up: false, down: false, left: false, right: false };
-        this.isMouseMoving = false;
-        this.isMouseDown = false;
-
-        this.isPaused = true;
-        this.currentUpgradeType = 'stat'; // Set type for confirmation logic
-        upgradeScreen.classList.remove('hidden');
-        upgradeOptionsDiv.innerHTML = '';
-        upgradeScreenTitle.textContent = "LEVEL UP! Choose Stat Upgrades";
-
-        this.currentUpgradeOptions = this.generateStatOptions();
-
-        const tierColorClasses = ['text-yellow-500', 'text-gray-400', 'text-yellow-600']; // Bronze, Silver, Gold
-        const tierBorderClasses = ['border-yellow-700', 'border-gray-500', 'border-yellow-600'];
-
-        this.currentUpgradeOptions.forEach((upgrade, index) => {
-            const canAfford = upgrade.canAfford;
-            const card = document.createElement('div');
-
-            // Determine tier for color/border
-            const tierIndex = upgrade.tier || 0;
-            const tierColor = tierColorClasses[tierIndex];
-            const tierBorder = tierBorderClasses[tierIndex];
-
-            let cardClasses = `upgrade-card stat-card p-4 rounded-lg transition duration-150 border-4 ${tierBorder}`;
-            if (!canAfford && !upgrade.isFree) {
-                cardClasses += ' unavailable';
-            }
-            if (upgrade.isFree) {
-                cardClasses += ' free-upgrade selected-item'; // ADDED selected-item for default selection
-            }
-
-            card.className = cardClasses;
-            card.dataset.index = index; // Store index for later retrieval
-
-            const costColor = upgrade.isFree ? 'text-blue-400' : (canAfford ? 'text-green-400' : 'text-red-400');
-            const descriptionText = upgrade.description; // Use the rich description from the generated options
-
-            card.innerHTML = `
-                <h3 class="text-xl font-bold ${upgrade.isFree ? 'text-blue-300' : tierColor} mb-2">${upgrade.name}</h3>
-                <p class="text-sm text-gray-300 mb-2">${descriptionText}</p>
-                <p class="text-lg font-extrabold ${costColor}">
-                    ${upgrade.isFree ? 'FREE' : `Cost: ${upgrade.cost} Kills`}
-                </p>
-            `;
-
-            // NEW: Toggle selection when clicked
-            card.onclick = () => this.handleCardSelection(card, upgrade);
-
-            upgradeOptionsDiv.appendChild(card);
-        });
-
-        // Update purchase UI after cards are rendered
-        this.updatePurchaseSummary();
-    }
-
-    // NEW: Handles clicking a card to stage it for purchase
-    handleCardSelection(card, upgrade) {
-        if (upgrade.isFree) {
-            // Free items are auto-selected and cannot be deselected
-            // If it's already selected, clicking it does nothing.
-            if (card.classList.contains('selected-item')) {
-                return;
-            }
-            card.classList.add('selected-item');
-            return;
-        }
-
-        if (card.classList.contains('unavailable')) return;
-
-        card.classList.toggle('selected-item');
-        this.updatePurchaseSummary();
-    }
-
-    // NEW: Updates the summary UI and confirm button state
-    updatePurchaseSummary() {
-        const selectedCards = Array.from(upgradeOptionsDiv.children).filter(card => card.classList.contains('selected-item'));
-        let totalCost = 0;
-
-        selectedCards.forEach(card => {
-            const optionIndex = parseInt(card.dataset.index);
-            const option = this.currentUpgradeOptions[optionIndex];
-            totalCost += option.cost;
-        });
-
-        const remainingCurrency = this.player.currency - totalCost;
-
-        purchaseSummary.innerHTML = `
-            Total Cost: <span class="${totalCost > this.player.currency ? 'text-red-400' : 'text-yellow-400'}">${totalCost} Kills</span> |
-            Remaining: <span class="${remainingCurrency < 0 ? 'text-red-400' : 'text-green-400'}">${remainingCurrency} Kills</span>
-        `;
-
-        confirmPurchaseButton.textContent = `CONFIRM PURCHASE (${totalCost} Kills)`;
-
-        if (remainingCurrency < 0) {
-            confirmPurchaseButton.disabled = true;
-            confirmPurchaseButton.classList.remove('bg-green-600', 'hover:bg-green-500');
-            confirmPurchaseButton.classList.add('bg-gray-600');
-        } else {
-            confirmPurchaseButton.disabled = false;
-            confirmPurchaseButton.classList.remove('bg-gray-600');
-            confirmPurchaseButton.classList.add('bg-green-600', 'hover:bg-green-500');
-        }
-    }
-
-
-    generateWeaponOptions() {
-        const WEAPON_ACQUISITION_COST = 50;
-        const NUM_OPTIONS = 5;
-
-        const allWeaponKeys = Object.keys(WEAPONS);
-        const availableWeaponOptions = [];
-
-        // 1. Calculate equipped weapon counts and unique count
-        const equippedWeaponCounts = {};
+        const equippedWeaponKeys = {};
+        let uniqueWeapons = 0;
         this.player.weapons.forEach(w => {
-            equippedWeaponCounts[w.key] = (equippedWeaponCounts[w.key] || 0) + 1;
+            if (!equippedWeaponKeys[w.key]) uniqueWeapons++;
+            equippedWeaponKeys[w.key] = (equippedWeaponKeys[w.key] || 0) + 1;
         });
-        const uniqueWeaponCount = Object.keys(equippedWeaponCounts).length;
+        const hasWeaponSlot = uniqueWeapons < this.player.maxWeapons;
 
-
-        // 2. Determine options for acquisition or stacking
-
-        allWeaponKeys.forEach(key => {
-            const count = equippedWeaponCounts[key] || 0;
-            const weapon = WEAPONS[key];
-
-            let finalCost = 0;
-            let descriptionText = '';
-            let isAcquisition = false;
-
-            if (count === 0) {
-                // NEW WEAPON ACQUISITION (Requires slot, cost is static)
-                finalCost = WEAPON_ACQUISITION_COST;
-                descriptionText = `Acquire a new ${weapon.name} ${weapon.emoji}. Slots used: ${uniqueWeaponCount + 1}/${this.player.maxWeapons}`;
-                isAcquisition = true;
-
-                // Only add acquisition option if slots are available
-                if (uniqueWeaponCount >= this.player.maxWeapons) {
-                    return;
-                }
-            } else {
-                // WEAPON STACK (Does NOT require new slot, cost scales)
-                // --- MODIFIED STACK COST: EXPONENTIAL SCALING ---
-                // Cost = Base 10 + (Stack Count * 25)
-                finalCost = 10 + (count * 25);
-                // --- END MODIFIED STACK COST ---
-
-                // Use the damage factor for the description
-                const nextDamageFactor = count + 1;
-
-                descriptionText = `Add another instance (Stack x${count + 1}). Damage becomes x${nextDamageFactor.toFixed(1)} base.`;
+        Object.values(WEAPONS).forEach(w => {
+            const currentCount = equippedWeaponKeys[w.key] || 0;
+            if (currentCount > 0) {
+                // Upgrade
+                options.push({
+                    type: 'weapon',
+                    key: w.key,
+                    name: w.name,
+                    description: `Upgrade to Level ${currentCount + 1}. Increases damage/radius.`,
+                    emoji: w.emoji,
+                    apply: (p) => p.addWeapon(w.key)
+                });
+            } else if (hasWeaponSlot) {
+                // New
+                options.push({
+                    type: 'weapon',
+                    key: w.key,
+                    name: `NEW! ${w.name}`,
+                    description: `Add ${w.name} to your arsenal.`,
+                    emoji: w.emoji,
+                    apply: (p) => p.addWeapon(w.key)
+                });
             }
+        });
 
-            const canAfford = this.player.currency >= finalCost;
+        // 2. PASSIVE CANDIDATES
+        const equippedPassiveKeys = this.player.passives.map(p => p.key);
+        const hasPassiveSlot = this.player.passives.length < this.player.maxPassives;
 
-            availableWeaponOptions.push({
-                name: count === 0 ? `NEW WEAPON: ${weapon.name}` : `STACK: ${weapon.name} (x${count + 1})`,
-                description: descriptionText,
-                type: 'weapon',
-                cost: finalCost,
-                canAfford: canAfford,
-                isAcquisition: isAcquisition,
-                currentStack: count,
-                apply: (p) => p.addWeapon(key)
+        Object.values(PASSIVE_ITEMS).forEach(p => {
+            const equipped = this.player.passives.find(ep => ep.key === p.key);
+            const level = equipped ? equipped.level : 0;
+
+            if (level > 0 && level < p.maxLevel) {
+                // Upgrade
+                options.push({
+                    type: 'passive',
+                    key: p.key,
+                    name: p.name,
+                    description: `Upgrade to Level ${level + 1}. ${p.description}`,
+                    emoji: p.emoji,
+                    apply: (rat) => rat.addPassive(p.key)
+                });
+            } else if (level === 0 && hasPassiveSlot) {
+                // New
+                options.push({
+                    type: 'passive',
+                    key: p.key,
+                    name: `NEW! ${p.name}`,
+                    description: p.description,
+                    emoji: p.emoji,
+                    apply: (rat) => rat.addPassive(p.key)
+                });
+            }
+        });
+
+        // 3. FALLBACK: HEAL or GOLD
+        if (options.length === 0) {
+            options.push({
+                type: 'consumable',
+                name: "Floor Chicken",
+                description: "Heal 50 HP",
+                emoji: "🍗",
+                apply: (rat) => rat.heal(50)
             });
-        });
-
-        // 3. Select final options to display (5 random, prioritizing options the player has less of)
-        const NUM_OPTIONS_WEAPON = 5;
-        const finalOptions = [];
-
-        // Sort by current stack count (ascending), then shuffle ties
-        const tempOptions = availableWeaponOptions.sort((a, b) => {
-            if (a.currentStack !== b.currentStack) {
-                return a.currentStack - b.currentStack;
-            }
-            return Math.random() - 0.5; // Shuffle acquisition vs stack if counts are equal
-        });
-
-        // Take the top NUM_OPTIONS items
-        while (finalOptions.length < NUM_OPTIONS_WEAPON && tempOptions.length > 0) {
-            finalOptions.push(tempOptions.shift());
+            options.push({
+                type: 'consumable',
+                name: "Bag of Gold",
+                description: "Gain 50 Currency",
+                emoji: "💰",
+                apply: (rat) => rat.gainCurrency(50)
+            });
         }
 
-        // 4. --- LOGIC: Determine and apply the FREE choice ---
-        if (finalOptions.length > 0) {
-
-            let freeOptionIndex = -1;
-
-            // Find the lowest cost/lowest stack option
-            let lowestStackCount = Infinity;
-            let lowestStackIndex = -1;
-
-            finalOptions.forEach((opt, index) => {
-                // We prioritize the lowest stack count item for the freebie
-                if (opt.currentStack < lowestStackCount) {
-                    lowestStackCount = opt.currentStack;
-                    lowestStackIndex = index;
-                }
-            });
-
-            if (lowestStackIndex !== -1) {
-                freeOptionIndex = lowestStackIndex;
-            }
-
-            // 5. Apply FREE status to the identified item
-            if (freeOptionIndex !== -1) {
-                finalOptions[freeOptionIndex].cost = 0;
-                finalOptions[freeOptionIndex].isFree = true;
-                finalOptions[freeOptionIndex].canAfford = true; // Always affordable when free
-            }
-        }
-        // --- END LOGIC ---
-
-        return finalOptions.sort(() => Math.random() - 0.5); // Shuffle final display order
+        // Shuffle and pick 3 (or 4 if luck is high? Future feature)
+        return options.sort(() => 0.5 - Math.random()).slice(0, 3);
     }
 
-    // NEW: Updated to allow multi-selection and use confirm button
-    pauseAndShowWeaponChoice() {
-        // Standard pause routine
+    showLevelUpScreen() {
         this.player.moveDirection = { x: 0, y: 0 };
         this.keyState = { up: false, down: false, left: false, right: false };
         this.isMouseMoving = false;
         this.isMouseDown = false;
 
         this.isPaused = true;
-        this.currentUpgradeType = 'weapon'; // Set type for confirmation logic
         upgradeScreen.classList.remove('hidden');
         upgradeOptionsDiv.innerHTML = '';
-        upgradeScreenTitle.textContent = `WAVE ${this.wave} COMPLETE! Choose a New Weapon`;
+        upgradeScreenTitle.textContent = "LEVEL UP!";
 
-        this.currentUpgradeOptions = this.generateWeaponOptions();
+        // Hide summary since everything is free now
+        purchaseSummary.style.display = 'none';
+        confirmPurchaseButton.classList.add('hidden'); // Hide until selection
 
-        if (this.currentUpgradeOptions.length === 0) {
-            // Fallback if no weapon options can be generated (e.g., maxed out slots and stacks)
-            const stat = this.baseStatUpgrades[Math.floor(Math.random() * this.baseStatUpgrades.length)];
-            // Generate a random bronze tier upgrade for the fallback
-            const statOption = { ...stat, name: `BONUS STAT: ${stat.name}`, type: 'stat', tier: 0, cost: 0, canAfford: true, description: `BONUS ${stat.name}` };
+        this.currentUpgradeOptions = this.generateLevelUpOptions();
 
-            this.currentUpgradeOptions = [statOption];
-            console.log("No more weapon slots! Granting free bonus stat instead.");
-        }
-
-        this.currentUpgradeOptions.forEach((upgrade, index) => {
-            const isWeapon = upgrade.type === 'weapon';
-            const canAfford = upgrade.canAfford;
+        this.currentUpgradeOptions.forEach((option, index) => {
             const card = document.createElement('div');
+            const borderColor = option.type === 'weapon' ? 'border-red-500' : (option.type === 'passive' ? 'border-blue-500' : 'border-green-500');
+            const textColor = option.type === 'weapon' ? 'text-red-300' : (option.type === 'passive' ? 'text-blue-300' : 'text-green-300');
 
-            let cardClasses = `upgrade-card ${isWeapon ? 'weapon-card' : 'stat-card'} p-4 rounded-lg transition duration-150 border-4 ${isWeapon ? 'border-green-500' : 'border-blue-500'}`;
-
-            // Free item is selected by default
-            if (upgrade.isFree) {
-                cardClasses += ' free-upgrade selected-item';
-            } else if (!canAfford) {
-                cardClasses += ' unavailable';
-            }
-            card.className = cardClasses;
+            card.className = `upgrade-card p-4 rounded-lg border-4 ${borderColor} cursor-pointer hover:bg-gray-800 transition`;
             card.dataset.index = index;
 
-            const costColor = upgrade.isFree ? 'text-blue-400' : (canAfford ? 'text-green-400' : 'text-red-400');
-
             card.innerHTML = `
-                <h3 class="text-xl font-bold ${upgrade.isFree ? 'text-blue-300' : (isWeapon ? 'text-green-300' : 'text-blue-300')} mb-2">${upgrade.name} (${upgrade.cost} Kills)</h3>
-                <p class="text-sm text-gray-300 mb-2">${upgrade.description}</p>
-                 <p class="text-lg font-extrabold ${costColor}">
-                    ${upgrade.isFree ? 'FREE' : `Cost: ${upgrade.cost} Kills`}
-                </p>
+                <div class="text-4xl mb-2">${option.emoji}</div>
+                <h3 class="text-xl font-bold ${textColor} mb-1">${option.name}</h3>
+                <p class="text-sm text-gray-300">${option.description}</p>
             `;
 
-            card.onclick = () => this.handleCardSelection(card, upgrade);
-
+            card.onclick = () => this.handleCardSelection(card, option);
             upgradeOptionsDiv.appendChild(card);
         });
-
-        this.updatePurchaseSummary();
     }
 
+    handleCardSelection(card, option) {
+        // Deselect others
+        Array.from(upgradeOptionsDiv.children).forEach(c => c.classList.remove('bg-gray-700', 'border-white'));
+
+        // Select clicked
+        card.classList.add('bg-gray-700', 'border-white'); // Highlight
+
+        // Show/Enable Confirm Button
+        confirmPurchaseButton.classList.remove('hidden');
+        confirmPurchaseButton.onclick = () => this.handleConfirmPurchase(option);
+    }
+
+    handleConfirmPurchase(option) {
+        if (!option) return;
+
+        option.apply(this.player);
+
+        this.resume();
+    }
+
+    openChest() {
+        this.isPaused = true;
+        upgradeScreen.classList.remove('hidden');
+        upgradeOptionsDiv.innerHTML = '';
+        upgradeScreenTitle.textContent = "TREASURE CHEST!";
+        purchaseSummary.style.display = 'none';
+        skipButton.classList.add('hidden');
+        confirmPurchaseButton.classList.remove('hidden');
+        confirmPurchaseButton.textContent = "CLAIM REWARDS";
+        confirmPurchaseButton.onclick = () => {
+            skipButton.classList.remove('hidden'); // Reset for next time
+            this.resume();
+        };
+
+        // Grant 3 random upgrades to EXISTING items
+        const candidates = [];
+
+        // Weapons
+        this.player.weapons.forEach(w => {
+            candidates.push({ type: 'weapon', key: w.key, name: WEAPONS[w.key].name, emoji: WEAPONS[w.key].emoji });
+        });
+        // Passives (not maxed)
+        this.player.passives.forEach(p => {
+            const def = PASSIVE_ITEMS[p.key];
+            if (p.level < def.maxLevel) {
+                candidates.push({ type: 'passive', key: p.key, name: def.name, emoji: def.emoji });
+            }
+        });
+
+        const rewards = [];
+        for (let i = 0; i < 3; i++) {
+            if (candidates.length === 0) {
+                // Fallback: Gold
+                this.player.gainCurrency(100);
+                rewards.push({ name: "Bag of Gold", emoji: "💰", description: "+100 Score" });
+            } else {
+                const pick = candidates[Math.floor(Math.random() * candidates.length)];
+                if (pick.type === 'weapon') {
+                    this.player.addWeapon(pick.key);
+                    rewards.push({ name: pick.name, emoji: pick.emoji, description: "Weapon Upgraded!" });
+                } else {
+                    this.player.addPassive(pick.key);
+                    rewards.push({ name: pick.name, emoji: pick.emoji, description: "Passive Upgraded!" });
+
+                    // Check if maxed, remove from candidates
+                    const p = this.player.passives.find(pas => pas.key === pick.key);
+                    if (p && p.level >= PASSIVE_ITEMS[pick.key].maxLevel) {
+                        const idx = candidates.findIndex(c => c.key === pick.key && c.type === 'passive');
+                        if (idx > -1) candidates.splice(idx, 1);
+                    }
+                }
+            }
+        }
+
+        // Display Rewards
+        rewards.forEach(r => {
+            const card = document.createElement('div');
+            card.className = `upgrade-card p-4 rounded-lg border-4 border-yellow-500 bg-gray-800`;
+            card.innerHTML = `
+                <div class="text-4xl mb-2">${r.emoji}</div>
+                <h3 class="text-xl font-bold text-yellow-300 mb-1">${r.name}</h3>
+                <p class="text-sm text-gray-300">${r.description}</p>
+            `;
+            upgradeOptionsDiv.appendChild(card);
+        });
+    }
 
     resume() {
         this.isPaused = false;
@@ -3446,58 +3514,58 @@ class Game {
     }
 
     updateHUD() {
+        // --- WEAPONS ---
         const equippedWeaponCounts = {};
         this.player.weapons.forEach(w => {
             equippedWeaponCounts[w.key] = (equippedWeaponCounts[w.key] || 0) + 1;
         });
-
         const uniqueWeaponCount = Object.keys(equippedWeaponCounts).length;
 
-        const weaponNames = Object.keys(equippedWeaponCounts).map(key => {
+        const weaponHTML = Object.keys(equippedWeaponCounts).map(key => {
             const count = equippedWeaponCounts[key];
             const name = WEAPONS[key].name;
-            // Use the emoji from the definition for the HUD text description
             const emoji = WEAPONS[key].emoji;
+            return `<div>${emoji} ${name} <span class="text-gray-400">Lvl ${count}</span></div>`;
+        }).join('');
 
-            // Display actual damage factor based on stack count
-            const damageFactor = this.player.weapons.find(w => w.key === key)?.stackDamageFactor || 1.0;
+        hud.weaponList.innerHTML = weaponHTML;
+        hud.weaponSlots.textContent = `(${uniqueWeaponCount}/${this.player.maxWeapons})`;
 
-            return `${emoji} ${name} (x${count}, Dmg: ${damageFactor.toFixed(1)}x)`;
-        });
+        // --- PASSIVES ---
+        const passiveHTML = this.player.passives.map(p => {
+            const def = PASSIVE_ITEMS[p.key];
+            return `<div>${def.emoji} ${def.name} <span class="text-gray-400">Lvl ${p.level}</span></div>`;
+        }).join('');
 
-        // NEW: Calculate overall buff display
+        hud.passiveList.innerHTML = passiveHTML;
+        hud.passiveSlots.textContent = `(${this.player.passives.length}/${this.player.maxPassives})`;
+
+
+        // --- BUFFS & STATS ---
         let buffText = '';
-        if (this.player.buffs.explosiveBullets > 0) {
-            buffText += `💥 E-Rounds: ${Math.ceil(this.player.buffs.explosiveBullets / 1000)}s | `;
-        }
-        if (this.player.buffs.iceAura > 0) {
-            buffText += `❄️ Frozen: ${Math.ceil(this.player.buffs.iceAura / 1000)}s | `;
-        }
-        if (this.player.buffs.extremeSpeed > 0) {
-            buffText += `💨 TURBO: ${Math.ceil(this.player.buffs.extremeSpeed / 1000)}s | `;
-        }
-        hud.buffTimer.textContent = buffText.slice(0, -3); // Remove trailing space/pipe
+        if (this.player.buffs.explosiveBullets > 0) buffText += `💥 ${Math.ceil(this.player.buffs.explosiveBullets / 1000)}s | `;
+        if (this.player.buffs.iceAura > 0) buffText += `❄️ ${Math.ceil(this.player.buffs.iceAura / 1000)}s | `;
+        if (this.player.buffs.extremeSpeed > 0) buffText += `💨 ${Math.ceil(this.player.buffs.extremeSpeed / 1000)}s | `;
+        hud.buffTimer.textContent = buffText.slice(0, -3);
 
-        hud.waveCount.textContent = this.wave + (this.isBossWave ? ' (BOSS)' : '');
-        hud.killCount.textContent = this.player.currency; // Display currency here
-        hud.bestKillCount.textContent = this.bestKills; // Display high score here
+        const elapsed = Math.floor((Date.now() - this.startTime) / 1000);
+        const mins = Math.floor(elapsed / 60).toString().padStart(2, '0');
+        const secs = (elapsed % 60).toString().padStart(2, '0');
+        hud.waveCount.textContent = `${mins}:${secs}`;
+
+        hud.killCount.textContent = this.kills; // Display Kills as Score
+        hud.bestKillCount.textContent = this.bestKills;
         hud.currentHP.textContent = Math.max(0, Math.floor(this.player.currentHp));
         hud.maxHP.textContent = this.player.maxHp;
 
-        // NEW: Update Weapon Slots display
-        // Use uniqueWeaponCount for the current count
-        hud.weaponSlots.textContent = `(Slots: ${uniqueWeaponCount}/${this.player.maxWeapons})`;
-
         hud.statSpeed.textContent = this.player.baseSpeed.toFixed(1);
         hud.statDamage.textContent = this.player.damageMultiplier.toFixed(2);
-        hud.statArmor.textContent = this.player.armor; // New
-        hud.statEvasion.textContent = (this.player.evasion * 100).toFixed(0); // New
-        hud.statProjectiles.textContent = this.player.projectileCountBonus; // NEW
-        // Display Attack Speed as a percentage increase (e.g., 1.1x multiplier is +10%)
+        hud.statArmor.textContent = this.player.armor;
+        hud.statEvasion.textContent = (this.player.evasion * 100).toFixed(0);
+        hud.statProjectiles.textContent = this.player.projectileCountBonus;
         hud.statAttackSpeed.textContent = ((this.player.fireRateReduction * (this.player.buffs.extremeSpeed > 0 ? 1.5 : 1.0) - 1) * 100).toFixed(0);
-        hud.statRange.textContent = this.player.attackRangeMultiplier.toFixed(1); // NEW
-        hud.statShield.textContent = Math.floor(this.player.shield); // NEW
-        hud.weaponList.innerHTML = weaponNames.join(', ');
+        hud.statRange.textContent = this.player.attackRangeMultiplier.toFixed(1);
+        hud.statShield.textContent = Math.floor(this.player.shield);
 
         const xpRatio = this.player.xp / this.player.xpToNextLevel;
         hud.xpBarFill.style.width = `${Math.min(100, xpRatio * 100)}%`;
@@ -3508,24 +3576,11 @@ class Game {
 
         const currentTime = Date.now();
 
-        let shouldEndWave = false;
+        // Update Spawn Director
+        this.spawnDirector.update(deltaTime);
 
-        if (this.isBossWave) {
-            if (this.enemies.filter(e => !e.isDead).length === 0) { // Check only non-dead enemies
-                shouldEndWave = true;
-            }
-        } else {
-            if (currentTime - this.lastWaveTime >= this.waveDuration) {
-                shouldEndWave = true;
-            }
-        }
-
-        if (shouldEndWave) {
-            this.pauseAndShowWeaponChoice();
-            return;
-        }
-
-        if (!this.isBossWave && currentTime - this.lastSpawnTime > this.enemySpawnInterval) {
+        // Spawn Enemies based on interval
+        if (currentTime - this.lastSpawnTime > this.enemySpawnInterval) {
             this.spawnEnemy();
             this.lastSpawnTime = currentTime;
         }
@@ -3541,7 +3596,17 @@ class Game {
         this.updateMovementDirection(); // Recalculate movement based on KB/Mouse before updating position
 
         this.player.update(this, deltaTime);
-        this.enemies.forEach(e => e.update(this, this.player, deltaTime));
+
+        // --- SPATIAL GRID POPULATION ---
+        this.spatialGrid.clear();
+        this.obstacles.forEach(o => this.spatialGrid.insert(o));
+
+        this.enemies.forEach(e => {
+            e.update(this, this.player, deltaTime);
+            if (!e.isDead) this.spatialGrid.insert(e);
+        });
+        // --- END SPATIAL GRID ---
+
         // FIX: Removed p.update(deltaTime) call for pickups as they don't have physics update logic
         // this.pickups.forEach(p => p.update(deltaTime));
 
