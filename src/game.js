@@ -2987,13 +2987,6 @@ class Game {
                         const KB_FACTOR = 1.5;
                         e.x += Math.cos(angle) * knockback * KB_FACTOR;
                         e.y += Math.sin(angle) * knockback * KB_FACTOR;
-
-                        const distToCenter = Math.hypot(e.x - WORLD_CENTER_X, e.y - WORLD_CENTER_Y);
-                        if (distToCenter + e.radius > WORLD_RADIUS) {
-                            const clampAngle = Math.atan2(e.y - WORLD_CENTER_Y, e.x - WORLD_CENTER_X);
-                            e.x = WORLD_CENTER_X + Math.cos(clampAngle) * (WORLD_RADIUS - e.radius);
-                            e.y = WORLD_CENTER_Y + Math.sin(clampAngle) * (WORLD_RADIUS - e.radius);
-                        }
                     }
 
                     // CHECK FOR DEATH AND AWARD KILL CREDIT
@@ -3200,13 +3193,6 @@ class Game {
 
                 e.x += Math.cos(angle) * BOUNCE_DISTANCE;
                 e.y += Math.sin(angle) * BOUNCE_DISTANCE;
-
-                const distToCenter = Math.hypot(e.x - WORLD_CENTER_X, e.y - WORLD_CENTER_Y);
-                if (distToCenter + e.radius > WORLD_RADIUS) {
-                    const clampAngle = Math.atan2(e.y - WORLD_CENTER_Y, e.x - WORLD_CENTER_X);
-                    e.x = WORLD_CENTER_X + Math.cos(clampAngle) * (WORLD_RADIUS - e.radius);
-                    e.y = WORLD_CENTER_Y + Math.sin(clampAngle) * (WORLD_RADIUS - e.radius);
-                }
             }
         });
 
@@ -3218,13 +3204,6 @@ class Game {
                 const overlap = (this.player.radius + o.radius) - dist;
                 this.player.x += Math.cos(angle) * overlap;
                 this.player.y += Math.sin(angle) * overlap;
-
-                const distToCenter = Math.hypot(this.player.x - WORLD_CENTER_X, this.player.y - WORLD_CENTER_Y);
-                if (distToCenter + this.player.radius > WORLD_RADIUS) {
-                    const clampAngle = Math.atan2(this.player.y - WORLD_CENTER_Y, this.player.x - WORLD_CENTER_X);
-                    this.player.x = WORLD_CENTER_X + Math.cos(clampAngle) * (WORLD_RADIUS - this.player.radius);
-                    this.player.y = WORLD_CENTER_Y + Math.sin(clampAngle) * (WORLD_RADIUS - this.player.radius);
-                }
             }
         });
 
