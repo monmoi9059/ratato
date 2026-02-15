@@ -34,7 +34,7 @@ def build():
         html_content = html_content.replace('<!-- {{JS}} -->', js_block)
 
         # Write output
-        with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
+        with open(OUTPUT_FILE, 'w', encoding='utf-8', newline='\r\n') as f:
             f.write(html_content)
 
         print(f"Successfully created {OUTPUT_FILE}")

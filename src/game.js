@@ -461,7 +461,7 @@ class Obstacle extends Entity {
         // NEW: Calculate and store the fixed jagged points once in the constructor
         this.points = [];
         const numPoints = 8 + Math.floor(Math.random() * 4); // 8-11 points
-        for(let i = 0; i <= numPoints; i++) {
+        for(let i = 0; i < numPoints; i++) {
             const angle = i * (Math.PI * 2 / numPoints);
             // Slight randomization in radius for jagged edges
             const r = this.radius * (0.8 + Math.random() * 0.4);
@@ -862,10 +862,10 @@ class Rat extends Entity {
         this.currency += amount;
     }
 
-    gainXp(amount) {
+    gainXp(amount, game) {
         this.xp += amount;
         while (this.xp >= this.xpToNextLevel) {
-            this.levelUp();
+            this.levelUp(game);
         }
     }
 
@@ -879,9 +879,11 @@ class Rat extends Entity {
     }
 
     // NEW: Apply Ice Aura buff
-    applyIceAura(duration) {
+    applyIceAura(duration, game) {
         this.buffs.iceAura = duration;
-        game.enemies.forEach(e => e.isSlowed = true);
+        if (game && game.enemies) {
+            game.enemies.forEach(e => e.isSlowed = true);
+        }
     }
 
     // NEW: Apply Extreme Speed buff
@@ -890,7 +892,7 @@ class Rat extends Entity {
     }
 
 
-    levelUp() {
+    levelUp(game) {
         this.xp -= this.xpToNextLevel;
         this.level += 1;
 
@@ -899,10 +901,10 @@ class Rat extends Entity {
         const growthFactor = Math.max(1.1, 1.8 - (this.level / 50));
         this.xpToNextLevel = Math.floor(this.xpToNextLevel * growthFactor);
 
-        game.pauseAndShowStatUpgrades();
+        if (game) game.pauseAndShowStatUpgrades();
     }
 
-    update(deltaTime) {
+    update(game, deltaTime) {
         const totalSpeed = this.baseSpeed * (deltaTime / 16.66);
         let newX = this.x + this.moveDirection.x * totalSpeed;
         let newY = this.y + this.moveDirection.y * totalSpeed;
@@ -937,7 +939,7 @@ class Rat extends Entity {
         this.buffs.extremeSpeed = Math.max(0, this.buffs.extremeSpeed - deltaTime);
 
         // Debuff removal: remove slow effect if timer hits zero
-        if (this.buffs.iceAura === 0) {
+        if (this.buffs.iceAura === 0 && game && game.enemies) {
              game.enemies.forEach(e => e.isSlowed = false);
         }
 
@@ -976,7 +978,7 @@ class Rat extends Entity {
 
             if (currentTime - this.weaponTimers[key] > adjustedFireRate) {
                 // This weapon type is ready to fire. Pass its starting "target slot" index.
-                this.shootWeaponStacks(key, stacks, sortedEnemies, globalWeaponIndex);
+                this.shootWeaponStacks(game, key, stacks, sortedEnemies, globalWeaponIndex);
                 this.weaponTimers[key] = currentTime;
             }
 
@@ -985,7 +987,7 @@ class Rat extends Entity {
         });
     }
 
-    shootWeaponStacks(weaponKey, stacks, sortedEnemies, startingGlobalIndex) {
+    shootWeaponStacks(game, weaponKey, stacks, sortedEnemies, startingGlobalIndex) {
         // Each stack of this weapon type will fire.
         stacks.forEach((weapon, stackIndex) => {
             // The "target slot" for this specific weapon instance is its global index.
@@ -1007,13 +1009,13 @@ class Rat extends Entity {
                 const targetIndex = currentGlobalIndex % sortedEnemies.length;
                 let targetEnemy = sortedEnemies[targetIndex];
                 initialAngle = Math.atan2(targetEnemy.y - this.y, targetEnemy.x - this.x);
-                this.fireSingleWeaponStack(weapon, initialAngle);
+                this.fireSingleWeaponStack(game, weapon, initialAngle);
             }
             // If no enemies, do nothing.
         });
     }
 
-    fireSingleWeaponStack(weapon, initialAngle) {
+    fireSingleWeaponStack(game, weapon, initialAngle) {
         if (weapon.isMelee) {
             // This function should only be reached by ranged weapons now, but kept for clarity
             return;
@@ -1334,7 +1336,7 @@ class Enemy extends Entity {
         context.fillRect(-hpWidth / 2, -this.radius + yOffset, Math.max(0, hpWidth * hpRatio), hpHeight);
     }
 
-    update(player, deltaTime) {
+    update(game, player, deltaTime) {
         let actualSpeed = this.speed;
         const SLOW_FACTOR = 0.5; // 50% slow
 
@@ -1351,7 +1353,7 @@ class Enemy extends Entity {
 
         // --- OBSTACLE COLLISION CHECK for Enemy Movement ---
         let hitObstacle = false;
-        if (distance > 0) {
+        if (distance > 0 && game && game.obstacles) {
             game.obstacles.forEach(o => {
                 const nextX = this.x + (dx / distance) * totalSpeed;
                 const nextY = this.y + (dy / distance) * totalSpeed;
@@ -1517,7 +1519,7 @@ class DetonatorSnake extends Enemy {
         this.explosionRadius = 100;
     }
 
-    update(player, deltaTime) {
+    update(game, player, deltaTime) {
         let actualSpeed = this.speed;
         const SLOW_FACTOR = 0.5; // 50% slow
 
@@ -1535,7 +1537,7 @@ class DetonatorSnake extends Enemy {
             // Stop movement while fusing
             if (currentTime - this.fuseStart >= this.fuseTime) {
                 // DETONATE!
-                game.detonate(this.x, this.y, this.explosionDamage, this.explosionRadius);
+                if (game) game.detonate(this.x, this.y, this.explosionDamage, this.explosionRadius);
                 this.currentHp = 0; // Ensures removal from game loop
             }
             return;
@@ -1544,7 +1546,7 @@ class DetonatorSnake extends Enemy {
         // --- OBSTACLE COLLISION CHECK for Detonator Movement ---
         let hitObstacle = false;
         let obstacleHit = null;
-        if (distance > 0) {
+        if (distance > 0 && game && game.obstacles) {
             game.obstacles.forEach(o => {
                 const nextX = this.x + (dx / distance) * totalSpeed;
                 const nextY = this.y + (dy / distance) * totalSpeed;
@@ -1625,7 +1627,7 @@ class Boss extends Enemy {
         this.strokeColor = currentPalette.arenaBorder;
     }
 
-    update(player, deltaTime) {
+    update(game, player, deltaTime) {
         let actualSpeed = this.speed;
         const SLOW_FACTOR = 0.5;
 
@@ -1641,7 +1643,7 @@ class Boss extends Enemy {
 
         // --- OBSTACLE COLLISION CHECK for Boss Movement ---
         let obstacleHit = null; // Changed from boolean to object holder
-        if (distance > 0) {
+        if (distance > 0 && game && game.obstacles) {
             game.obstacles.forEach(o => {
                 if (obstacleHit) return; // Already found one, no need to check more
                 const nextX = this.x + (dx / distance) * totalSpeed;
@@ -1743,7 +1745,7 @@ class Projectile extends Entity {
         // Find all enemies that are alive and not already hit by this projectile
         enemies.forEach(e => {
             // NEW: Check if the projectile has already hit this enemy
-            if (!this.hitEnemies.has(e)) {
+            if (!this.hitEnemies.has(e) && !e.isDead) {
                 const distSq = (e.x - this.x) ** 2 + (e.y - this.y) ** 2;
                 if (distSq < minDistSq) {
                     minDistSq = distSq;
@@ -1991,7 +1993,8 @@ class Game {
         canvas.addEventListener('mousemove', this.mouseListener);
         canvas.addEventListener('mousedown', this.mouseDownListener);
         canvas.addEventListener('mouseup', this.mouseUpListener);
-        restartButton.addEventListener('click', () => this.restart());
+        // FIX: Use onclick to prevent stacking event listeners on restart
+        restartButton.onclick = () => this.restart();
     }
 
     // NEW: Handle confirmation of multiple selected items
@@ -2207,7 +2210,7 @@ class Game {
 
         this.kills++;
         this.player.gainCurrency(1);
-        this.player.gainXp(e.xpValue);
+        this.player.gainXp(e.xpValue, this);
 
         // PARTICLE EFFECT
         this.addExplosionParticles(5, e.x, e.y, currentPalette.arenaBorder, 3);
@@ -2428,6 +2431,13 @@ class Game {
     // NEW: startNewWave moved into constructor property to fix the reference error
     startNewWave = () => {
         this.wave++;
+        this.resetWaveState();
+        this.spawnInitialEntities();
+        this.handlePaletteSwap();
+        this.handleDifficultyProgression();
+    }
+
+    resetWaveState() {
         this.lastWaveTime = Date.now();
         this.enemyCountThisWave = 0;
 
@@ -2437,7 +2447,9 @@ class Game {
         this.obstacles = []; // NEW: Clear obstacles on new wave
         this.explosions = [];
         this.isBossWave = false;
+    }
 
+    spawnInitialEntities() {
         // --- NEW: Add initial scattered pickups and obstacles to the map ---
         const NUM_HEALTH_DROPS = 5;
         const NUM_ICE_DROPS = 2;
@@ -2467,7 +2479,9 @@ class Game {
             this.pickups.push(new SpeedPowerupDrop(pos.x, pos.y));
         }
         // --- END NEW PICKUPS AND OBSTACLES ---
+    }
 
+    handlePaletteSwap() {
         // --- NEW PALETTE SWAP LOGIC ---
         if (this.wave > 1 && (this.wave - 1) % 10 === 0) {
             const paletteKeys = Object.keys(COLOR_PALETTES);
@@ -2477,8 +2491,9 @@ class Game {
             console.log(`PALETTE SWAP: Entering ${currentPalette.name} on Wave ${this.wave}`);
         }
         // --- END NEW PALETTE SWAP LOGIC ---
+    }
 
-
+    handleDifficultyProgression() {
         if (this.wave > 1 && this.wave % 10 === 0) {
             this.isBossWave = true;
             this.maxEnemiesThisWave = 1;
@@ -2666,6 +2681,7 @@ class Game {
 
             // 2. Check Projectile vs. Enemy Collision for Chaining
             for (const e of this.enemies) {
+                if (e.isDead) continue; // Skip dead enemies to prevent overkill
                 const distance = Math.hypot(p.x - e.x, p.y - e.y);
 
                 // Check if in range AND this projectile hasn't hit this enemy before
@@ -2809,7 +2825,7 @@ class Game {
                 } else if (p instanceof ExplosiveBulletDrop) {
                      this.player.applyExplosiveBuff(p.buffDuration);
                 } else if (p instanceof IcePowerupDrop) {
-                     this.player.applyIceAura(p.buffDuration);
+                     this.player.applyIceAura(p.buffDuration, this);
                 } else if (p instanceof SpeedPowerupDrop) {
                      this.player.applyExtremeSpeed(p.buffDuration);
                 } else if (p instanceof BombDrop) { // NEW BOMB PICKUP
@@ -3304,7 +3320,7 @@ class Game {
     }
 
     update(deltaTime) {
-        if (!game || game.isPaused) return;
+        if (this.isPaused) return;
 
         const currentTime = Date.now();
 
@@ -3340,8 +3356,8 @@ class Game {
 
         this.updateMovementDirection(); // Recalculate movement based on KB/Mouse before updating position
 
-        this.player.update(deltaTime);
-        this.enemies.forEach(e => e.update(this.player, deltaTime));
+        this.player.update(this, deltaTime);
+        this.enemies.forEach(e => e.update(this, this.player, deltaTime));
         // FIX: Removed p.update(deltaTime) call for pickups as they don't have physics update logic
         // this.pickups.forEach(p => p.update(deltaTime));
 
