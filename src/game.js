@@ -3,7 +3,7 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
 // --- NEW WORLD/CAMERA CONSTANTS ---
-const VIEWPORT_RADIUS = 350; // Radius of the visible area
+let VIEWPORT_RADIUS = 350; // Radius of the visible area (Updated dynamically)
 const WORLD_RADIUS = 1500;   // Radius of the entire explorable world
 const WORLD_CENTER_X = 0;
 const WORLD_CENTER_Y = 0;
@@ -16,14 +16,16 @@ const ARENA_RADIUS = VIEWPORT_RADIUS; // Alias for old code compatibility
 
 // Function to handle canvas resizing
 function resizeCanvas() {
-    const minSize = 800; // Minimum logical resolution to maintain gameplay view
-    // Set internal resolution to at least minSize, or larger if window permits
-    canvas.width = Math.max(window.innerWidth, minSize);
-    canvas.height = Math.max(window.innerHeight, minSize);
+    // Set internal resolution to full window size
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
 
     // Update global center coordinates
     centerX = canvas.width / 2;
     centerY = canvas.height / 2;
+
+    // Update Viewport Radius to ensure it covers the screen corners plus margin
+    VIEWPORT_RADIUS = Math.hypot(centerX, centerY) + 50;
 }
 
 // Initial resize and event listener
@@ -476,6 +478,9 @@ const hud = {
     currentHP: document.getElementById('currentHP'),
     maxHP: document.getElementById('maxHP'),
     xpBarFill: document.getElementById('xpBarFill'),
+    hpBarFill: document.getElementById('hpBarFill'), // NEW
+    currentLevel: document.getElementById('currentLevel'), // NEW
+    goldCount: document.getElementById('goldCount'), // NEW
     statSpeed: document.getElementById('statSpeed'),
     statDamage: document.getElementById('statDamage'),
     statArmor: document.getElementById('statArmor'),
@@ -484,10 +489,9 @@ const hud = {
     statAttackSpeed: document.getElementById('statAttackSpeed'),
     statRange: document.getElementById('statRange'),
     statShield: document.getElementById('statShield'),
-    weaponList: document.getElementById('weaponList'),
+    // Removed legacy list elements
     weaponSlots: document.getElementById('weaponSlots'),
-    passiveList: document.getElementById('passiveList'), // NEW
-    passiveSlots: document.getElementById('passiveSlots'), // NEW
+    passiveSlots: document.getElementById('passiveSlots'),
     buffTimer: document.getElementById('buffTimer')
 };
 const startScreen = document.getElementById('startScreen');
@@ -2167,6 +2171,7 @@ class Game {
         this.explosions = [];
         // Continuous Logic
         this.startTime = Date.now();
+        this.wave = 1; // Added for compatibility
         this.kills = 0;
         this.enemySpawnInterval = 1000;
         this.lastSpawnTime = 0;
@@ -2214,6 +2219,10 @@ class Game {
 
     initializeGame() {
         this.spawnInitialEntities();
+    }
+
+    startNewWave() {
+        this.isPaused = false;
     }
 
     // NEW: Setup click handlers for the Confirm/Skip buttons
@@ -2711,12 +2720,12 @@ class Game {
 
     handlePaletteSwap() {
         // --- NEW PALETTE SWAP LOGIC ---
-        if (this.wave > 1 && (this.wave - 1) % 10 === 0) {
+        // Cycle palettes based on minutes passed
+        if (this.currentMinute > 0) {
             const paletteKeys = Object.keys(COLOR_PALETTES);
-            // Cycle through palettes based on wave number (e.g., 1 -> 0, 11 -> 1, 21 -> 2)
-            const newPaletteIndex = Math.floor(((this.wave - 1) / 10) % paletteKeys.length);
+            const newPaletteIndex = this.currentMinute % paletteKeys.length;
             currentPalette = COLOR_PALETTES[paletteKeys[newPaletteIndex]];
-            console.log(`PALETTE SWAP: Entering ${currentPalette.name} on Wave ${this.wave}`);
+            console.log(`PALETTE SWAP: Entering ${currentPalette.name} at Minute ${this.currentMinute}`);
 
             // Clear sprite cache on palette swap to regenerate with new colors
             spriteCache.clear();
@@ -3326,53 +3335,92 @@ class Game {
         this.player.weapons.forEach(w => {
             equippedWeaponCounts[w.key] = (equippedWeaponCounts[w.key] || 0) + 1;
         });
-        const uniqueWeaponCount = Object.keys(equippedWeaponCounts).length;
+        const uniqueWeaponKeys = Object.keys(equippedWeaponCounts);
 
-        const weaponHTML = Object.keys(equippedWeaponCounts).map(key => {
-            const count = equippedWeaponCounts[key];
-            const name = WEAPONS[key].name;
-            const emoji = WEAPONS[key].emoji;
-            return `<div>${emoji} ${name} <span class="text-gray-400">Lvl ${count}</span></div>`;
-        }).join('');
+        if (hud.weaponSlots) {
+            hud.weaponSlots.innerHTML = '';
+            // Render slots for Max Weapons
+            for (let i = 0; i < this.player.maxWeapons; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'w-10 h-10 bg-gray-900/80 border border-gray-600 rounded flex items-center justify-center relative shadow-sm';
 
-        hud.weaponList.innerHTML = weaponHTML;
-        hud.weaponSlots.textContent = `(${uniqueWeaponCount}/${this.player.maxWeapons})`;
+                if (i < uniqueWeaponKeys.length) {
+                    const key = uniqueWeaponKeys[i];
+                    const count = equippedWeaponCounts[key];
+                    const def = WEAPONS[key];
+
+                    slot.innerHTML = `
+                        <div class="text-2xl filter drop-shadow-md cursor-default" title="${def.name}">${def.emoji}</div>
+                        <div class="absolute bottom-0 right-0 bg-black/80 text-[10px] px-1 rounded-tl text-white font-bold select-none">${count}</div>
+                    `;
+                    slot.style.borderColor = def.iconColor || '#718096';
+                } else {
+                    slot.classList.add('opacity-50');
+                }
+                hud.weaponSlots.appendChild(slot);
+            }
+        }
 
         // --- PASSIVES ---
-        const passiveHTML = this.player.passives.map(p => {
-            const def = PASSIVE_ITEMS[p.key];
-            return `<div>${def.emoji} ${def.name} <span class="text-gray-400">Lvl ${p.level}</span></div>`;
-        }).join('');
+        if (hud.passiveSlots) {
+            hud.passiveSlots.innerHTML = '';
+            for (let i = 0; i < this.player.maxPassives; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'w-8 h-8 bg-gray-900/80 border border-gray-600 rounded flex items-center justify-center relative shadow-sm mt-2';
 
-        hud.passiveList.innerHTML = passiveHTML;
-        hud.passiveSlots.textContent = `(${this.player.passives.length}/${this.player.maxPassives})`;
+                if (i < this.player.passives.length) {
+                    const p = this.player.passives[i];
+                    const def = PASSIVE_ITEMS[p.key];
 
+                    slot.innerHTML = `
+                        <div class="text-lg filter drop-shadow-md cursor-default" title="${def.name}">${def.emoji}</div>
+                        <div class="absolute bottom-0 right-0 bg-black/80 text-[8px] px-1 rounded-tl text-white font-bold select-none">${p.level}</div>
+                    `;
+                } else {
+                    slot.classList.add('opacity-30');
+                }
+                hud.passiveSlots.appendChild(slot);
+            }
+        }
 
         // --- BUFFS & STATS ---
         let buffText = '';
-        if (this.player.buffs.explosiveBullets > 0) buffText += `💥 ${Math.ceil(this.player.buffs.explosiveBullets / 1000)}s | `;
-        if (this.player.buffs.iceAura > 0) buffText += `❄️ ${Math.ceil(this.player.buffs.iceAura / 1000)}s | `;
-        if (this.player.buffs.extremeSpeed > 0) buffText += `💨 ${Math.ceil(this.player.buffs.extremeSpeed / 1000)}s | `;
-        hud.buffTimer.textContent = buffText.slice(0, -3);
+        if (this.player.buffs.explosiveBullets > 0) buffText += `💥 ${Math.ceil(this.player.buffs.explosiveBullets / 1000)}s  `;
+        if (this.player.buffs.iceAura > 0) buffText += `❄️ ${Math.ceil(this.player.buffs.iceAura / 1000)}s  `;
+        if (this.player.buffs.extremeSpeed > 0) buffText += `💨 ${Math.ceil(this.player.buffs.extremeSpeed / 1000)}s  `;
+        hud.buffTimer.textContent = buffText;
 
         const elapsed = Math.floor((Date.now() - this.startTime) / 1000);
         const mins = Math.floor(elapsed / 60).toString().padStart(2, '0');
         const secs = (elapsed % 60).toString().padStart(2, '0');
         hud.waveCount.textContent = `${mins}:${secs}`;
 
-        hud.killCount.textContent = this.kills; // Display Kills as Score
+        hud.killCount.textContent = this.kills;
         hud.bestKillCount.textContent = this.bestKills;
+
+        // NEW: Update Gold & Level
+        if(hud.goldCount) hud.goldCount.textContent = this.player.currency || 0;
+        if(hud.currentLevel) hud.currentLevel.textContent = this.player.level;
+
+        // NEW: Update HP Bar
         hud.currentHP.textContent = Math.max(0, Math.floor(this.player.currentHp));
         hud.maxHP.textContent = this.player.maxHp;
 
-        hud.statSpeed.textContent = this.player.baseSpeed.toFixed(1);
-        hud.statDamage.textContent = this.player.damageMultiplier.toFixed(2);
-        hud.statArmor.textContent = this.player.armor;
-        hud.statEvasion.textContent = (this.player.evasion * 100).toFixed(0);
-        hud.statProjectiles.textContent = this.player.projectileCountBonus;
-        hud.statAttackSpeed.textContent = ((this.player.fireRateReduction * (this.player.buffs.extremeSpeed > 0 ? 1.5 : 1.0) - 1) * 100).toFixed(0);
-        hud.statRange.textContent = this.player.attackRangeMultiplier.toFixed(1);
-        hud.statShield.textContent = Math.floor(this.player.shield);
+        if (hud.hpBarFill) {
+            const hpRatio = this.player.currentHp / this.player.maxHp;
+            hud.hpBarFill.style.width = `${Math.max(0, Math.min(100, hpRatio * 100))}%`;
+            hud.hpBarFill.className = `h-full transition-all duration-200 w-full ${hpRatio > 0.5 ? 'bg-green-600' : (hpRatio > 0.25 ? 'bg-yellow-500' : 'bg-red-600')}`;
+        }
+
+        // Update Stats Panel (Hidden but kept for reference)
+        if(hud.statSpeed) hud.statSpeed.textContent = this.player.baseSpeed.toFixed(1);
+        if(hud.statDamage) hud.statDamage.textContent = this.player.damageMultiplier.toFixed(2);
+        if(hud.statArmor) hud.statArmor.textContent = this.player.armor;
+        if(hud.statEvasion) hud.statEvasion.textContent = (this.player.evasion * 100).toFixed(0);
+        if(hud.statProjectiles) hud.statProjectiles.textContent = this.player.projectileCountBonus;
+        if(hud.statAttackSpeed) hud.statAttackSpeed.textContent = ((this.player.fireRateReduction * (this.player.buffs.extremeSpeed > 0 ? 1.5 : 1.0) - 1) * 100).toFixed(0);
+        if(hud.statRange) hud.statRange.textContent = this.player.attackRangeMultiplier.toFixed(1);
+        if(hud.statShield) hud.statShield.textContent = Math.floor(this.player.shield);
 
         const xpRatio = this.player.xp / this.player.xpToNextLevel;
         hud.xpBarFill.style.width = `${Math.min(100, xpRatio * 100)}%`;
@@ -3444,12 +3492,7 @@ class Game {
         ctx.save(); // Save context state 1 (before translate)
         ctx.translate(cameraOffsetX, cameraOffsetY);
 
-        // 1. DEFINE CLIPPING PATH (Centered on Rat's world position, which is screen center)
-        ctx.beginPath();
-        ctx.arc(this.player.x, this.player.y, VIEWPORT_RADIUS, 0, Math.PI * 2);
-        ctx.clip(); // Apply the circular clip path
-
-        // 2. DRAW WORLD ELEMENTS (Will only be visible inside the clip)
+        // 2. DRAW WORLD ELEMENTS
 
         // Draw World Boundary (The large explorable area floor)
         ctx.beginPath();
@@ -3538,16 +3581,8 @@ class Game {
             ctx.restore();
         }
 
-        // Restore context state 1 (removes translation and clipping)
+        // Restore context state 1 (removes translation)
         ctx.restore();
-
-        // 5. Draw Viewport Boundary Stroke (The final circular border - must be in screen coordinates)
-        ctx.strokeStyle = currentPalette.arenaBorder;
-        ctx.lineWidth = 4;
-        ctx.beginPath();
-        // Draw circle centered on the screen center (centerX, centerY)
-        ctx.arc(centerX, centerY, VIEWPORT_RADIUS, 0, Math.PI * 2);
-        ctx.stroke();
 
         // 6. Draw Mouse Target Indicator (must be in screen coordinates)
         if (this.isMouseDown) {
