@@ -499,7 +499,6 @@ const upgradeScreenTitle = document.getElementById('upgradeScreenTitle');
 const restartButton = document.getElementById('restartButton');
 
 // NEW UI elements for multiple purchase logic
-const purchaseSummary = document.getElementById('purchaseSummary');
 const confirmPurchaseButton = document.getElementById('confirmPurchase');
 const skipButton = document.getElementById('skipButton');
 
@@ -977,7 +976,7 @@ class Rat extends Entity {
 
         this.level = 1;
         this.xp = 0;
-        this.xpToNextLevel = 10;
+        this.xpToNextLevel = 50; // Increased base XP requirement
         this.xpMultiplier = 1.0; // New XP Multiplier
         this.magnetRange = 50;   // New Magnet Range
         this.luck = 1.0;         // New Luck stat
@@ -1009,6 +1008,10 @@ class Rat extends Entity {
 
     addWeapon(weaponKey) {
         const weaponDefinition = WEAPONS[weaponKey];
+        if (!weaponDefinition) {
+            console.error(`Attempted to add invalid weapon: ${weaponKey}`);
+            return;
+        }
 
         // --- MODIFIED SLOT CHECK ---
         const uniqueWeaponCount = Object.keys(this.weapons.reduce((acc, w) => { acc[w.key] = true; return acc; }, {})).length;
@@ -1134,9 +1137,9 @@ class Rat extends Entity {
         this.xp -= this.xpToNextLevel;
         this.level += 1;
 
-        // NEW leveling curve: Standard survivor scaling
-        // Base 10, increases by 10 each level, plus small exponential
-        this.xpToNextLevel = Math.floor(this.xpToNextLevel + 10 + (this.level * 2));
+        // NEW leveling curve: Quadratic scaling
+        // Level 1->2: 60 XP. Level 10->11: ~1050 XP. Slower pacing.
+        this.xpToNextLevel = Math.floor(50 + (this.level * this.level * 10));
 
         if (game) game.showLevelUpScreen();
     }
@@ -2220,6 +2223,7 @@ class Game {
     setupUpgradeUIEvents() {
         confirmPurchaseButton.onclick = () => this.handleConfirmPurchase();
         skipButton.onclick = () => {
+            this.player.heal(25); // Actual healing applied
             this.resume();
         };
     }
@@ -3127,6 +3131,7 @@ class Game {
 
         // 3. FALLBACK: HEAL or GOLD
         if (options.length === 0) {
+            console.warn("No upgrade options found! Adding fallback items.");
             options.push({
                 type: 'consumable',
                 name: "Floor Chicken",
@@ -3159,7 +3164,6 @@ class Game {
         upgradeScreenTitle.textContent = "LEVEL UP!";
 
         // Hide summary since everything is free now
-        purchaseSummary.style.display = 'none';
         confirmPurchaseButton.classList.add('hidden'); // Hide until selection
 
         this.currentUpgradeOptions = this.generateLevelUpOptions();
@@ -3208,7 +3212,6 @@ class Game {
         upgradeScreen.classList.remove('hidden');
         upgradeOptionsDiv.innerHTML = '';
         upgradeScreenTitle.textContent = "TREASURE CHEST!";
-        purchaseSummary.style.display = 'none';
         skipButton.classList.add('hidden');
         confirmPurchaseButton.classList.remove('hidden');
         confirmPurchaseButton.textContent = "CLAIM REWARDS";

@@ -29,8 +29,8 @@ def build():
         html_content = html_content.replace('<!-- {{CSS}} -->', css_block)
 
         # Inject JS
-        # We wrap it in <script type="module"> tags
-        js_block = f"<script type=\"module\">\n{js_content}\n</script>"
+        # We wrap it in <script> tags (no module to ensure global scope access)
+        js_block = f"<script>\n{js_content}\n</script>"
         html_content = html_content.replace('<!-- {{JS}} -->', js_block)
 
         # Write output
