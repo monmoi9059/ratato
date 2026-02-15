@@ -2171,6 +2171,7 @@ class Game {
         this.explosions = [];
         // Continuous Logic
         this.startTime = Date.now();
+        this.wave = 1; // Added for compatibility
         this.kills = 0;
         this.enemySpawnInterval = 1000;
         this.lastSpawnTime = 0;
@@ -2218,6 +2219,10 @@ class Game {
 
     initializeGame() {
         this.spawnInitialEntities();
+    }
+
+    startNewWave() {
+        this.isPaused = false;
     }
 
     // NEW: Setup click handlers for the Confirm/Skip buttons
@@ -2715,12 +2720,12 @@ class Game {
 
     handlePaletteSwap() {
         // --- NEW PALETTE SWAP LOGIC ---
-        if (this.wave > 1 && (this.wave - 1) % 10 === 0) {
+        // Cycle palettes based on minutes passed
+        if (this.currentMinute > 0) {
             const paletteKeys = Object.keys(COLOR_PALETTES);
-            // Cycle through palettes based on wave number (e.g., 1 -> 0, 11 -> 1, 21 -> 2)
-            const newPaletteIndex = Math.floor(((this.wave - 1) / 10) % paletteKeys.length);
+            const newPaletteIndex = this.currentMinute % paletteKeys.length;
             currentPalette = COLOR_PALETTES[paletteKeys[newPaletteIndex]];
-            console.log(`PALETTE SWAP: Entering ${currentPalette.name} on Wave ${this.wave}`);
+            console.log(`PALETTE SWAP: Entering ${currentPalette.name} at Minute ${this.currentMinute}`);
 
             // Clear sprite cache on palette swap to regenerate with new colors
             spriteCache.clear();
