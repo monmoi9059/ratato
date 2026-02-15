@@ -185,11 +185,11 @@ const CHARACTERS = {
         initialStats: {
             maxHp: 500, baseSpeed: 3.5, damageMultiplier: 1.0, armor: 4, evasion: 0.0,
             projectileCountBonus: 0, fireRateReduction: 1.0, attackRangeMultiplier: 0.9, shield: 10, bounceCount: 0,
-            lifestealPercentage: 0.0, currency: 0, maxWeapons: UNIFORM_MAX_SLOTS,
+            lifestealPercentage: 0.0, currency: 0, maxWeapons: 6,
             meleeRangeMultiplier: MELEE_AFFINITY_RANGE // NEW AFFINITY
         },
         ratColors: { main: '#713e2f', light: '#a0522d', detail: '#4a2500' },
-        starterWeapon: 'sledgehammer'
+        starterWeapon: 'tailWhip'
     },
     // 2. The Heavy Ranged
     sharpshooter: {
@@ -198,11 +198,11 @@ const CHARACTERS = {
         initialStats: {
             maxHp: 160, baseSpeed: 4.0, damageMultiplier: 1.8, armor: 0, evasion: 0.05,
             projectileCountBonus: 0, fireRateReduction: 0.9, attackRangeMultiplier: RANGED_AFFINITY_RANGE, shield: 0, bounceCount: 0,
-            lifestealPercentage: 0.0, currency: 0, maxWeapons: UNIFORM_MAX_SLOTS,
+            lifestealPercentage: 0.0, currency: 0, maxWeapons: 6,
             meleeRangeMultiplier: 1.0
         },
         ratColors: { main: '#3182ce', light: '#63b3ed', detail: '#2b6cb0' },
-        starterWeapon: 'pistol'
+        starterWeapon: 'dagger'
     },
     // 3. The Evasion/Speedster
     fleetfoot: {
@@ -211,11 +211,11 @@ const CHARACTERS = {
         initialStats: {
             maxHp: 180, baseSpeed: 7.0, damageMultiplier: 0.9, armor: 0, evasion: 0.25,
             projectileCountBonus: 0, fireRateReduction: 1.1, attackRangeMultiplier: 1.0, shield: 0, bounceCount: 2, // Boosted starting bounce
-            lifestealPercentage: 0.0, currency: 0, maxWeapons: UNIFORM_MAX_SLOTS,
+            lifestealPercentage: 0.0, currency: 0, maxWeapons: 6,
             meleeRangeMultiplier: 1.0
         },
         ratColors: { main: '#f6ad55', light: '#ffc785', detail: '#dd6b20' },
-        starterWeapon: 'shuriken'
+        starterWeapon: 'dagger'
     },
     // 4. The Fast Melee
     swordsman: {
@@ -224,11 +224,11 @@ const CHARACTERS = {
         initialStats: {
             maxHp: 320, baseSpeed: 5.0, damageMultiplier: 1.1, armor: 1, evasion: 0.10,
             projectileCountBonus: 2, fireRateReduction: 1.3, attackRangeMultiplier: 1.0, shield: 5, bounceCount: 0,
-            lifestealPercentage: 0.0, currency: 0, maxWeapons: UNIFORM_MAX_SLOTS,
+            lifestealPercentage: 0.0, currency: 0, maxWeapons: 6,
             meleeRangeMultiplier: MELEE_AFFINITY_RANGE // NEW AFFINITY
         },
         ratColors: { main: '#b0b0b0', light: '#c0c0c0', detail: '#737373' },
-        starterWeapon: 'sword'
+        starterWeapon: 'tailWhip'
     },
     // 5. The Projectile Volley
     shogun: {
@@ -237,11 +237,11 @@ const CHARACTERS = {
         initialStats: {
             maxHp: 280, baseSpeed: 4.3, damageMultiplier: 1.1, armor: 2, evasion: 0.0,
             projectileCountBonus: SPREAD_AFFINITY_PROJ, fireRateReduction: 1.0, attackRangeMultiplier: 1.0, shield: 0, bounceCount: 0,
-            lifestealPercentage: 0.0, currency: 0, maxWeapons: UNIFORM_MAX_SLOTS,
+            lifestealPercentage: 0.0, currency: 0, maxWeapons: 6,
             meleeRangeMultiplier: 1.0
         },
         ratColors: { main: '#713e2f', light: '#a0522d', detail: '#dd6b20' },
-        starterWeapon: 'shotgun'
+        starterWeapon: 'magicCheese'
     },
     // 6. The Long Range Sniper
     marksman: {
@@ -250,11 +250,11 @@ const CHARACTERS = {
         initialStats: {
             maxHp: 200, baseSpeed: 4.3, damageMultiplier: 1.3, armor: 0, evasion: 0.05,
             projectileCountBonus: 0, fireRateReduction: 0.9, attackRangeMultiplier: RANGED_AFFINITY_RANGE, shield: 0, bounceCount: 0,
-            lifestealPercentage: 0.0, currency: 0, maxWeapons: UNIFORM_MAX_SLOTS,
+            lifestealPercentage: 0.0, currency: 0, maxWeapons: 6,
             meleeRangeMultiplier: 1.0
         },
         ratColors: { main: '#a0aec0', light: '#b0c4de', detail: '#63b3ed' },
-        starterWeapon: 'crossbow'
+        starterWeapon: 'dagger'
     },
     // 7. The Sustain DPS
     minigunner: {
@@ -263,11 +263,11 @@ const CHARACTERS = {
         initialStats: {
             maxHp: 240, baseSpeed: 4.7, damageMultiplier: 1.0, armor: 0, evasion: 0.0,
             projectileCountBonus: 2, fireRateReduction: 1.7, attackRangeMultiplier: RANGED_AFFINITY_RANGE, shield: 0, bounceCount: 0,
-            lifestealPercentage: 0.0, currency: 0, maxWeapons: UNIFORM_MAX_SLOTS,
+            lifestealPercentage: 0.0, currency: 0, maxWeapons: 6,
             meleeRangeMultiplier: 1.0
         },
         ratColors: { main: '#5c646c', light: '#80878e', detail: '#3b4455' },
-        starterWeapon: 'minigun'
+        starterWeapon: 'magicCheese'
     },
     // 8. The AoE Specialist
     pyro: {
@@ -277,11 +277,11 @@ const CHARACTERS = {
             maxHp: 260, baseSpeed: 4.5, damageMultiplier: 1.1, armor: 0, evasion: 0.20,
             projectileCountBonus: 2, fireRateReduction: 1.5, // Boosted fire rate and projectiles
             attackRangeMultiplier: 0.7, shield: 0, bounceCount: 0,
-            lifestealPercentage: 0.0, currency: 0, maxWeapons: UNIFORM_MAX_SLOTS,
+            lifestealPercentage: 0.0, currency: 0, maxWeapons: 6,
             meleeRangeMultiplier: 1.0
         },
         ratColors: { main: '#e53e3e', light: '#f6ad55', detail: '#ff4500' },
-        starterWeapon: 'flamethrower'
+        starterWeapon: 'molotov'
     },
     // 9. The Explosives Expert
     rocketRat: {
@@ -290,111 +290,195 @@ const CHARACTERS = {
         initialStats: {
             maxHp: 400, baseSpeed: 3.5, damageMultiplier: 2.0, armor: 1, evasion: 0.0,
             projectileCountBonus: 0, fireRateReduction: 0.8, attackRangeMultiplier: 1.0, shield: 15, bounceCount: 0,
-            lifestealPercentage: 0.0, currency: 0, maxWeapons: UNIFORM_MAX_SLOTS,
+            lifestealPercentage: 0.0, currency: 0, maxWeapons: 6,
             meleeRangeMultiplier: 1.0
         },
         ratColors: { main: '#6b46c1', light: '#9f7aea', detail: '#44337a' },
-        starterWeapon: 'rocketLauncher'
+        starterWeapon: 'axe'
     }
 };
 
 
 // --- WEAPON DEFINITIONS ---
 const WEAPONS = {
-    pistol: {
-        key: 'pistol', name: "Pistol", emoji: "🔫", damage: Math.floor(15 * 1.2), fireRate: Math.round(469 / 1.2),
-        projectileSpeed: 10,
-        projectiles: 1, spread: 0, radius: 5, description: "Reliable single-shot weapon. Great precision, standard stats.", iconColor: '#a0a0a0',
+    // 1. MAGIC WAND (Nearest)
+    magicCheese: {
+        key: 'magicCheese', name: "Magic Cheese", emoji: "🧀",
+        description: "Fires a projectile at the nearest enemy.",
+        type: 'projectile-nearest',
+        requiredPassive: 'emptyTome', evolvesTo: 'minigunCheese',
+        iconColor: '#f6ad55',
+        levels: [
+            { damage: 10, amount: 1, cooldown: 1000, area: 1, speed: 10, duration: 0, knockback: 2, pierce: 0 },
+            { damage: 10, amount: 2, cooldown: 1000, area: 1, speed: 10, duration: 0, knockback: 2, pierce: 0 },
+            { damage: 10, amount: 2, cooldown: 900,  area: 1, speed: 10, duration: 0, knockback: 2, pierce: 0 },
+            { damage: 15, amount: 3, cooldown: 900,  area: 1, speed: 10, duration: 0, knockback: 2, pierce: 0 },
+            { damage: 15, amount: 3, cooldown: 900,  area: 1, speed: 10, duration: 0, knockback: 2, pierce: 1 },
+            { damage: 15, amount: 3, cooldown: 800,  area: 1, speed: 10, duration: 0, knockback: 2, pierce: 1 },
+            { damage: 20, amount: 4, cooldown: 800,  area: 1, speed: 10, duration: 0, knockback: 2, pierce: 1 },
+            { damage: 20, amount: 4, cooldown: 800,  area: 1, speed: 10, duration: 0, knockback: 2, pierce: 2 }
+        ]
     },
-    shotgun: {
-        key: 'shotgun', name: "Shotgun", emoji: "💣", damage: Math.floor(9 * 1.2), fireRate: Math.round(1406 / 1.2),
-        projectileSpeed: 8,
-        projectiles: 6, // Base Projectiles increased
-        spread: 0.5, radius: 4, description: "High burst damage, wide spread, but very slow attack speed.", iconColor: '#dd6b20',
-    },
-    shuriken: {
-        key: 'shuriken', name: "Shuriken", emoji: "🔪", damage: Math.floor(7.5 * 1.2), fireRate: Math.round(235 / 1.2),
-        projectileSpeed: 15,
-        projectiles: 1, spread: 0, radius: 6, description: "Low damage but exceptionally fast firing and high projectile velocity. Now bounces once!", iconColor: '#c0c0c0',
-        bounceCount: 1, // Base Shuriken bounce
-    },
-    rocketLauncher: {
-        key: 'rocketLauncher', name: "Rocket Launcher", emoji: "🚀", damage: Math.floor(60 * 1.2), fireRate: Math.round(1500 / 1.2),
-        projectileSpeed: 7,
-        projectiles: 1, spread: 0, radius: 10, description: "Extremely slow, high-damage projectile. Boom!", iconColor: '#e53e3e',
-    },
-    flamethrower: {
-        key: 'flamethrower', name: "Flamethrower", emoji: "🔥", damage: Math.floor(5 * 1.2),
-        fireRate: Math.round(94 / 1.2),
-        projectileSpeed: 6,
-        projectiles: 2, // Base Projectiles increased
-        spread: 0.8, radius: 3, description: "Low damage, rapid fire, creates a short-range cone of fire.", iconColor: '#f6e05e',
-    },
-    crossbow: {
-        key: 'crossbow', name: "Crossbow", emoji: "🏹", damage: Math.floor(30 * 1.2), fireRate: Math.round(750 / 1.2),
-        projectileSpeed: 12,
-        projectiles: 1, spread: 0, radius: 7, description: "High damage, slow firing, straight-shot bolt.", iconColor: '#a0aec0',
-    },
-    lightningRod: {
-        key: 'lightningRod', name: "Lightning Rod", emoji: "⚡", damage: Math.floor(12 * 1.2), fireRate: Math.round(281 / 1.2),
-        projectileSpeed: 6,
-        projectiles: 1, spread: 0.1, radius: 12, description: "Rapidly fires large, slow energy bolts with area damage. Medium range.", iconColor: '#63b3ed',
-    },
-    minigun: {
-        key: 'minigun', name: "Minigun", emoji: "⚙️", damage: Math.floor(4.5 * 1.2), fireRate: Math.round(100 / 1.2),
-        projectileSpeed: 11,
-        projectiles: 1, spread: 0.15, radius: 4, description: "Extremely high fire rate, low damage. Slight inaccuracy.", iconColor: '#5c646c',
-    },
-    phaser: {
-        key: 'phaser', name: "Phaser", emoji: "✨", damage: Math.floor(22.5 * 1.2), fireRate: Math.round(328 / 1.2),
-        projectileSpeed: 25,
-        projectiles: 1, spread: 0, radius: 3, description: "Pinpoint accuracy with a very high velocity energy bolt.", iconColor: '#9f7aea',
-    },
-    // --- NEW RANGED WEAPONS ---
-    railgun: {
-        key: 'railgun', name: "Railgun", emoji: "💥", damage: 150, fireRate: 2500, projectileSpeed: 30, projectiles: 1, spread: 0, radius: 8, description: "Charges for a devastating, high-velocity shot. Pierces through reality.", iconColor: '#00ffff',
-    },
-    pulseRifle: {
-        key: 'pulseRifle', name: "Pulse Rifle", emoji: "📡", damage: 12, fireRate: 800, projectileSpeed: 14, projectiles: 3, spread: 0.1, radius: 5, description: "Fires a tight three-shot burst. Excellent for focused fire.", iconColor: '#b794f4',
-    },
-    discLauncher: {
-        key: 'discLauncher', name: "Disc Launcher", emoji: "💿", damage: 40, fireRate: 900, projectileSpeed: 5, projectiles: 1, spread: 0, radius: 25, description: "Launches a large, slow-moving disc that cleaves through enemies.", iconColor: '#f56565',
-    },
-    acidSprayer: {
-        key: 'acidSprayer', name: "Acid Sprayer", emoji: "🧪", damage: 3, fireRate: 80, projectileSpeed: 7, projectiles: 1, spread: 0.6, radius: 4, description: "Sprays a short-range cone of corrosive acid. Melts armor.", iconColor: '#9ae6b4',
-    },
-
-    // --- MELEE WEAPONS WITH CONE PROPERTIES ---
-    sledgehammer: {
-        key: 'sledgehammer', name: "Sledgehammer", emoji: "🔨", damage: 50, fireRate: 400, radius: 60, arcAngle: Math.PI / 3, isMelee: true, knockback: 15, description: "Instant hit, high damage, forward sweeping attack.", iconColor: '#b8860b',
-    },
-    axe: {
-        key: 'axe', name: "Battle Axe", emoji: "🪓", damage: 35, fireRate: 600, radius: 90, arcAngle: Math.PI / 2, isMelee: true, knockback: 10, description: "High damage, medium range, wide sweeping attack.", iconColor: '#713e2f',
-    },
-    sword: {
-        key: 'sword', name: "Short Sword", emoji: "⚔️", damage: 15, fireRate: 200, radius: 50, arcAngle: Math.PI / 4, isMelee: true, knockback: 5, description: "Very fast attack, low damage, narrow sweep.", iconColor: '#b0b0b0',
-    },
-    spear: {
-        key: 'spear', name: "Spear", emoji: "🔱", damage: 20, fireRate: 250, radius: 120, arcAngle: Math.PI / 8, isMelee: true, knockback: 8, description: "Medium damage, fast attack, narrow forward thrust.", iconColor: '#f9a825',
-    },
-    lance: {
-        key: 'lance', name: "Lance", emoji: "🗡️", damage: 80, fireRate: 750,
-        radius: 80,
-        arcAngle: Math.PI * 0.75, isMelee: true, knockback: 25, description: "Fast thrust, high damage, massive forward arc.", iconColor: '#4a5568',
-    },
-    // --- NEW MELEE WEAPONS ---
+    // 2. KNIFE (Facing)
     dagger: {
-        key: 'dagger', name: "Dagger", emoji: "匕", damage: 8, fireRate: 100, radius: 35, arcAngle: Math.PI / 6, isMelee: true, knockback: 2, description: "A lightning-fast stab with very short reach. Death by a thousand cuts.", iconColor: '#718096',
+        key: 'dagger', name: "Dagger", emoji: "🗡️",
+        description: "Fires quickly in the direction you are facing.",
+        type: 'projectile-facing',
+        requiredPassive: 'bracer', evolvesTo: 'thousandDaggers',
+        iconColor: '#718096',
+        levels: [
+            { damage: 6, amount: 1, cooldown: 300, area: 1, speed: 15, duration: 0, knockback: 1, pierce: 0 },
+            { damage: 6, amount: 2, cooldown: 300, area: 1, speed: 15, duration: 0, knockback: 1, pierce: 0 },
+            { damage: 6, amount: 3, cooldown: 300, area: 1, speed: 15, duration: 0, knockback: 1, pierce: 0 },
+            { damage: 9, amount: 3, cooldown: 300, area: 1, speed: 15, duration: 0, knockback: 1, pierce: 0 },
+            { damage: 9, amount: 4, cooldown: 300, area: 1, speed: 15, duration: 0, knockback: 1, pierce: 1 },
+            { damage: 9, amount: 4, cooldown: 300, area: 1, speed: 15, duration: 0, knockback: 1, pierce: 1 },
+            { damage: 12, amount: 5, cooldown: 300, area: 1, speed: 15, duration: 0, knockback: 1, pierce: 1 },
+            { damage: 12, amount: 5, cooldown: 300, area: 1, speed: 15, duration: 0, knockback: 1, pierce: 2 }
+        ]
     },
-    scythe: {
-        key: 'scythe', name: "Scythe", emoji: "💀", damage: 100, fireRate: 1800, radius: 100, arcAngle: Math.PI * 2, isMelee: true, knockback: 15, description: "A slow, sweeping 360-degree attack that reaps all nearby foes.", iconColor: '#2d3748',
+    // 3. AXE (Upward Arc)
+    axe: {
+        key: 'axe', name: "Axe", emoji: "🪓",
+        description: "Throws an axe in a high arc.",
+        type: 'projectile-upward',
+        requiredPassive: 'candelabrador', evolvesTo: 'deathSpiral',
+        iconColor: '#713e2f',
+        levels: [
+            { damage: 20, amount: 1, cooldown: 1500, area: 1.5, speed: 8, duration: 0, knockback: 5, pierce: 99 },
+            { damage: 20, amount: 2, cooldown: 1500, area: 1.5, speed: 8, duration: 0, knockback: 5, pierce: 99 },
+            { damage: 30, amount: 2, cooldown: 1500, area: 1.5, speed: 8, duration: 0, knockback: 5, pierce: 99 },
+            { damage: 30, amount: 2, cooldown: 1500, area: 1.7, speed: 8, duration: 0, knockback: 5, pierce: 99 },
+            { damage: 40, amount: 3, cooldown: 1500, area: 1.7, speed: 8, duration: 0, knockback: 5, pierce: 99 },
+            { damage: 40, amount: 3, cooldown: 1500, area: 1.7, speed: 8, duration: 0, knockback: 5, pierce: 99 },
+            { damage: 50, amount: 3, cooldown: 1300, area: 1.9, speed: 8, duration: 0, knockback: 5, pierce: 99 },
+            { damage: 50, amount: 4, cooldown: 1300, area: 1.9, speed: 8, duration: 0, knockback: 5, pierce: 99 }
+        ]
     },
-    warhammer: {
-        key: 'warhammer', name: "Warhammer", emoji: "🔨", damage: 70, fireRate: 1100, radius: 75, arcAngle: Math.PI / 1.5, isMelee: true, knockback: 30, description: "A colossal hammer that sends enemies flying with a wide, crushing blow.", iconColor: '#4a5568',
+    // 4. WHIP (Horizontal)
+    tailWhip: {
+        key: 'tailWhip', name: "Tail Whip", emoji: "🐁",
+        description: "Strikes horizontally, passing through enemies.",
+        type: 'directional-melee',
+        requiredPassive: 'emptyHeart', evolvesTo: 'bloodyTail',
+        iconColor: '#b794f4',
+        levels: [
+            { damage: 10, amount: 1, cooldown: 1350, area: 1.0, speed: 0, duration: 200, knockback: 3, pierce: 99 },
+            { damage: 10, amount: 1, cooldown: 1350, area: 1.0, speed: 0, duration: 200, knockback: 3, pierce: 99 },
+            { damage: 15, amount: 1, cooldown: 1350, area: 1.0, speed: 0, duration: 200, knockback: 3, pierce: 99 },
+            { damage: 15, amount: 1, cooldown: 1350, area: 1.1, speed: 0, duration: 200, knockback: 3, pierce: 99 },
+            { damage: 20, amount: 1, cooldown: 1350, area: 1.1, speed: 0, duration: 200, knockback: 3, pierce: 99 },
+            { damage: 20, amount: 1, cooldown: 1350, area: 1.2, speed: 0, duration: 200, knockback: 3, pierce: 99 },
+            { damage: 25, amount: 1, cooldown: 1350, area: 1.2, speed: 0, duration: 200, knockback: 3, pierce: 99 },
+            { damage: 30, amount: 1, cooldown: 1350, area: 1.3, speed: 0, duration: 200, knockback: 3, pierce: 99 }
+        ]
     },
-    katana: {
-        key: 'katana', name: "Katana", emoji: "🈹", damage: 25, fireRate: 180, radius: 85, arcAngle: Math.PI / 5, isMelee: true, knockback: 4, description: "A swift, precise slash with exceptional reach. The blade is sworn to a single path.", iconColor: '#e2e8f0',
+    // 5. GARLIC (Aura)
+    stinkyCheese: {
+        key: 'stinkyCheese', name: "Stinky Cheese", emoji: "🤢",
+        description: "Damages nearby enemies. Reduces resistance to knockback.",
+        type: 'aura',
+        requiredPassive: 'pummarola', evolvesTo: 'toxicCloud',
+        iconColor: '#9ae6b4',
+        levels: [
+            { damage: 3, amount: 1, cooldown: 200, area: 1.0, speed: 0, duration: 0, knockback: 1, pierce: 99 },
+            { damage: 3, amount: 1, cooldown: 200, area: 1.2, speed: 0, duration: 0, knockback: 1, pierce: 99 },
+            { damage: 4, amount: 1, cooldown: 200, area: 1.2, speed: 0, duration: 0, knockback: 1, pierce: 99 },
+            { damage: 4, amount: 1, cooldown: 200, area: 1.4, speed: 0, duration: 0, knockback: 1, pierce: 99 },
+            { damage: 5, amount: 1, cooldown: 200, area: 1.4, speed: 0, duration: 0, knockback: 1, pierce: 99 },
+            { damage: 5, amount: 1, cooldown: 200, area: 1.6, speed: 0, duration: 0, knockback: 1, pierce: 99 },
+            { damage: 6, amount: 1, cooldown: 200, area: 1.6, speed: 0, duration: 0, knockback: 1, pierce: 99 },
+            { damage: 7, amount: 1, cooldown: 200, area: 1.8, speed: 0, duration: 0, knockback: 1, pierce: 99 }
+        ]
     },
+    // 6. KING BIBLE (Orbit)
+    orbitingShield: {
+        key: 'orbitingShield', name: "Orbiting Shield", emoji: "🛡️",
+        description: "Orbits around the player.",
+        type: 'orbit',
+        requiredPassive: 'spellbinder', evolvesTo: 'thunderShield',
+        iconColor: '#63b3ed',
+        levels: [
+            { damage: 10, amount: 1, cooldown: 3000, area: 1.0, speed: 5, duration: 3000, knockback: 2, pierce: 99 },
+            { damage: 10, amount: 2, cooldown: 3000, area: 1.0, speed: 5, duration: 3000, knockback: 2, pierce: 99 },
+            { damage: 10, amount: 2, cooldown: 3000, area: 1.0, speed: 6, duration: 3000, knockback: 2, pierce: 99 },
+            { damage: 15, amount: 3, cooldown: 3000, area: 1.0, speed: 6, duration: 3500, knockback: 2, pierce: 99 },
+            { damage: 15, amount: 3, cooldown: 3000, area: 1.0, speed: 7, duration: 3500, knockback: 2, pierce: 99 },
+            { damage: 15, amount: 4, cooldown: 3000, area: 1.0, speed: 7, duration: 4000, knockback: 2, pierce: 99 },
+            { damage: 20, amount: 4, cooldown: 3000, area: 1.0, speed: 8, duration: 4000, knockback: 2, pierce: 99 },
+            { damage: 20, amount: 5, cooldown: 3000, area: 1.0, speed: 8, duration: 4500, knockback: 2, pierce: 99 }
+        ]
+    },
+    // 7. SANTA WATER (Zone)
+    molotov: {
+        key: 'molotov', name: "Molotov", emoji: "🍾",
+        description: "Generates damaging zones on the ground.",
+        type: 'zone-random',
+        requiredPassive: 'attractorb', evolvesTo: 'infernoRing',
+        iconColor: '#e53e3e',
+        levels: [
+            { damage: 10, amount: 1, cooldown: 2500, area: 1.0, speed: 0, duration: 2000, knockback: 0, pierce: 99 },
+            { damage: 15, amount: 1, cooldown: 2500, area: 1.2, speed: 0, duration: 2000, knockback: 0, pierce: 99 },
+            { damage: 15, amount: 1, cooldown: 2500, area: 1.2, speed: 0, duration: 2500, knockback: 0, pierce: 99 },
+            { damage: 20, amount: 1, cooldown: 2500, area: 1.4, speed: 0, duration: 2500, knockback: 0, pierce: 99 },
+            { damage: 20, amount: 2, cooldown: 2500, area: 1.4, speed: 0, duration: 2500, knockback: 0, pierce: 99 },
+            { damage: 25, amount: 2, cooldown: 2500, area: 1.6, speed: 0, duration: 3000, knockback: 0, pierce: 99 },
+            { damage: 25, amount: 2, cooldown: 2500, area: 1.6, speed: 0, duration: 3000, knockback: 0, pierce: 99 },
+            { damage: 30, amount: 3, cooldown: 2000, area: 1.8, speed: 0, duration: 3500, knockback: 0, pierce: 99 }
+        ]
+    }
+};
+
+const EVOLVED_WEAPONS = {
+    bloodyTail: {
+        key: 'bloodyTail', name: "Bloody Tail", emoji: "🩸",
+        description: "Steals health from enemies.",
+        type: 'directional-melee',
+        stats: { damage: 50, amount: 1, cooldown: 1000, area: 1.5, speed: 0, duration: 300, knockback: 10, pierce: 99, lifesteal: 0.1 },
+        iconColor: '#b794f4'
+    },
+    minigunCheese: {
+        key: 'minigunCheese', name: "Minigun Cheese", emoji: "🧀",
+        description: "Fires a constant stream of cheese.",
+        type: 'projectile-nearest',
+        stats: { damage: 30, amount: 1, cooldown: 80, area: 1.0, speed: 15, duration: 0, knockback: 2, pierce: 3 },
+        iconColor: '#f6ad55'
+    },
+    thousandDaggers: {
+        key: 'thousandDaggers', name: "Thousand Daggers", emoji: "🗡️",
+        description: "Unleashes a torrent of daggers.",
+        type: 'projectile-facing',
+        stats: { damage: 20, amount: 1, cooldown: 50, area: 1.0, speed: 20, duration: 0, knockback: 2, pierce: 4 },
+        iconColor: '#718096'
+    },
+    deathSpiral: {
+        key: 'deathSpiral', name: "Death Spiral", emoji: "🪓",
+        description: "Axes spiral outward from the center.",
+        type: 'projectile-spiral',
+        stats: { damage: 60, amount: 9, cooldown: 1000, area: 2.0, speed: 10, duration: 3000, knockback: 10, pierce: 99 },
+        iconColor: '#713e2f'
+    },
+    thunderShield: {
+        key: 'thunderShield', name: "Thunder Shield", emoji: "⚡",
+        description: "Permanently orbits and damages enemies.",
+        type: 'orbit',
+        stats: { damage: 30, amount: 6, cooldown: 0, area: 1.2, speed: 10, duration: 999999, knockback: 5, pierce: 99 },
+        iconColor: '#63b3ed'
+    },
+    toxicCloud: {
+        key: 'toxicCloud', name: "Toxic Cloud", emoji: "☠️",
+        description: "Steals life from enemies inside.",
+        type: 'aura',
+        stats: { damage: 15, amount: 1, cooldown: 150, area: 2.5, speed: 0, duration: 0, knockback: 2, pierce: 99, lifesteal: 0.05 },
+        iconColor: '#9ae6b4'
+    },
+    infernoRing: {
+        key: 'infernoRing', name: "Inferno Ring", emoji: "🔥",
+        description: "Zones move toward you and grow.",
+        type: 'zone-attract',
+        stats: { damage: 40, amount: 4, cooldown: 1500, area: 2.0, speed: 3, duration: 4000, knockback: 0, pierce: 99 },
+        iconColor: '#e53e3e'
+    }
 };
 
 // --- PASSIVE ITEMS DEFINITIONS ---
@@ -947,6 +1031,47 @@ class Chest extends Entity {
     }
 }
 
+// NEW CLASS: Damage Zone (Molotov/Holy Water)
+class ZoneEntity extends Entity {
+    constructor(x, y, radius, damage, duration, color, weaponKey) {
+        super(x, y, radius, color, 0);
+        this.damage = damage;
+        this.maxDuration = duration;
+        this.duration = duration;
+        this.weaponKey = weaponKey;
+        this.hitTimer = 0; // Ticks damage
+    }
+
+    update(deltaTime) {
+        this.duration -= deltaTime;
+        return this.duration <= 0;
+    }
+
+    draw(context) {
+        context.save();
+        context.translate(this.x, this.y);
+
+        // Pulsing / Fading
+        const alpha = Math.min(1, this.duration / 500) * (0.5 + Math.sin(Date.now() / 100) * 0.2);
+        context.globalAlpha = alpha;
+        context.fillStyle = this.color;
+
+        context.beginPath();
+        context.ellipse(0, 0, this.radius, this.radius * 0.6, 0, 0, Math.PI * 2);
+        context.fill();
+
+        // Flames/Particles effect
+        if (Math.random() > 0.5) {
+             context.fillStyle = '#ffc700'; // Yellow sparks
+             const px = (Math.random() - 0.5) * this.radius * 1.5;
+             const py = (Math.random() - 0.5) * this.radius;
+             context.fillRect(px, py, 2, 2);
+        }
+
+        context.restore();
+    }
+}
+
 // END NEW POWERUP CLASSES
 
 class Rat extends Entity {
@@ -991,9 +1116,9 @@ class Rat extends Entity {
         this.damageFlashTimer = 0;
         this.animationFrame = 0;
         this.facingRight = true;
+        this.lastFacingRight = true; // For stationary aiming
 
-        this.weapons = [];
-        this.weaponTimers = {};
+        this.weapons = []; // Array of { key, level, ...stats, cooldownTimer }
         this.passives = []; // Array of { key, level, name }
 
         // Set character-specific colors
@@ -1008,77 +1133,61 @@ class Rat extends Entity {
             extremeSpeed: 0 // New speed buff
         };
 
+        // ORBITAL & AURA MANAGERS
+        this.activeOrbits = []; // { weaponKey, angle, projectiles: [] }
+        this.activeAuras = [];  // { weaponKey, timer }
+
         this.addWeapon(CHARACTERS[characterKey].starterWeapon);
     }
 
     addWeapon(weaponKey) {
-        const weaponDefinition = WEAPONS[weaponKey];
+        // Check if evolved version (not in WEAPONS usually, but passed directly?)
+        // For now assume standard weapons from WEAPONS or EVOLVED_WEAPONS
+        let def = WEAPONS[weaponKey] || EVOLVED_WEAPONS[weaponKey];
+        if (!def) return;
 
-        // --- MODIFIED SLOT CHECK ---
-        const uniqueWeaponCount = Object.keys(this.weapons.reduce((acc, w) => { acc[w.key] = true; return acc; }, {})).length;
+        const existingWeapon = this.weapons.find(w => w.key === weaponKey);
 
-        if (uniqueWeaponCount >= this.maxWeapons && this.weapons.filter(w => w.key === weaponKey).length === 0) {
-            // Prevent adding a NEW type if slots are full
-            console.warn("Weapon slots full!");
-            return;
-        }
-        // --- END MODIFIED SLOT CHECK ---
-
-
-        const currentStackCount = this.weapons.filter(w => w.key === weaponKey).length;
-
-        // 1. Create the new weapon instance (copying base stats)
-        const newWeapon = JSON.parse(JSON.stringify(weaponDefinition));
-        newWeapon.key = weaponKey;
-        newWeapon.stackDamageFactor = 1.0; // Initialize stack damage factor
-
-        // NEW: Initialize bounce count if applicable (Shuriken)
-        if (newWeapon.bounceCount > 0) {
-            newWeapon.currentBounces = newWeapon.bounceCount;
-        }
-
-        // 2. Add the new weapon
-        this.weapons.push(newWeapon);
-
-        // 3. Handle timer setup if this is the first stack
-        if (currentStackCount === 0) {
-             this.weaponTimers[weaponKey] = 0;
-        }
-
-        // 4. Handle Stacking Logic (Damage and Melee Range)
-        const newTotalStacks = currentStackCount + 1;
-
-        // Damage Stacking: Factor increases linearly (1.0, 2.0, 3.0, etc.)
-        const stackDamageFactor = newTotalStacks;
-
-        // Update ALL instances of this weapon with the new final stats
-        this.weapons.forEach(w => {
-            if (w.key === weaponKey) {
-                // Apply damage factor to all instances of this weapon type
-                w.stackDamageFactor = stackDamageFactor;
-
-                // Apply Melee Range Scaling (Melee logic only)
-                if (w.isMelee) {
-                     const BASE_RADIUS = WEAPONS[weaponKey].radius;
-                     // Melee radius scaling is now based on total stacks, applied to ALL instances
-                     // BASE RADIUS is multiplied by the CHARACTER's affinity multiplier (3.0 for Brawler/Swordsman)
-                    const initialBaseRadius = BASE_RADIUS * this.meleeRangeMultiplier;
-
-                    // UPDATED: Added new melee weapons to the scaling logic
-                    const radiusIncrease = (weaponKey === 'sledgehammer') ? 10 * newTotalStacks :
-                                             (weaponKey === 'axe') ? 5 * newTotalStacks :
-                                             (weaponKey === 'sword') ? 3 * newTotalStacks :
-                                             (weaponKey === 'spear') ? 7 * newTotalStacks :
-                                             (weaponKey === 'lance') ? 12 * newTotalStacks :
-                                             (weaponKey === 'warhammer') ? 15 * newTotalStacks :
-                                             (weaponKey === 'dagger') ? 2 * newTotalStacks :
-                                             (weaponKey === 'katana') ? 6 * newTotalStacks :
-                                             (weaponKey === 'scythe') ? 8 * newTotalStacks : 0;
-
-                    w.radius = initialBaseRadius + radiusIncrease;
-                }
+        if (existingWeapon) {
+            // Upgrade
+            if (existingWeapon.level < 8) {
+                existingWeapon.level++;
+                this.updateWeaponStats(existingWeapon, def);
             }
-        });
+        } else {
+            // New
+            if (this.weapons.length >= this.maxWeapons) return;
+
+            const newWeapon = {
+                key: weaponKey,
+                level: 1,
+                cooldownTimer: 0,
+                evolved: !!EVOLVED_WEAPONS[weaponKey]
+            };
+            this.updateWeaponStats(newWeapon, def);
+            this.weapons.push(newWeapon);
+        }
+    }
+
+    updateWeaponStats(weapon, def) {
+        let stats;
+        if (weapon.evolved) {
+             stats = def.stats; // Evolved weapons have a single 'stats' object
+             weapon.level = 8; // Force level 8 for evolved display
+        } else {
+             stats = def.levels[weapon.level - 1];
+        }
+
+        weapon.damage = stats.damage;
+        weapon.amount = stats.amount;
+        weapon.cooldown = stats.cooldown;
+        weapon.area = stats.area;
+        weapon.speed = stats.speed;
+        weapon.duration = stats.duration;
+        weapon.knockback = stats.knockback;
+        weapon.pierce = stats.pierce;
+        weapon.type = def.type;
+        weapon.lifesteal = stats.lifesteal || 0;
     }
 
     addPassive(passiveKey) {
@@ -1153,8 +1262,10 @@ class Rat extends Entity {
         // Update facing direction based on horizontal movement
         if (this.moveDirection.x > 0) {
             this.facingRight = true;
+            this.lastFacingRight = true;
         } else if (this.moveDirection.x < 0) {
             this.facingRight = false;
+            this.lastFacingRight = false;
         }
 
 
@@ -1184,143 +1295,235 @@ class Rat extends Entity {
              game.enemies.forEach(e => e.isSlowed = false);
         }
 
+        // --- NEW WEAPON UPDATE ---
+        this.updateWeapons(game, deltaTime);
+    }
 
-        const currentTime = Date.now();
+    updateWeapons(game, deltaTime) {
+        // 1. Update Persistent Effects
+        this.updateActiveOrbits(game, deltaTime);
+        this.updateActiveAuras(game, deltaTime);
 
-        // NEW TARGETING LOGIC
-        // Get all enemies sorted by distance, once per frame.
-        const sortedEnemies = game.enemies
-            .map(e => ({ e, distance: Math.hypot(e.x - this.x, e.y - this.y) }))
-            .sort((a, b) => a.distance - b.distance)
-            .map(item => item.e);
+        // 2. Calculate Fire Rate Modifier
+        let rateMod = 1.0;
+        if (this.fireRateReduction > 0) rateMod = 1.0 / this.fireRateReduction;
 
-        // Group weapons by type but keep a deterministic order based on the player's weapon list
-        const weaponTypeOrder = [];
-        const weaponsByType = this.weapons.reduce((acc, weapon) => {
-            if (!acc[weapon.key]) {
-                acc[weapon.key] = [];
-                weaponTypeOrder.push(weapon.key); // Store the order of first appearance
+        if (this.buffs.extremeSpeed > 0) rateMod *= 1.5;
+        const totalSpeedMult = this.fireRateReduction * rateMod;
+
+        // 3. Update Weapons
+        this.weapons.forEach(weapon => {
+            weapon.cooldownTimer -= deltaTime * totalSpeedMult;
+
+            if (weapon.cooldownTimer <= 0) {
+                this.fireWeapon(game, weapon);
+                weapon.cooldownTimer = weapon.cooldown;
             }
-            acc[weapon.key].push(weapon);
-            return acc;
-        }, {});
-
-        // Calculate temporary speed boost from power-up
-        const speedBuffFactor = this.buffs.extremeSpeed > 0 ? 1.5 : 1.0;
-
-        let globalWeaponIndex = 0;
-
-        // Iterate using the deterministic order to ensure target "slots" are consistent
-        weaponTypeOrder.forEach(key => {
-            const stacks = weaponsByType[key];
-            const baseFireRate = stacks[0].fireRate;
-            const totalFireRateReduction = this.fireRateReduction * speedBuffFactor;
-            const adjustedFireRate = Math.max(10, baseFireRate / totalFireRateReduction);
-
-            if (currentTime - this.weaponTimers[key] > adjustedFireRate) {
-                // This weapon type is ready to fire. Pass its starting "target slot" index.
-                this.shootWeaponStacks(game, key, stacks, sortedEnemies, globalWeaponIndex);
-                this.weaponTimers[key] = currentTime;
-            }
-
-            // Move the global index along for the next weapon type
-            globalWeaponIndex += stacks.length;
         });
     }
 
-    shootWeaponStacks(game, weaponKey, stacks, sortedEnemies, startingGlobalIndex) {
-        // Each stack of this weapon type will fire.
-        stacks.forEach((weapon, stackIndex) => {
-            // The "target slot" for this specific weapon instance is its global index.
-            const currentGlobalIndex = startingGlobalIndex + stackIndex;
+    // --- WEAPON SYSTEM ---
 
-            let initialAngle;
-
-            // Handle Melee weapons separately. They don't consume a target slot and only attack once per type.
-            if (weapon.isMelee) {
-                 if (stackIndex === 0) {
-                    game.meleeAttack(this.x, this.y, weapon);
-                 }
-                 return; // Go to next stack in forEach (but do nothing)
+    updateActiveOrbits(game, deltaTime) {
+        this.activeOrbits = this.activeOrbits.filter(orbit => {
+            orbit.elapsed += deltaTime;
+            if (orbit.duration < 900000 && orbit.elapsed > orbit.duration) {
+                return false; // Expired
             }
 
-            // RANGED WEAPONS:
-            if (sortedEnemies.length > 0) {
-                // Use the global index to pick a target. Loop around if not enough enemies.
-                const targetIndex = currentGlobalIndex % sortedEnemies.length;
-                let targetEnemy = sortedEnemies[targetIndex];
-                initialAngle = Math.atan2(targetEnemy.y - this.y, targetEnemy.x - this.x);
-                this.fireSingleWeaponStack(game, weapon, initialAngle);
-            }
-            // If no enemies, do nothing.
+            // Update rotation
+            orbit.angle += (orbit.speed * deltaTime / 1000);
+
+            // Update projectiles positions & Collisions
+            const count = orbit.projectiles.length;
+            const radius = 100 * orbit.area;
+            const now = Date.now();
+
+            orbit.projectiles.forEach((p, i) => {
+                const theta = orbit.angle + (i * (Math.PI * 2 / count));
+                p.x = this.x + Math.cos(theta) * radius;
+                p.y = this.y + Math.sin(theta) * radius;
+                p.radius = 15 * orbit.area; // Size scaling
+
+                // Collision Logic
+                // We use the spatial grid to find nearby enemies to the PROJECTILE
+                const targets = game.spatialGrid.retrieve(p);
+                targets.forEach(e => {
+                    if (e instanceof Enemy && !e.isDead) {
+                        const d = Math.hypot(p.x - e.x, p.y - e.y);
+                        if (d < p.radius + e.radius) {
+                            if (!e.hitTimers) e.hitTimers = {};
+                            // Hit rate limit per enemy (e.g. 300ms)
+                            if (!e.hitTimers[orbit.weapon.key] || now - e.hitTimers[orbit.weapon.key] > 300) {
+                                e.currentHp -= orbit.damage;
+                                e.hitTimers[orbit.weapon.key] = now;
+
+                                const ang = Math.atan2(e.y - this.y, e.x - this.x);
+                                e.x += Math.cos(ang) * orbit.knockback;
+                                e.y += Math.sin(ang) * orbit.knockback;
+
+                                if (e.currentHp <= 0) game.handleEnemyDefeat(e);
+                            }
+                        }
+                    }
+                });
+            });
+            return true;
         });
     }
 
-    fireSingleWeaponStack(game, weapon, initialAngle) {
-        if (weapon.isMelee) {
-            // This function should only be reached by ranged weapons now, but kept for clarity
-            return;
+    updateActiveAuras(game, deltaTime) {
+        const auraWeapons = this.weapons.filter(w => w.type === 'aura');
+        const now = Date.now();
+
+        auraWeapons.forEach(w => {
+            const stats = this.getCalculatedStats(w);
+            const radius = 80 * stats.area;
+
+            // For drawing
+            this.auraRadius = radius;
+            this.auraColor = WEAPONS[w.key].iconColor;
+
+            const nearby = game.spatialGrid.retrieve(this);
+
+            nearby.forEach(e => {
+                if (e instanceof Enemy && !e.isDead) {
+                    const d = Math.hypot(e.x - this.x, e.y - this.y);
+                    if (d < radius + e.radius) {
+                        if (!e.auraHitTimer || now - e.auraHitTimer > w.cooldown) {
+                            e.currentHp -= stats.damage;
+                            e.auraHitTimer = now;
+
+                            const ang = Math.atan2(e.y - this.y, e.x - this.x);
+                            e.x += Math.cos(ang) * stats.knockback;
+                            e.y += Math.sin(ang) * stats.knockback;
+
+                            if (w.lifesteal) this.heal(stats.damage * w.lifesteal);
+
+                            if (e.currentHp <= 0) game.handleEnemyDefeat(e);
+                        }
+                    }
+                }
+            });
+        });
+
+        if (auraWeapons.length === 0) this.auraRadius = 0;
+    }
+
+    fireWeapon(game, weapon) {
+        const stats = this.getCalculatedStats(weapon);
+
+        switch (weapon.type) {
+            case 'projectile-nearest':
+                const targets = game.getNNearestEnemies(stats.amount);
+                targets.forEach(target => {
+                    const angle = Math.atan2(target.y - this.y, target.x - this.x);
+                    this.spawnProjectile(game, weapon, stats, angle);
+                });
+                break;
+
+            case 'projectile-facing':
+                const baseAngle = this.lastFacingRight ? 0 : Math.PI;
+                const spreadTotal = 0.1 * (stats.amount - 1);
+                const startAngle = baseAngle - spreadTotal / 2;
+
+                for(let i=0; i<stats.amount; i++) {
+                    const angle = startAngle + (i * 0.1);
+                    this.spawnProjectile(game, weapon, stats, angle);
+                }
+                break;
+
+            case 'directional-melee':
+                game.meleeAttack(this.x, this.y, {
+                    radius: 120 * stats.area,
+                    arcAngle: Math.PI,
+                    damage: stats.damage,
+                    knockback: stats.knockback,
+                    stackDamageFactor: 1,
+                    lifesteal: weapon.lifesteal,
+                    forcedAngle: this.lastFacingRight ? 0 : Math.PI
+                });
+                break;
+
+            case 'projectile-upward':
+                for(let i=0; i<stats.amount; i++) {
+                    const angle = -Math.PI / 2; // Up
+                    this.spawnProjectile(game, weapon, stats, angle + (Math.random()-0.5)*0.5, 10); // Gravity 10
+                }
+                break;
+
+            case 'projectile-spiral': // Death Spiral
+                 for(let i=0; i<stats.amount; i++) {
+                    const angle = (Date.now() / 200) + (i * (Math.PI * 2 / stats.amount));
+                    this.spawnProjectile(game, weapon, stats, angle);
+                }
+                break;
+
+            case 'orbit':
+                // Clear existing orbit for this weapon to refresh it
+                this.activeOrbits = this.activeOrbits.filter(o => o.weapon.key !== weapon.key);
+
+                const projectiles = [];
+                for(let i=0; i<stats.amount; i++) {
+                    projectiles.push({ x: 0, y: 0, radius: 10, color: WEAPONS[weapon.key].iconColor || '#fff' });
+                }
+
+                this.activeOrbits.push({
+                    weapon: weapon,
+                    projectiles: projectiles,
+                    duration: stats.duration,
+                    elapsed: 0,
+                    angle: 0,
+                    speed: stats.speed,
+                    area: stats.area,
+                    damage: stats.damage,
+                    knockback: stats.knockback
+                });
+                break;
+
+            case 'zone-random':
+            case 'zone-attract': // Inferno Ring
+                for(let i=0; i<stats.amount; i++) {
+                    const r = Math.random() * 200;
+                    const theta = Math.random() * Math.PI * 2;
+                    const zx = this.x + Math.cos(theta) * r;
+                    const zy = this.y + Math.sin(theta) * r;
+
+                    game.pickups.push(new ZoneEntity(zx, zy, 50 * stats.area, stats.damage, stats.duration, WEAPONS[weapon.key].iconColor, weapon.key));
+                }
+                break;
         }
+    }
 
-        const bulletColor = WEAPONS[weapon.key].iconColor || '#fbd38d';
+    spawnProjectile(game, weapon, stats, angle, gravity = 0) {
+        const p = new Projectile(
+            this.x, this.y,
+            6 + (stats.area * 2), // Radius
+            WEAPONS[weapon.key].iconColor || '#fff',
+            stats.speed,
+            angle,
+            stats.damage,
+            700 * (1 + stats.duration/1000), // Range/Duration proxy
+            false,
+            0,
+            weapon.key,
+            gravity
+        );
+        p.pierce = stats.pierce;
+        game.projectiles.push(p);
+    }
 
-        // --- APPLY GLOBAL RANGED STATS & NEW STACK DAMAGE ---
-
-        // NEW: Use weapon.stackDamageFactor for damage amplification (1.0, 2.0, 3.0, etc.)
-        const baseDamage = weapon.damage * weapon.stackDamageFactor;
-
-        // Note: Projectiles count only uses base + global bonus (no stack based projectile increase)
-        const totalProjectiles = weapon.projectiles + this.projectileCountBonus;
-
-        const finalDamage = baseDamage * this.damageMultiplier;
-        const finalSpeed = weapon.projectileSpeed;
-
-        // Max travel distance calculated using the updated BASE_PROJECTILE_RANGE
-        const maxTravelDistance = BASE_PROJECTILE_RANGE * this.attackRangeMultiplier;
-        // --- END APPLY GLOBAL RANGED STATS & NEW STACK DAMAGE ---
-
-
-        const halfSpread = weapon.spread / 2;
-        const angleIncrement = totalProjectiles > 1 ? weapon.spread / (totalProjectiles - 1) : 0;
-
-        let startingAngle;
-
-        // --- FLAMETHROWER/SPREAD FIX ---
-        // The flamethrower relies on spreading around the target line.
-        if (weapon.key === 'flamethrower' || weapon.key === 'acidSprayer') {
-            // Ensure the angle spread is centered correctly
-            startingAngle = initialAngle - halfSpread;
-        } else if (totalProjectiles > 1) {
-            startingAngle = initialAngle - halfSpread;
-        } else {
-            startingAngle = initialAngle;
-        }
-        // --- END FLAMETHROWER/SPREAD FIX ---
-
-
-        const isExplosive = this.buffs.explosiveBullets > 0; // Check if buff is active
-
-        // Get initial bounce count (0 or 1 for shuriken)
-        const initialBounces = weapon.bounceCount || 0;
-
-        for (let i = 0; i < totalProjectiles; i++) {
-            let angle;
-            if (totalProjectiles === 1 && weapon.spread === 0) {
-                 angle = initialAngle;
-            } else if (totalProjectiles === 1 && weapon.spread > 0) {
-                angle = initialAngle + (Math.random() * weapon.spread - halfSpread);
-            }
-            else {
-                angle = startingAngle + angleIncrement * i;
-            }
-
-            // Pass maxTravelDistance, explosive status, and initial bounce count
-            // --- FIX: Pass total bounces (weapon base + global player stat) ---
-            const totalBounces = initialBounces + this.bounceCount;
-
-            const bullet = new Projectile(this.x, this.y, weapon.radius, bulletColor, finalSpeed, angle, finalDamage, maxTravelDistance, isExplosive, totalBounces, weapon.key);
-            game.projectiles.push(bullet);
-        }
+    getCalculatedStats(weapon) {
+        return {
+            damage: weapon.damage * this.damageMultiplier,
+            amount: weapon.amount + this.projectileCountBonus,
+            area: weapon.area * this.attackRangeMultiplier,
+            speed: weapon.speed,
+            duration: weapon.duration,
+            knockback: weapon.knockback,
+            cooldown: weapon.cooldown,
+            pierce: weapon.pierce || 0
+        };
     }
 
 
@@ -1470,6 +1673,34 @@ class Rat extends Entity {
         if (this.damageFlashTimer > 0) {
             context.globalAlpha = 0.3 + (this.damageFlashTimer % 2) * 0.7;
             this.damageFlashTimer--;
+        }
+
+        // Draw Aura
+        if (this.auraRadius > 0) {
+            context.save();
+            context.globalAlpha = 0.2;
+            context.fillStyle = this.auraColor || '#fff';
+            context.beginPath();
+            context.arc(this.x, this.y, this.auraRadius, 0, Math.PI * 2);
+            context.fill();
+            context.globalAlpha = 1.0;
+            context.restore();
+        }
+
+        // Draw Orbits
+        if (this.activeOrbits) {
+            this.activeOrbits.forEach(orbit => {
+                orbit.projectiles.forEach(p => {
+                    context.save();
+                    context.translate(p.x, p.y);
+                    context.fillStyle = p.color || '#fff';
+                    // Draw book/shield shape
+                    context.beginPath();
+                    context.rect(-p.radius/2, -p.radius, p.radius, p.radius * 1.5);
+                    context.fill();
+                    context.restore();
+                });
+            });
         }
 
         this.drawRatBody(context);
@@ -1955,7 +2186,7 @@ class Boss extends Enemy {
 
 
 class Projectile extends Entity {
-    constructor(x, y, radius, color, speed, angle, damage, maxTravelDistance, isExplosive = false, currentBounces = 0, weaponKey) {
+    constructor(x, y, radius, color, speed, angle, damage, maxTravelDistance, isExplosive = false, currentBounces = 0, weaponKey, gravity = 0) {
         super(x, y, radius, color, speed);
         this.angle = angle;
         this.dx = Math.cos(angle) * speed;
@@ -1971,22 +2202,31 @@ class Projectile extends Entity {
         this.isExplosive = isExplosive;
         this.currentBounces = currentBounces;
         this.maxBounces = currentBounces;
-        this.weaponKey = weaponKey; // NEW: Store the weapon key for custom drawing
-        this.hitEnemies = new Set(); // NEW: To track which enemies this projectile has hit
+        this.weaponKey = weaponKey;
+        this.hitEnemies = new Set();
+
+        this.gravity = gravity;
+        this.vy = this.dy; // Vertical velocity for gravity
     }
 
     update(deltaTime) {
-        // Store current position as previous before updating
         this.prevX = this.x;
         this.prevY = this.y;
 
-        this.x += this.dx * (deltaTime / 16.66);
-        this.y += this.dy * (deltaTime / 16.66);
+        if (this.gravity !== 0) {
+            // Apply gravity
+            this.vy += this.gravity * (deltaTime / 16.66);
+            this.x += this.dx * (deltaTime / 16.66);
+            this.y += this.vy * (deltaTime / 16.66);
+        } else {
+            // Standard linear movement
+            this.x += this.dx * (deltaTime / 16.66);
+            this.y += this.dy * (deltaTime / 16.66);
+        }
 
         const distToCenter = Math.hypot(this.x - WORLD_CENTER_X, this.y - WORLD_CENTER_Y);
         const distanceTraveled = Math.hypot(this.x - this.startX, this.y - this.startY);
 
-        // Return true if projectile is out of WORLD OR exceeded max range
         return distToCenter > WORLD_RADIUS || distanceTraveled > this.maxTravelDistance;
     }
 
@@ -2623,15 +2863,18 @@ class Game {
         this.isMeleeSwinging = true;
         this.meleeSwingTimer = this.MELEE_SWING_DURATION;
 
-        // --- FIXED: Find nearest enemy to determine attack angle ---
-        const nearestEnemy = this.getNearestEnemy(x, y);
         let targetAngle = 0;
 
-        if (nearestEnemy) {
-            targetAngle = Math.atan2(nearestEnemy.y - y, nearestEnemy.x - x);
+        if (weapon.forcedAngle !== undefined) {
+            targetAngle = weapon.forcedAngle;
         } else {
-            // Default to facing direction if no enemies are present
-            targetAngle = this.player.facingRight ? 0 : Math.PI;
+            // Default Auto-Aim for melee
+            const nearestEnemy = this.getNearestEnemy(x, y);
+            if (nearestEnemy) {
+                targetAngle = Math.atan2(nearestEnemy.y - y, nearestEnemy.x - x);
+            } else {
+                targetAngle = this.player.facingRight ? 0 : Math.PI;
+            }
         }
 
         // Store the parameters for the draw() function to create the visual slash
@@ -3070,36 +3313,35 @@ class Game {
         const options = [];
 
         // 1. WEAPON CANDIDATES
-        // Existing weapons (if not maxed? weapons don't have max yet, just stack)
-        // New weapons (if slots < 6)
-
-        const equippedWeaponKeys = {};
-        let uniqueWeapons = 0;
-        this.player.weapons.forEach(w => {
-            if (!equippedWeaponKeys[w.key]) uniqueWeapons++;
-            equippedWeaponKeys[w.key] = (equippedWeaponKeys[w.key] || 0) + 1;
-        });
-        const hasWeaponSlot = uniqueWeapons < this.player.maxWeapons;
+        const hasWeaponSlot = this.player.weapons.length < this.player.maxWeapons;
 
         Object.values(WEAPONS).forEach(w => {
-            const currentCount = equippedWeaponKeys[w.key] || 0;
-            if (currentCount > 0) {
-                // Upgrade
-                options.push({
-                    type: 'weapon',
-                    key: w.key,
-                    name: w.name,
-                    description: `Upgrade to Level ${currentCount + 1}. Increases damage/radius.`,
-                    emoji: w.emoji,
-                    apply: (p) => p.addWeapon(w.key)
-                });
+            const existing = this.player.weapons.find(pw => pw.key === w.key);
+
+            if (existing) {
+                // Upgrade (only if not maxed and not evolved)
+                if (existing.level < 8 && !existing.evolved) {
+                    const nextStats = w.levels[existing.level]; // level is 1-based, array is 0-based. next level is at index 'level'
+                    // Wait, existing.level=1 means index 0 is current. Index 1 is next.
+                    // But array size is 8. Index 7 is Level 8.
+                    // If level < 8, we can upgrade.
+
+                    options.push({
+                        type: 'weapon',
+                        key: w.key,
+                        name: w.name,
+                        description: `Upgrade to Level ${existing.level + 1}.`, // Simplified desc
+                        emoji: w.emoji,
+                        apply: (p) => p.addWeapon(w.key)
+                    });
+                }
             } else if (hasWeaponSlot) {
                 // New
                 options.push({
                     type: 'weapon',
                     key: w.key,
                     name: `NEW! ${w.name}`,
-                    description: `Add ${w.name} to your arsenal.`,
+                    description: w.description,
                     emoji: w.emoji,
                     apply: (p) => p.addWeapon(w.key)
                 });
@@ -3229,12 +3471,47 @@ class Game {
             this.resume();
         };
 
-        // Grant 3 random upgrades to EXISTING items
+        // 1. CHECK EVOLUTIONS
+        const evolvableWeapon = this.player.weapons.find(w => {
+            if (w.evolved || w.level < 8) return false;
+            const def = WEAPONS[w.key];
+            if (!def || !def.evolvesTo) return false;
+            const hasPassive = this.player.passives.some(p => p.key === def.requiredPassive);
+            return hasPassive;
+        });
+
+        if (evolvableWeapon) {
+            const def = WEAPONS[evolvableWeapon.key];
+            const evolvedKey = def.evolvesTo;
+            const evolvedDef = EVOLVED_WEAPONS[evolvedKey];
+
+            // Evolve it!
+            evolvableWeapon.evolved = true;
+            evolvableWeapon.key = evolvedKey; // Change key to evolved version
+            this.player.updateWeaponStats(evolvableWeapon, evolvedDef);
+
+            // Visuals
+            upgradeScreenTitle.textContent = "EVOLUTION!";
+            const card = document.createElement('div');
+            card.className = `upgrade-card p-6 rounded-lg border-4 border-purple-500 bg-gray-800 transform scale-110 shadow-[0_0_20px_rgba(168,85,247,0.5)]`;
+            card.innerHTML = `
+                <div class="text-6xl mb-4 animate-bounce text-center">${evolvedDef.emoji}</div>
+                <h3 class="text-3xl font-bold text-purple-300 mb-2 text-center">${evolvedDef.name}</h3>
+                <p class="text-md text-gray-300 text-center">${evolvedDef.description}</p>
+            `;
+            upgradeOptionsDiv.appendChild(card);
+            return;
+        }
+
+        // 2. STANDARD REWARDS (Grant 3 random upgrades/gold)
         const candidates = [];
 
-        // Weapons
+        // Weapons (Can be upgraded)
         this.player.weapons.forEach(w => {
-            candidates.push({ type: 'weapon', key: w.key, name: WEAPONS[w.key].name, emoji: WEAPONS[w.key].emoji });
+            // Can only upgrade standard weapons that are not maxed
+            if (!w.evolved && w.level < 8) {
+                candidates.push({ type: 'weapon', key: w.key, name: WEAPONS[w.key].name, emoji: WEAPONS[w.key].emoji });
+            }
         });
         // Passives (not maxed)
         this.player.passives.forEach(p => {
@@ -3245,26 +3522,32 @@ class Game {
         });
 
         const rewards = [];
-        for (let i = 0; i < 3; i++) {
+        // Limit to 3 or candidates length
+        const rewardCount = 3;
+
+        for (let i = 0; i < rewardCount; i++) {
             if (candidates.length === 0) {
-                // Fallback: Gold
                 this.player.gainCurrency(100);
                 rewards.push({ name: "Bag of Gold", emoji: "💰", description: "+100 Score" });
             } else {
-                const pick = candidates[Math.floor(Math.random() * candidates.length)];
+                const pickIndex = Math.floor(Math.random() * candidates.length);
+                const pick = candidates[pickIndex];
+
                 if (pick.type === 'weapon') {
                     this.player.addWeapon(pick.key);
                     rewards.push({ name: pick.name, emoji: pick.emoji, description: "Weapon Upgraded!" });
+
+                    // Check if now maxed
+                    const w = this.player.weapons.find(wp => wp.key === pick.key);
+                    if (w && w.level >= 8) candidates.splice(pickIndex, 1);
+
                 } else {
                     this.player.addPassive(pick.key);
                     rewards.push({ name: pick.name, emoji: pick.emoji, description: "Passive Upgraded!" });
 
-                    // Check if maxed, remove from candidates
+                    // Check if maxed
                     const p = this.player.passives.find(pas => pas.key === pick.key);
-                    if (p && p.level >= PASSIVE_ITEMS[pick.key].maxLevel) {
-                        const idx = candidates.findIndex(c => c.key === pick.key && c.type === 'passive');
-                        if (idx > -1) candidates.splice(idx, 1);
-                    }
+                    if (p && p.level >= PASSIVE_ITEMS[pick.key].maxLevel) candidates.splice(pickIndex, 1);
                 }
             }
         }
@@ -3331,35 +3614,16 @@ class Game {
 
     updateHUD() {
         // --- WEAPONS ---
-        const equippedWeaponCounts = {};
-        this.player.weapons.forEach(w => {
-            equippedWeaponCounts[w.key] = (equippedWeaponCounts[w.key] || 0) + 1;
-        });
-        const uniqueWeaponKeys = Object.keys(equippedWeaponCounts);
+        const weaponHTML = this.player.weapons.map(w => {
+            const def = WEAPONS[w.key] || EVOLVED_WEAPONS[w.key];
+            const name = def ? def.name : w.key;
+            const emoji = def ? def.emoji : '❓';
+            const lvlText = w.evolved ? "EVOLVED" : `Lvl ${w.level}`;
+            return `<div>${emoji} ${name} <span class="text-gray-400 text-xs ml-2">${lvlText}</span></div>`;
+        }).join('');
 
-        if (hud.weaponSlots) {
-            hud.weaponSlots.innerHTML = '';
-            // Render slots for Max Weapons
-            for (let i = 0; i < this.player.maxWeapons; i++) {
-                const slot = document.createElement('div');
-                slot.className = 'w-10 h-10 bg-gray-900/80 border border-gray-600 rounded flex items-center justify-center relative shadow-sm';
-
-                if (i < uniqueWeaponKeys.length) {
-                    const key = uniqueWeaponKeys[i];
-                    const count = equippedWeaponCounts[key];
-                    const def = WEAPONS[key];
-
-                    slot.innerHTML = `
-                        <div class="text-2xl filter drop-shadow-md cursor-default" title="${def.name}">${def.emoji}</div>
-                        <div class="absolute bottom-0 right-0 bg-black/80 text-[10px] px-1 rounded-tl text-white font-bold select-none">${count}</div>
-                    `;
-                    slot.style.borderColor = def.iconColor || '#718096';
-                } else {
-                    slot.classList.add('opacity-50');
-                }
-                hud.weaponSlots.appendChild(slot);
-            }
-        }
+        hud.weaponList.innerHTML = weaponHTML;
+        hud.weaponSlots.textContent = `(${this.player.weapons.length}/${this.player.maxWeapons})`;
 
         // --- PASSIVES ---
         if (hud.passiveSlots) {
