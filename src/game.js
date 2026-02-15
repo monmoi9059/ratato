@@ -8,11 +8,97 @@ const WORLD_RADIUS = 1500;   // Radius of the entire explorable world
 const WORLD_CENTER_X = 0;
 const WORLD_CENTER_Y = 0;
 // The center of the visible canvas (where the Rat is drawn)
-const centerX = canvas.width / 2;
-const centerY = canvas.height / 2;
+let centerX = canvas.width / 2;
+let centerY = canvas.height / 2;
 
 const ARENA_RADIUS = VIEWPORT_RADIUS; // Alias for old code compatibility
 // --- END NEW CONSTANTS ---
+
+// Function to handle canvas resizing
+function resizeCanvas() {
+    const minSize = 800; // Minimum logical resolution to maintain gameplay view
+    // Set internal resolution to at least minSize, or larger if window permits
+    canvas.width = Math.max(window.innerWidth, minSize);
+    canvas.height = Math.max(window.innerHeight, minSize);
+
+    // Update global center coordinates
+    centerX = canvas.width / 2;
+    centerY = canvas.height / 2;
+}
+
+// Initial resize and event listener
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// --- VIRTUAL JOYSTICK LOGIC ---
+const joystickState = { active: false, x: 0, y: 0 };
+
+function initJoystick() {
+    const zone = document.getElementById('joystickZone');
+    const knob = document.getElementById('joystickKnob');
+    if (!zone || !knob) return;
+
+    // Show joystick if touch is supported
+    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+        zone.classList.remove('hidden');
+    }
+
+    const maxRadius = zone.offsetWidth / 2;
+
+    const handleTouch = (e) => {
+        e.preventDefault(); // Prevent scrolling
+        const touch = e.targetTouches[0];
+        if (!touch) return;
+
+        const rect = zone.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+
+        const dx = touch.clientX - cx;
+        const dy = touch.clientY - cy;
+        const distance = Math.hypot(dx, dy);
+        const angle = Math.atan2(dy, dx);
+
+        const cappedDist = Math.min(distance, maxRadius);
+
+        // Visual update
+        const knobX = Math.cos(angle) * cappedDist;
+        const knobY = Math.sin(angle) * cappedDist;
+        knob.style.transform = `translate(calc(-50% + ${knobX}px), calc(-50% + ${knobY}px))`;
+
+        // Logic update
+        if (distance > 5) {
+            joystickState.active = true;
+            joystickState.x = Math.cos(angle);
+            joystickState.y = Math.sin(angle);
+        } else {
+            joystickState.active = false;
+            joystickState.x = 0;
+            joystickState.y = 0;
+        }
+    };
+
+    const resetJoystick = (e) => {
+        if (e) e.preventDefault();
+        joystickState.active = false;
+        joystickState.x = 0;
+        joystickState.y = 0;
+        knob.style.transform = `translate(-50%, -50%)`;
+    };
+
+    zone.addEventListener('touchstart', (e) => {
+         resetJoystick(); // Ensure clean start
+         handleTouch(e);
+    }, { passive: false });
+
+    zone.addEventListener('touchmove', handleTouch, { passive: false });
+    zone.addEventListener('touchend', resetJoystick);
+    zone.addEventListener('touchcancel', resetJoystick);
+}
+
+// Initialize Joystick
+initJoystick();
+// --- END JOYSTICK LOGIC ---
 
 const BASE_PROJECTILE_RANGE = 173; // Was 230, reduced by 25%
 
@@ -1265,14 +1351,16 @@ class Enemy extends Entity {
 
         // --- OBSTACLE COLLISION CHECK for Enemy Movement ---
         let hitObstacle = false;
-        game.obstacles.forEach(o => {
-            const nextX = this.x + (dx / distance) * totalSpeed;
-            const nextY = this.y + (dy / distance) * totalSpeed;
-            const dist = Math.hypot(nextX - o.x, nextY - o.y);
-            if (dist < this.radius + o.radius) {
-                hitObstacle = true;
-            }
-        });
+        if (distance > 0) {
+            game.obstacles.forEach(o => {
+                const nextX = this.x + (dx / distance) * totalSpeed;
+                const nextY = this.y + (dy / distance) * totalSpeed;
+                const dist = Math.hypot(nextX - o.x, nextY - o.y);
+                if (dist < this.radius + o.radius) {
+                    hitObstacle = true;
+                }
+            });
+        }
 
         if (hitObstacle) {
             // Stop movement if heading into an obstacle
@@ -1456,15 +1544,17 @@ class DetonatorSnake extends Enemy {
         // --- OBSTACLE COLLISION CHECK for Detonator Movement ---
         let hitObstacle = false;
         let obstacleHit = null;
-        game.obstacles.forEach(o => {
-            const nextX = this.x + (dx / distance) * totalSpeed;
-            const nextY = this.y + (dy / distance) * totalSpeed;
-            const dist = Math.hypot(nextX - o.x, nextY - o.y);
-            if (dist < this.radius + o.radius) {
-                hitObstacle = true;
-                obstacleHit = o;
-            }
-        });
+        if (distance > 0) {
+            game.obstacles.forEach(o => {
+                const nextX = this.x + (dx / distance) * totalSpeed;
+                const nextY = this.y + (dy / distance) * totalSpeed;
+                const dist = Math.hypot(nextX - o.x, nextY - o.y);
+                if (dist < this.radius + o.radius) {
+                    hitObstacle = true;
+                    obstacleHit = o;
+                }
+            });
+        }
 
         if (hitObstacle) {
             // If blocked by obstacle, initiate fuse immediately
@@ -1551,15 +1641,17 @@ class Boss extends Enemy {
 
         // --- OBSTACLE COLLISION CHECK for Boss Movement ---
         let obstacleHit = null; // Changed from boolean to object holder
-        game.obstacles.forEach(o => {
-            if (obstacleHit) return; // Already found one, no need to check more
-            const nextX = this.x + (dx / distance) * totalSpeed;
-            const nextY = this.y + (dy / distance) * totalSpeed;
-            const dist = Math.hypot(nextX - o.x, nextY - o.y);
-            if (dist < this.radius + o.radius) {
-                obstacleHit = o; // Store the obstacle object
-            }
-        });
+        if (distance > 0) {
+            game.obstacles.forEach(o => {
+                if (obstacleHit) return; // Already found one, no need to check more
+                const nextX = this.x + (dx / distance) * totalSpeed;
+                const nextY = this.y + (dy / distance) * totalSpeed;
+                const dist = Math.hypot(nextX - o.x, nextY - o.y);
+                if (dist < this.radius + o.radius) {
+                    obstacleHit = o; // Store the obstacle object
+                }
+            });
+        }
 
         if (obstacleHit) { // Check if an object was stored
             // Boss is deterred by obstacles, but keeps moving toward player
@@ -2067,7 +2159,16 @@ class Game {
             isKeyboardActive = true;
         }
 
-        // 2. Check Mouse State (only if keyboard is not active AND mouse button is held)
+        // 2. Check Joystick State (only if keyboard is not active)
+        if (!isKeyboardActive && joystickState.active) {
+             dx = joystickState.x;
+             dy = joystickState.y;
+             // Joystick provides normalized vector, so we can set directly or let fall through
+             // We set isKeyboardActive to prevent Mouse logic from running
+             isKeyboardActive = true;
+        }
+
+        // 3. Check Mouse State (only if keyboard/joystick is not active AND mouse button is held)
         if (!isKeyboardActive && this.isMouseDown) {
             const distToTarget = Math.hypot(this.player.x - this.mouseTargetX, this.player.y - this.mouseTargetY);
 
@@ -3404,7 +3505,10 @@ function gameLoop(currentTime) {
     }
 
     if (!game.isPaused) {
-        const deltaTime = currentTime - game.lastUpdateTime;
+        let deltaTime = currentTime - game.lastUpdateTime;
+        // Cap deltaTime to prevent spiral/explosions on tab switch or lag
+        deltaTime = Math.min(deltaTime, 50);
+
         // FIX: Check if game.update is defined before calling
         if (typeof game.update === 'function') {
             game.update(deltaTime);
