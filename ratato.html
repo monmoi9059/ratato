@@ -3881,16 +3881,33 @@ class Game {
 
     updateHUD() {
         // --- WEAPONS ---
-        const weaponHTML = this.player.weapons.map(w => {
-            const def = WEAPONS[w.key] || EVOLVED_WEAPONS[w.key];
-            const name = def ? def.name : w.key;
-            const emoji = def ? def.emoji : '❓';
-            const lvlText = w.evolved ? "EVOLVED" : `Lvl ${w.level}`;
-            return `<div>${emoji} ${name} <span class="text-gray-400 text-xs ml-2">${lvlText}</span></div>`;
-        }).join('');
+        if (hud.weaponSlots) {
+            hud.weaponSlots.innerHTML = '';
+            for (let i = 0; i < this.player.maxWeapons; i++) {
+                const slot = document.createElement('div');
+                slot.className = 'w-8 h-8 bg-gray-900/80 border border-gray-600 rounded flex items-center justify-center relative shadow-sm mt-2';
 
-        hud.weaponList.innerHTML = weaponHTML;
-        hud.weaponSlots.textContent = `(${this.player.weapons.length}/${this.player.maxWeapons})`;
+                if (i < this.player.weapons.length) {
+                    const w = this.player.weapons[i];
+                    const def = WEAPONS[w.key] || EVOLVED_WEAPONS[w.key];
+                    const name = def ? def.name : w.key;
+                    const emoji = def ? def.emoji : '❓';
+                    const level = w.evolved ? 'MAX' : w.level;
+
+                    if (w.evolved) {
+                         slot.className = 'w-8 h-8 bg-gray-900/80 border border-purple-500 rounded flex items-center justify-center relative shadow-sm mt-2';
+                    }
+
+                    slot.innerHTML = `
+                        <div class="text-lg filter drop-shadow-md cursor-default" title="${name}">${emoji}</div>
+                        <div class="absolute bottom-0 right-0 bg-black/80 text-[8px] px-1 rounded-tl text-white font-bold select-none">${level}</div>
+                    `;
+                } else {
+                    slot.classList.add('opacity-30');
+                }
+                hud.weaponSlots.appendChild(slot);
+            }
+        }
 
         // --- PASSIVES ---
         if (hud.passiveSlots) {
