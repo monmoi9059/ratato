@@ -1145,8 +1145,8 @@ class ZoneEntity extends Entity {
 // END NEW POWERUP CLASSES
 
 class Rat extends Entity {
-    constructor(characterKey) {
-        super(0, 0, 15, null, 4); // Initialize at 0,0
+    constructor(characterKey, startX = 0, startY = 0) {
+        super(startX, startY, 15, null, 4);
 
         const initialStats = CHARACTERS[characterKey].initialStats;
         const colors = CHARACTERS[characterKey].ratColors;
@@ -2466,7 +2466,12 @@ class SpawnDirector {
 
 class Game {
     constructor(characterKey) {
-        this.player = new Rat(characterKey);
+        // Generate random start position far from origin to feel like random biome
+        // Range: +/- 100,000 coordinates
+        const startX = (Math.random() - 0.5) * 200000;
+        const startY = (Math.random() - 0.5) * 200000;
+
+        this.player = new Rat(characterKey, startX, startY);
         this.MAX_PARTICLES = 300;
         this.enemies = [];
         this.projectiles = [];
