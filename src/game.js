@@ -4,14 +4,14 @@ const ctx = canvas.getContext('2d');
 
 // --- NEW WORLD/CAMERA CONSTANTS ---
 let VIEWPORT_RADIUS = 350; // Radius of the visible area (Updated dynamically)
-const WORLD_RADIUS = 1500;   // Radius of the entire explorable world
-const WORLD_CENTER_X = 0;
-const WORLD_CENTER_Y = 0;
-// The center of the visible canvas (where the Rat is drawn)
+// No fixed WORLD_RADIUS for infinite world
+// The center of the visible canvas (where the Rat is drawn relative to screen)
 let centerX = canvas.width / 2;
 let centerY = canvas.height / 2;
 
-const ARENA_RADIUS = VIEWPORT_RADIUS; // Alias for old code compatibility
+// CHUNK SYSTEM CONSTANTS
+const CHUNK_SIZE = 1000;
+
 // --- END NEW CONSTANTS ---
 
 // Function to handle canvas resizing
@@ -593,9 +593,7 @@ const skipButton = document.getElementById('skipButton');
 
 // --- SPATIAL GRID FOR COLLISION OPTIMIZATION ---
 class SpatialGrid {
-    constructor(width, height, cellSize) {
-        this.width = width;
-        this.height = height;
+    constructor(cellSize) {
         this.cellSize = cellSize;
         this.cells = new Map();
     }
@@ -609,11 +607,6 @@ class SpatialGrid {
     }
 
     insert(entity) {
-        // We only insert based on the center point for simplicity, assuming entities are smaller than cells
-        // For large entities, we might need to insert into multiple cells, but center point is usually enough for
-        // broad phase if we check neighbors.
-        // Actually, let's insert into all cells the entity's bounding box touches to be safe.
-
         const startX = Math.floor((entity.x - entity.radius) / this.cellSize);
         const endX = Math.floor((entity.x + entity.radius) / this.cellSize);
         const startY = Math.floor((entity.y - entity.radius) / this.cellSize);
@@ -631,7 +624,6 @@ class SpatialGrid {
     }
 
     retrieve(entity) {
-        // Retrieve entities from the cells this entity touches
         const startX = Math.floor((entity.x - entity.radius) / this.cellSize);
         const endX = Math.floor((entity.x + entity.radius) / this.cellSize);
         const startY = Math.floor((entity.y - entity.radius) / this.cellSize);
@@ -651,6 +643,85 @@ class SpatialGrid {
             }
         }
         return Array.from(retrieved);
+    }
+}
+
+// --- CHUNK SYSTEM FOR INFINITE WORLD ---
+class ChunkSystem {
+    constructor(seed) {
+        this.seed = seed || Math.random();
+        // A simple pseudo-random number generator function
+        this.rand = (x, y) => {
+            let n = Math.sin(x * 12.9898 + y * 78.233 + this.seed) * 43758.5453;
+            return n - Math.floor(n);
+        };
+    }
+
+    getChunkKey(x, y) {
+        const chunkX = Math.floor(x / CHUNK_SIZE);
+        const chunkY = Math.floor(y / CHUNK_SIZE);
+        return `${chunkX},${chunkY}`;
+    }
+
+    getChunkCoordinates(x, y) {
+        return {
+            x: Math.floor(x / CHUNK_SIZE),
+            y: Math.floor(y / CHUNK_SIZE)
+        };
+    }
+
+    // Determine biome based on chunk coordinates
+    getBiome(chunkX, chunkY) {
+        // Use Perlin-like noise or simple large-scale hashing for biomes
+        // Scale down coordinates to make biomes large.
+        // 0.1 / 40 = 0.0025 to make biomes 40x bigger as requested.
+        const scale = 0.0025;
+        const val = this.rand(chunkX * scale, chunkY * scale);
+
+        const palettes = Object.values(COLOR_PALETTES);
+        const index = Math.floor(val * palettes.length);
+        return palettes[index];
+    }
+
+    // Generate static obstacles/decorations for a specific chunk
+    generateChunkContent(chunkX, chunkY) {
+        const biome = this.getBiome(chunkX, chunkY);
+        const obstacles = [];
+        const decorations = [];
+
+        // Seeded random for this chunk
+        const chunkSeed = this.rand(chunkX, chunkY);
+        const numObstacles = Math.floor(chunkSeed * 5); // 0-4 obstacles per chunk
+
+        for (let i = 0; i < numObstacles; i++) {
+            const r = this.rand(chunkX + i, chunkY + i);
+            const ox = chunkX * CHUNK_SIZE + r * CHUNK_SIZE;
+            const oy = chunkY * CHUNK_SIZE + this.rand(chunkX - i, chunkY - i) * CHUNK_SIZE;
+            const radius = 30 + r * 30;
+
+            const obstacle = new Obstacle(ox, oy, radius);
+            // Override colors based on biome if needed, or Obstacle class can handle it if we pass biome
+            // For now, Obstacle uses default colors, let's stick with that or update Obstacle later
+            obstacles.push(obstacle);
+        }
+
+        // Generate pebbles/ground details
+        const numPebbles = 20 + Math.floor(chunkSeed * 20);
+        for(let i=0; i < numPebbles; i++) {
+             const px = chunkX * CHUNK_SIZE + this.rand(chunkX * i, chunkY) * CHUNK_SIZE;
+             const py = chunkY * CHUNK_SIZE + this.rand(chunkX, chunkY * i) * CHUNK_SIZE;
+             decorations.push({x: px, y: py, color: biome.arenaPebbles});
+        }
+
+        return {
+            biome: biome,
+            obstacles: obstacles,
+            decorations: decorations,
+            x: chunkX * CHUNK_SIZE,
+            y: chunkY * CHUNK_SIZE,
+            width: CHUNK_SIZE,
+            height: CHUNK_SIZE
+        };
     }
 }
 
@@ -1075,8 +1146,8 @@ class ZoneEntity extends Entity {
 // END NEW POWERUP CLASSES
 
 class Rat extends Entity {
-    constructor(characterKey) {
-        super(WORLD_CENTER_X, WORLD_CENTER_Y, 15, null, 4); // Initialize at world center
+    constructor(characterKey, startX = 0, startY = 0) {
+        super(startX, startY, 15, null, 4);
 
         const initialStats = CHARACTERS[characterKey].initialStats;
         const colors = CHARACTERS[characterKey].ratColors;
@@ -1269,17 +1340,9 @@ class Rat extends Entity {
         }
 
 
-        // --- WORLD BOUNDARY CLAMPING ---
-        const distToCenter = Math.hypot(newX - WORLD_CENTER_X, newY - WORLD_CENTER_Y);
-        if (distToCenter + this.radius > WORLD_RADIUS) {
-            const angle = Math.atan2(newY - WORLD_CENTER_Y, newX - WORLD_CENTER_X);
-            newX = WORLD_CENTER_X + Math.cos(angle) * (WORLD_RADIUS - this.radius);
-            newY = WORLD_CENTER_Y + Math.sin(angle) * (WORLD_RADIUS - this.radius);
-        }
-
-        this.x = newX; // Now updating World X
-        this.y = newY; // Now updating World Y
-        // --- END WORLD CLAMPING ---
+        // --- NO WORLD BOUNDARY CLAMPING ---
+        this.x = newX;
+        this.y = newY;
 
         if (this.moveDirection.x !== 0 || this.moveDirection.y !== 0) {
             this.animationFrame++;
@@ -1740,13 +1803,16 @@ class EnemyProjectile extends Entity {
         this.dx = Math.cos(angle) * speed;
         this.dy = Math.sin(angle) * speed;
         this.damage = damage;
+        this.traveled = 0;
     }
 
     update(deltaTime) {
+        const moveDist = this.speed * (deltaTime / 16.66);
         this.x += this.dx * (deltaTime / 16.66);
         this.y += this.dy * (deltaTime / 16.66);
-        const distToCenter = Math.hypot(this.x - WORLD_CENTER_X, this.y - WORLD_CENTER_Y);
-        return distToCenter > WORLD_RADIUS; // Remove if out of world
+        this.traveled += moveDist;
+
+        return this.traveled > 2000; // Despawn after distance
     }
 
     draw(context) {
@@ -1762,23 +1828,20 @@ class Enemy extends Entity {
     constructor(x, y, radius = 10, waveFactor = 1) {
         super(x, y, radius, null, 2.0); // Color handled by subclass/palette
 
-        // --- MODIFIED HEALTH SCALING FOR EXTREME DIFFICULTY ---
+        // --- NERFED HEALTH SCALING FOR BETTER BALANCE ---
 
-        // 1. Set a higher base linear increase for "way more health"
-        let baseHp = 50 + (waveFactor - 1) * 80; // Increased base HP and steeper linear scaling
+        // 1. Much gentler linear increase
+        let baseHp = 30 + (waveFactor - 1) * 20;
 
         let healthMultiplier = 1.0;
 
-        // 2. Apply exponential doubling starting from Wave 5
+        // 2. Removed exponential doubling, replaced with gentle curve
         if (waveFactor >= 5) {
-            // Wave 5 = 2^1, Wave 6 = 2^1, Wave 7 = 2^2, Wave 8 = 2^2, etc.
-            // Calculate how many times we've passed a 2-wave increment starting from Wave 5
-            const doublingCycles = Math.floor((waveFactor - 5) / 2) + 1;
-            healthMultiplier = Math.pow(2, doublingCycles);
+            healthMultiplier = 1.0 + ((waveFactor - 5) * 0.1); // +10% per minute after minute 5
         }
 
         this.maxHp = Math.floor(baseHp * healthMultiplier);
-        // --- END MODIFIED HEALTH SCALING ---
+        // --- END NERFED HEALTH SCALING ---
 
         this.currentHp = this.maxHp;
 
@@ -2224,10 +2287,10 @@ class Projectile extends Entity {
             this.y += this.dy * (deltaTime / 16.66);
         }
 
-        const distToCenter = Math.hypot(this.x - WORLD_CENTER_X, this.y - WORLD_CENTER_Y);
+        // No world center check
         const distanceTraveled = Math.hypot(this.x - this.startX, this.y - this.startY);
 
-        return distToCenter > WORLD_RADIUS || distanceTraveled > this.maxTravelDistance;
+        return distanceTraveled > this.maxTravelDistance;
     }
 
     // NEW: Handle bounce logic
@@ -2401,7 +2464,12 @@ class SpawnDirector {
 
 class Game {
     constructor(characterKey) {
-        this.player = new Rat(characterKey);
+        // Generate random start position far from origin to feel like random biome
+        // Range: +/- 100,000 coordinates
+        const startX = (Math.random() - 0.5) * 200000;
+        const startY = (Math.random() - 0.5) * 200000;
+
+        this.player = new Rat(characterKey, startX, startY);
         this.MAX_PARTICLES = 300;
         this.enemies = [];
         this.projectiles = [];
@@ -2433,8 +2501,8 @@ class Game {
         this.keyState = { up: false, down: false, left: false, right: false };
 
         // Mouse control variables
-        this.mouseTargetX = WORLD_CENTER_X; // Mouse target is now in WORLD coordinates
-        this.mouseTargetY = WORLD_CENTER_Y;
+        this.mouseTargetX = 0;
+        this.mouseTargetY = 0;
         this.mouseTolerance = 10; // Distance tolerance for stopping
         this.isMouseMoving = false; // Flag to check if mouse is actively moving the Rat
         this.isMouseDown = false; // Tracks if the left mouse button is held
@@ -2447,8 +2515,14 @@ class Game {
         this.meleeSwingRadius = 0;      // New: Radius for drawing cone
         this.meleeSwingArc = 0;         // New: Arc for drawing cone
 
+        // Chunk System
+        this.chunkSystem = new ChunkSystem(Date.now());
+        this.activeChunks = new Map();
+
         // Spatial Grid for Optimization (150px cells)
-        this.spatialGrid = new SpatialGrid(WORLD_RADIUS * 2, WORLD_RADIUS * 2, 150);
+        // No fixed size for spatial grid needed if we clear it every frame or manage it dynamically
+        // but for now, we just insert active entities. The grid handles any coord range.
+        this.spatialGrid = new SpatialGrid(150);
 
         this.setupInput();
         this.setupUpgradeUIEvents(); // NEW: Setup confirm/skip buttons
@@ -2458,7 +2532,7 @@ class Game {
     }
 
     initializeGame() {
-        this.spawnInitialEntities();
+        // this.spawnInitialEntities(); // Handled by Chunk Generation now
     }
 
     startNewWave() {
@@ -2831,7 +2905,7 @@ class Game {
     // NEW: Handles the map-wide bomb explosion (triggered by BombDrop pickup)
     applyNuclearBomb() {
         // ... (Visual effect logic remains the same)
-        this.addExplosionParticles(50, centerX, centerY, '#ffc700', 8);
+        this.addExplosionParticles(50, this.player.x, this.player.y, '#ffc700', 8);
 
         const EXPLOSION_DAMAGE = 200;
 
@@ -2846,8 +2920,8 @@ class Game {
             const lifestealAmount = damage * this.player.lifestealPercentage;
             this.player.heal(lifestealAmount);
 
-            // Massive knockback away from center
-            const angle = Math.atan2(e.y - WORLD_CENTER_Y, e.x - WORLD_CENTER_X);
+            // Massive knockback away from player
+            const angle = Math.atan2(e.y - this.player.y, e.x - this.player.x);
             e.x += Math.cos(angle) * 100;
             e.y += Math.sin(angle) * 100;
 
@@ -2911,13 +2985,6 @@ class Game {
                         const KB_FACTOR = 1.5;
                         e.x += Math.cos(angle) * knockback * KB_FACTOR;
                         e.y += Math.sin(angle) * knockback * KB_FACTOR;
-
-                        const distToCenter = Math.hypot(e.x - WORLD_CENTER_X, e.y - WORLD_CENTER_Y);
-                        if (distToCenter + e.radius > WORLD_RADIUS) {
-                            const clampAngle = Math.atan2(e.y - WORLD_CENTER_Y, e.x - WORLD_CENTER_X);
-                            e.x = WORLD_CENTER_X + Math.cos(clampAngle) * (WORLD_RADIUS - e.radius);
-                            e.y = WORLD_CENTER_Y + Math.sin(clampAngle) * (WORLD_RADIUS - e.radius);
-                        }
                     }
 
                     // CHECK FOR DEATH AND AWARD KILL CREDIT
@@ -2929,109 +2996,31 @@ class Game {
         });
     }
 
-    spawnInitialEntities() {
-        // --- NEW: Add initial scattered pickups and obstacles to the map ---
-        const NUM_HEALTH_DROPS = 5;
-        const NUM_ICE_DROPS = 2;
-        const NUM_SPEED_DROPS = 2;
-        // Scale number of obstacles with wave
-        const NUM_OBSTACLES = 5 + Math.floor(this.wave / 5) * 3;
-
-        // Add Obstacles first (Obstacle creation is self-aware of its radius)
-        for (let i = 0; i < NUM_OBSTACLES; i++) {
-            // Random radius between 30 and 60
-            const radius = Math.random() * 30 + 30;
-            const pos = this.findSafeWorldPlacement(radius + 50); // Ensure obstacle spawns away from rat center AND existing obstacles
-            this.obstacles.push(new Obstacle(pos.x, pos.y, radius));
-        }
-
-        // Add Pickups (Pickups now rely on a safe spot, avoiding obstacles)
-        for (let i = 0; i < NUM_HEALTH_DROPS; i++) {
-            const pos = this.findSafeWorldPlacement(10);
-            this.pickups.push(new HealthDrop(pos.x, pos.y));
-        }
-        for (let i = 0; i < NUM_ICE_DROPS; i++) {
-            const pos = this.findSafeWorldPlacement(10);
-            this.pickups.push(new IcePowerupDrop(pos.x, pos.y));
-        }
-         for (let i = 0; i < NUM_SPEED_DROPS; i++) {
-            const pos = this.findSafeWorldPlacement(10);
-            this.pickups.push(new SpeedPowerupDrop(pos.x, pos.y));
-        }
-        // --- END NEW PICKUPS AND OBSTACLES ---
-    }
+    // NOTE: spawnInitialEntities is now managed by generateChunkContent as chunks load
 
     handlePaletteSwap() {
-        // --- NEW PALETTE SWAP LOGIC ---
-        // Cycle palettes based on minutes passed
-        if (this.currentMinute > 0) {
-            const paletteKeys = Object.keys(COLOR_PALETTES);
-            const newPaletteIndex = this.currentMinute % paletteKeys.length;
-            currentPalette = COLOR_PALETTES[paletteKeys[newPaletteIndex]];
-            console.log(`PALETTE SWAP: Entering ${currentPalette.name} at Minute ${this.currentMinute}`);
-
-            // Clear sprite cache on palette swap to regenerate with new colors
-            spriteCache.clear();
-        }
-        // --- END NEW PALETTE SWAP LOGIC ---
+        // Palette logic is now per-chunk (Biome), but this global can still track time-based difficulty
+        // or we can remove it if we rely fully on biomes.
+        // For now, let's keep it to update difficulty factors if needed, but not global colors.
     }
 
     spawnBoss() {
         const BOSS_RADIUS = 40;
         const angle = Math.random() * Math.PI * 2;
 
-        // Boss spawns off-screen near the edge of the world
-        const spawnDist = WORLD_RADIUS - BOSS_RADIUS - 10;
-        const spawnX = WORLD_CENTER_X + Math.cos(angle) * spawnDist;
-        const spawnY = WORLD_CENTER_Y + Math.sin(angle) * spawnDist;
+        // Boss spawns just off-screen
+        const spawnDist = VIEWPORT_RADIUS + 100;
+        const spawnX = this.player.x + Math.cos(angle) * spawnDist;
+        const spawnY = this.player.y + Math.sin(angle) * spawnDist;
 
         // Calculate scaling based on minutes
         const minutes = this.currentMinute + 1;
         const boss = new Boss(spawnX, spawnY, minutes * 10); // Pass "wave" equivalent
 
         this.enemies.push(boss);
-        this.spatialGrid.insert(boss);
+        // this.spatialGrid.insert(boss);
 
         console.log(`BOSS SPAWNED! Time: ${minutes}m`);
-    }
-
-
-    findSafeWorldPlacement(radius) {
-        let x, y;
-        let attempts = 0;
-
-        do {
-            // Spawn anywhere within the world bounds
-            const angle = Math.random() * Math.PI * 2;
-            const distance = Math.random() * (WORLD_RADIUS - radius);
-            x = WORLD_CENTER_X + Math.cos(angle) * distance;
-            y = WORLD_CENTER_Y + Math.sin(angle) * distance;
-
-            attempts++;
-
-            // Simple check: don't spawn right on top of the player
-            const distToPlayer = Math.hypot(x - this.player.x, y - this.player.y);
-
-            // If it's a safe distance away (e.g., more than half the viewport away)
-            if (distToPlayer > VIEWPORT_RADIUS / 2) {
-
-                // Check for overlap with existing OBSTACLES before placing a pickup/new obstacle
-                let overlaps = false;
-                for(const o of this.obstacles) {
-                    const dist = Math.hypot(x - o.x, y - o.y);
-                    if (dist < radius + o.radius + 10) { // +10 for buffer
-                        overlaps = true;
-                        break;
-                    }
-                }
-                if (!overlaps) {
-                    return { x, y };
-                }
-            }
-        } while (attempts < 50); // Prevent infinite loop
-
-        // Fallback: spawn near world center
-        return { x: WORLD_CENTER_X, y: WORLD_CENTER_Y };
     }
 
     spawnEnemy() {
@@ -3040,27 +3029,10 @@ class Game {
         const SPAWN_DISTANCE = VIEWPORT_RADIUS + 50;
 
         let spawnX, spawnY;
-        let attempts = 0;
-
-        do {
-            const angle = Math.random() * Math.PI * 2;
-            spawnX = this.player.x + Math.cos(angle) * SPAWN_DISTANCE;
-            spawnY = this.player.y + Math.sin(angle) * SPAWN_DISTANCE;
-            attempts++;
-
-            const distToWorldCenter = Math.hypot(spawnX - WORLD_CENTER_X, spawnY - WORLD_CENTER_Y);
-            if (distToWorldCenter > WORLD_RADIUS - 10) {
-                const angleFromCenter = Math.atan2(spawnY - WORLD_CENTER_Y, spawnX - WORLD_CENTER_X);
-                spawnX = WORLD_CENTER_X + Math.cos(angleFromCenter) * (WORLD_RADIUS - 10);
-                spawnY = WORLD_CENTER_Y + Math.sin(angleFromCenter) * (WORLD_RADIUS - 10);
-                break;
-            }
-            if (Math.hypot(spawnX - this.player.x, spawnY - this.player.y) >= VIEWPORT_RADIUS) {
-                break;
-            }
-        } while (attempts < 10);
-
-        if (attempts === 10) return;
+        // Simple circle spawn around player
+        const angle = Math.random() * Math.PI * 2;
+        spawnX = this.player.x + Math.cos(angle) * SPAWN_DISTANCE;
+        spawnY = this.player.y + Math.sin(angle) * SPAWN_DISTANCE;
 
         let enemy;
         const allowed = this.allowedEnemyTypes || ['default'];
@@ -3073,7 +3045,7 @@ class Game {
         else enemy = new DefaultSnake(spawnX, spawnY, waveFactor);
 
         this.enemies.push(enemy);
-        this.spatialGrid.insert(enemy); // Optimization
+        // this.spatialGrid.insert(enemy); // Optimization
     }
 
 
@@ -3219,13 +3191,6 @@ class Game {
 
                 e.x += Math.cos(angle) * BOUNCE_DISTANCE;
                 e.y += Math.sin(angle) * BOUNCE_DISTANCE;
-
-                const distToCenter = Math.hypot(e.x - WORLD_CENTER_X, e.y - WORLD_CENTER_Y);
-                if (distToCenter + e.radius > WORLD_RADIUS) {
-                    const clampAngle = Math.atan2(e.y - WORLD_CENTER_Y, e.x - WORLD_CENTER_X);
-                    e.x = WORLD_CENTER_X + Math.cos(clampAngle) * (WORLD_RADIUS - e.radius);
-                    e.y = WORLD_CENTER_Y + Math.sin(clampAngle) * (WORLD_RADIUS - e.radius);
-                }
             }
         });
 
@@ -3237,13 +3202,6 @@ class Game {
                 const overlap = (this.player.radius + o.radius) - dist;
                 this.player.x += Math.cos(angle) * overlap;
                 this.player.y += Math.sin(angle) * overlap;
-
-                const distToCenter = Math.hypot(this.player.x - WORLD_CENTER_X, this.player.y - WORLD_CENTER_Y);
-                if (distToCenter + this.player.radius > WORLD_RADIUS) {
-                    const clampAngle = Math.atan2(this.player.y - WORLD_CENTER_Y, this.player.x - WORLD_CENTER_X);
-                    this.player.x = WORLD_CENTER_X + Math.cos(clampAngle) * (WORLD_RADIUS - this.player.radius);
-                    this.player.y = WORLD_CENTER_Y + Math.sin(clampAngle) * (WORLD_RADIUS - this.player.radius);
-                }
             }
         });
 
@@ -3733,9 +3691,48 @@ class Game {
 
         this.player.update(this, deltaTime);
 
+        // --- CHUNK UPDATE LOGIC ---
+        const playerChunkCoords = this.chunkSystem.getChunkCoordinates(this.player.x, this.player.y);
+        const requiredChunks = new Set();
+
+        // Load 3x3 chunks around player
+        for(let x = -1; x <= 1; x++) {
+            for(let y = -1; y <= 1; y++) {
+                const key = `${playerChunkCoords.x + x},${playerChunkCoords.y + y}`;
+                requiredChunks.add(key);
+
+                if (!this.activeChunks.has(key)) {
+                    // Generate new chunk
+                    const chunkData = this.chunkSystem.generateChunkContent(playerChunkCoords.x + x, playerChunkCoords.y + y);
+                    this.activeChunks.set(key, chunkData);
+                }
+            }
+        }
+
+        // Unload far chunks
+        for (const [key, chunk] of this.activeChunks) {
+            if (!requiredChunks.has(key)) {
+                this.activeChunks.delete(key);
+            }
+        }
+
+        // Rebuild Obstacles Array from Active Chunks for Collision
+        this.obstacles = [];
+        for (const chunk of this.activeChunks.values()) {
+            this.obstacles.push(...chunk.obstacles);
+        }
+        // --- END CHUNK UPDATE ---
+
+
         // --- SPATIAL GRID POPULATION ---
         this.spatialGrid.clear();
         this.obstacles.forEach(o => this.spatialGrid.insert(o));
+
+        // Despawn far enemies
+        this.enemies = this.enemies.filter(e => {
+            const dist = Math.hypot(e.x - this.player.x, e.y - this.player.y);
+            return dist < 2000; // Keep enemies within 2000px
+        });
 
         this.enemies.forEach(e => {
             e.update(this, this.player, deltaTime);
@@ -3743,8 +3740,11 @@ class Game {
         });
         // --- END SPATIAL GRID ---
 
-        // FIX: Removed p.update(deltaTime) call for pickups as they don't have physics update logic
-        // this.pickups.forEach(p => p.update(deltaTime));
+        // Despawn far pickups
+        this.pickups = this.pickups.filter(p => {
+             const dist = Math.hypot(p.x - this.player.x, p.y - this.player.y);
+             return dist < 2000;
+        });
 
         this.explosions = this.explosions.filter(p => !p.update());
         this.enemyProjectiles = this.enemyProjectiles.filter(p => !p.update(deltaTime));
@@ -3761,7 +3761,7 @@ class Game {
     draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Set background color outside the arena (currently draws over the whole canvas)
+        // Fill with default background to avoid clearing artifacts
         ctx.fillStyle = '#1a202c';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -3773,42 +3773,25 @@ class Game {
         ctx.save(); // Save context state 1 (before translate)
         ctx.translate(cameraOffsetX, cameraOffsetY);
 
-        // 2. DRAW WORLD ELEMENTS
+        // 2. DRAW CHUNKS (Background & Obstacles)
+        for (const chunk of this.activeChunks.values()) {
+            // Draw Chunk Floor
+            ctx.fillStyle = chunk.biome.arenaBase;
+            ctx.fillRect(chunk.x, chunk.y, chunk.width, chunk.height);
 
-        // Draw World Boundary (The large explorable area floor)
-        ctx.beginPath();
-        ctx.arc(WORLD_CENTER_X, WORLD_CENTER_Y, WORLD_RADIUS, 0, Math.PI * 2);
-        ctx.fillStyle = currentPalette.arenaBase;
-        ctx.fill();
+            // Draw Decorations (Pebbles)
+            for (const dec of chunk.decorations) {
+                ctx.fillStyle = dec.color || chunk.biome.arenaPebbles;
+                ctx.fillRect(dec.x, dec.y, 2, 2);
+            }
 
-        // Add subtle shadow gradient for depth
-        const gradientDepth = ctx.createRadialGradient(WORLD_CENTER_X, WORLD_CENTER_Y, 0, WORLD_CENTER_X, WORLD_CENTER_Y, WORLD_RADIUS);
-        gradientDepth.addColorStop(0, 'rgba(0,0,0,0.05)');
-        gradientDepth.addColorStop(1, 'rgba(0,0,0,0.3)');
-        ctx.fillStyle = gradientDepth;
-        ctx.beginPath();
-        ctx.arc(WORLD_CENTER_X, WORLD_CENTER_Y, WORLD_RADIUS, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Add subtle randomized 'pebbles' for texture (dynamic color)
-        ctx.fillStyle = currentPalette.arenaPebbles;
-        for(let i=0; i<300; i++) {
-            const angle = Math.random() * Math.PI * 2;
-            const distance = Math.random() * WORLD_RADIUS;
-            const px = WORLD_CENTER_X + Math.cos(angle) * distance;
-            const py = WORLD_CENTER_Y + Math.sin(angle) * distance;
-            ctx.fillRect(px, py, 1, 1);
+            // Draw Obstacles (handled in entity loop usually, but here is fine since we have them in chunks)
+            // Actually, we gathered obstacles into this.obstacles, so we can draw them with entities later
+            // But drawing chunk background here is key.
         }
 
-        // Draw World Boundary Stroke (Outer edge of the entire game world)
-        ctx.strokeStyle = currentPalette.arenaBorder;
-        ctx.lineWidth = 10;
-        ctx.beginPath();
-        ctx.arc(WORLD_CENTER_X, WORLD_CENTER_Y, WORLD_RADIUS, 0, Math.PI * 2);
-        ctx.stroke();
-
         // 3. DRAW GAME ENTITIES
-        this.obstacles.forEach(o => o.draw(ctx));
+        this.obstacles.forEach(o => o.draw(ctx)); // Draw obstacles from active chunks
         this.pickups.forEach(p => p.draw(ctx));
         this.projectiles.forEach(p => p.draw(ctx));
         this.enemyProjectiles.forEach(p => p.draw(ctx));
