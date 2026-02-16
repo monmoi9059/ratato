@@ -1827,23 +1827,20 @@ class Enemy extends Entity {
     constructor(x, y, radius = 10, waveFactor = 1) {
         super(x, y, radius, null, 2.0); // Color handled by subclass/palette
 
-        // --- MODIFIED HEALTH SCALING FOR EXTREME DIFFICULTY ---
+        // --- NERFED HEALTH SCALING FOR BETTER BALANCE ---
 
-        // 1. Set a higher base linear increase for "way more health"
-        let baseHp = 50 + (waveFactor - 1) * 80; // Increased base HP and steeper linear scaling
+        // 1. Much gentler linear increase
+        let baseHp = 30 + (waveFactor - 1) * 20;
 
         let healthMultiplier = 1.0;
 
-        // 2. Apply exponential doubling starting from Wave 5
+        // 2. Removed exponential doubling, replaced with gentle curve
         if (waveFactor >= 5) {
-            // Wave 5 = 2^1, Wave 6 = 2^1, Wave 7 = 2^2, Wave 8 = 2^2, etc.
-            // Calculate how many times we've passed a 2-wave increment starting from Wave 5
-            const doublingCycles = Math.floor((waveFactor - 5) / 2) + 1;
-            healthMultiplier = Math.pow(2, doublingCycles);
+            healthMultiplier = 1.0 + ((waveFactor - 5) * 0.1); // +10% per minute after minute 5
         }
 
         this.maxHp = Math.floor(baseHp * healthMultiplier);
-        // --- END MODIFIED HEALTH SCALING ---
+        // --- END NERFED HEALTH SCALING ---
 
         this.currentHp = this.maxHp;
 
