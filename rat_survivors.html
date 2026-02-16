@@ -488,6 +488,39 @@ let animationFrameId;
 
 let highScore = parseInt(localStorage.getItem(HIGHSCORE_KEY) || '0', 10); // Load high score
 
+// --- SHOP & PERSISTENCE ---
+const STORAGE_KEY_GOLD = 'ratato_total_gold';
+const STORAGE_KEY_POWERUPS = 'ratato_powerups';
+
+let totalGold = parseInt(localStorage.getItem(STORAGE_KEY_GOLD) || '0', 10);
+let purchasedPowerUps = JSON.parse(localStorage.getItem(STORAGE_KEY_POWERUPS) || '{}');
+
+function saveGame() {
+    localStorage.setItem(STORAGE_KEY_GOLD, totalGold);
+    localStorage.setItem(STORAGE_KEY_POWERUPS, JSON.stringify(purchasedPowerUps));
+}
+
+const POWER_UP_STATS = {
+    might: { name: "Might", description: "Increases damage dealt by 5%.", cost: 200, maxRank: 5, stat: 'damageMultiplier', amount: 0.05 },
+    armor: { name: "Armor", description: "Reduces incoming damage by 1.", cost: 600, maxRank: 3, stat: 'armor', amount: 1 },
+    maxHealth: { name: "Max Health", description: "Increases max health by 10%.", cost: 200, maxRank: 5, stat: 'maxHp', amount: 0.1 }, // Multiplier logic needed or flat? VS is %
+    recovery: { name: "Recovery", description: "Recovers 0.1 HP per second.", cost: 200, maxRank: 5, stat: 'hpRegen', amount: 0.1 },
+    cooldown: { name: "Cooldown", description: "Reduces weapon cooldowns by 2.5%.", cost: 900, maxRank: 2, stat: 'fireRateReduction', amount: 0.025 },
+    area: { name: "Area", description: "Increases area of effect by 5%.", cost: 300, maxRank: 2, stat: 'attackRangeMultiplier', amount: 0.05 },
+    speed: { name: "Speed", description: "Increases projectile speed by 10%.", cost: 300, maxRank: 2, stat: 'projectileSpeed', amount: 0.1 }, // Need to implement prop
+    duration: { name: "Duration", description: "Increases effect duration by 15%.", cost: 300, maxRank: 2, stat: 'durationMultiplier', amount: 0.15 },
+    amount: { name: "Amount", description: "Fires +1 projectile (Max 1).", cost: 5000, maxRank: 1, stat: 'projectileCountBonus', amount: 1 },
+    moveSpeed: { name: "Move Speed", description: "Increases movement speed by 5%.", cost: 300, maxRank: 2, stat: 'baseSpeed', amount: 0.05 }, // Multiplier logic needed
+    magnet: { name: "Magnet", description: "Increases item pickup range by 25%.", cost: 300, maxRank: 2, stat: 'magnetRange', amount: 0.25 }, // Multiplier logic needed
+    luck: { name: "Luck", description: "Increases luck by 10%.", cost: 600, maxRank: 3, stat: 'luck', amount: 0.1 },
+    greed: { name: "Greed", description: "Gains 10% more coins.", cost: 200, maxRank: 5, stat: 'greed', amount: 0.1 },
+    growth: { name: "Growth", description: "Gains 3% more experience.", cost: 900, maxRank: 5, stat: 'xpMultiplier', amount: 0.03 },
+    skip: { name: "Skip", description: "+1 Skip per rank.", cost: 100, maxRank: 2, stat: 'skips', amount: 1 },
+    reroll: { name: "Reroll", description: "+1 Reroll per rank.", cost: 1000, maxRank: 2, stat: 'rerolls', amount: 1 },
+    revival: { name: "Revival", description: "+1 Revival (Max 1).", cost: 10000, maxRank: 1, stat: 'revivals', amount: 1 },
+    curse: { name: "Curse", description: "Increases enemy speed, health, spawn rate by 10%.", cost: 1666, maxRank: 5, stat: 'curse', amount: 0.1 }
+};
+
 // --- DYNAMIC COLOR PALETTES (Swaps every 10 waves) ---
 const COLOR_PALETTES = {
     // Standard Dirt Arena (Wave 1-9, 41-49, etc.)
@@ -555,307 +588,461 @@ const RANGED_AFFINITY_RANGE = 2.0; // +100% base ranged range
 const SPREAD_AFFINITY_PROJ = 3;   // +3 base projectiles
 
 const CHARACTERS = {
-    // 1. The Melee/Tank
-    brawler: {
-        name: "The Brawler",
-        description: "Focus: Tank/Melee. High HP and Armor with massive melee reach.",
+    // 1. Rattonio (Antonio)
+    rattonio: {
+        name: "Rattonio Belpaese",
+        description: "Gains 10% more damage every 10 levels (max +50%). High HP.",
         initialStats: {
-            maxHp: 500, baseSpeed: 3.5, damageMultiplier: 1.0, armor: 4, evasion: 0.0,
-            projectileCountBonus: 0, fireRateReduction: 1.0, attackRangeMultiplier: 0.9, shield: 10, bounceCount: 0,
-            lifestealPercentage: 0.0, currency: 0, maxWeapons: 6,
-            meleeRangeMultiplier: MELEE_AFFINITY_RANGE // NEW AFFINITY
+            maxHp: 120, baseSpeed: 3.5, damageMultiplier: 1.1, armor: 1, evasion: 0,
+            projectileCountBonus: 0, fireRateReduction: 1.0, attackRangeMultiplier: 1.0, shield: 0, bounceCount: 0,
+            lifestealPercentage: 0, currency: 0, maxWeapons: 6, meleeRangeMultiplier: 1.0,
+            luck: 1.0, magnetRange: 50, xpMultiplier: 1.0, revivals: 0, curse: 1.0, greed: 1.0
         },
-        ratColors: { main: '#713e2f', light: '#a0522d', detail: '#4a2500' },
-        starterWeapon: 'tailWhip'
+        ratColors: { main: '#8B4513', light: '#DEB887', detail: '#5D4037' }, // Brown
+        starterWeapon: 'whip',
+        accessories: [{ type: 'bandana', color: '#ff0000' }]
     },
-    // 2. The Heavy Ranged
-    sharpshooter: {
-        name: "The Sharpshooter",
-        description: "Focus: Pure Damage/Range. Extreme damage and range for true sniping.",
+    // 2. Rammelda (Imelda)
+    rammelda: {
+        name: "Rammelda Belpaese",
+        description: "Gains 10% more experience every 5 levels (max +30%).",
         initialStats: {
-            maxHp: 160, baseSpeed: 4.0, damageMultiplier: 1.8, armor: 0, evasion: 0.05,
-            projectileCountBonus: 0, fireRateReduction: 0.9, attackRangeMultiplier: RANGED_AFFINITY_RANGE, shield: 0, bounceCount: 0,
-            lifestealPercentage: 0.0, currency: 0, maxWeapons: 6,
-            meleeRangeMultiplier: 1.0
+            maxHp: 100, baseSpeed: 4.0, damageMultiplier: 1.0, armor: 0, evasion: 0,
+            projectileCountBonus: 0, fireRateReduction: 1.0, attackRangeMultiplier: 1.0, shield: 0, bounceCount: 0,
+            lifestealPercentage: 0, currency: 0, maxWeapons: 6, meleeRangeMultiplier: 1.0,
+            luck: 1.0, magnetRange: 60, xpMultiplier: 1.1, revivals: 0, curse: 1.0, greed: 1.0
         },
-        ratColors: { main: '#3182ce', light: '#63b3ed', detail: '#2b6cb0' },
-        starterWeapon: 'dagger'
+        ratColors: { main: '#A0522D', light: '#F4A460', detail: '#800080' }, // Sienna w/ Purple
+        starterWeapon: 'magicWand',
+        accessories: [{ type: 'ribbon', color: '#800080' }]
     },
-    // 3. The Evasion/Speedster
-    fleetfoot: {
-        name: "The Fleetfoot",
-        description: "Focus: Speed/Bounce. Max speed and evasion, plus starting bounce utility.",
+    // 3. Ratsqualina (Pasqualina)
+    ratsqualina: {
+        name: "Ratsqualina Belpaese",
+        description: "Projectiles get +10% speed every 5 levels (max +30%).",
         initialStats: {
-            maxHp: 180, baseSpeed: 7.0, damageMultiplier: 0.9, armor: 0, evasion: 0.25,
-            projectileCountBonus: 0, fireRateReduction: 1.1, attackRangeMultiplier: 1.0, shield: 0, bounceCount: 2, // Boosted starting bounce
-            lifestealPercentage: 0.0, currency: 0, maxWeapons: 6,
-            meleeRangeMultiplier: 1.0
+            maxHp: 100, baseSpeed: 3.8, damageMultiplier: 1.0, armor: 0, evasion: 0,
+            projectileCountBonus: 0, fireRateReduction: 1.0, attackRangeMultiplier: 1.0, shield: 0, bounceCount: 1,
+            lifestealPercentage: 0, currency: 0, maxWeapons: 6, meleeRangeMultiplier: 1.0,
+            luck: 1.0, magnetRange: 50, xpMultiplier: 1.0, revivals: 0, curse: 1.0, greed: 1.0
         },
-        ratColors: { main: '#f6ad55', light: '#ffc785', detail: '#dd6b20' },
-        starterWeapon: 'dagger'
+        ratColors: { main: '#CD853F', light: '#FFDAB9', detail: '#4682B4' }, // Peru w/ Blue
+        starterWeapon: 'runetracer',
+        accessories: [{ type: 'hat_wizard', color: '#4682B4' }]
     },
-    // 4. The Fast Melee
-    swordsman: {
-        name: "The Swordsman",
-        description: "Focus: Melee Speed/Range. Hyper fast attack rate and massive melee reach.",
+    // 4. Ratnaro (Gennaro)
+    ratnaro: {
+        name: "Ratnaro Belpaese",
+        description: "Permanent +1 projectile count to all weapons.",
         initialStats: {
-            maxHp: 320, baseSpeed: 5.0, damageMultiplier: 1.1, armor: 1, evasion: 0.10,
-            projectileCountBonus: 2, fireRateReduction: 1.3, attackRangeMultiplier: 1.0, shield: 5, bounceCount: 0,
-            lifestealPercentage: 0.0, currency: 0, maxWeapons: 6,
-            meleeRangeMultiplier: MELEE_AFFINITY_RANGE // NEW AFFINITY
+            maxHp: 110, baseSpeed: 4.0, damageMultiplier: 1.0, armor: 0, evasion: 0,
+            projectileCountBonus: 1, fireRateReduction: 1.0, attackRangeMultiplier: 1.0, shield: 0, bounceCount: 0,
+            lifestealPercentage: 0, currency: 0, maxWeapons: 6, meleeRangeMultiplier: 1.0,
+            luck: 1.0, magnetRange: 50, xpMultiplier: 1.0, revivals: 0, curse: 1.0, greed: 1.0
         },
-        ratColors: { main: '#b0b0b0', light: '#c0c0c0', detail: '#737373' },
-        starterWeapon: 'tailWhip'
+        ratColors: { main: '#696969', light: '#D3D3D3', detail: '#000000' }, // Grey
+        starterWeapon: 'knife',
+        accessories: [{ type: 'bandana', color: '#333' }]
     },
-    // 5. The Projectile Volley
-    shogun: {
-        name: "The Shogun",
-        description: "Focus: Spread/Projectiles. Massive starting volley count and high defense.",
+    // 5. Raca (Arca)
+    raca: {
+        name: "Raca Ladonna",
+        description: "Weapon cooldown reduces by 5% every 10 levels (max -15%).",
         initialStats: {
-            maxHp: 280, baseSpeed: 4.3, damageMultiplier: 1.1, armor: 2, evasion: 0.0,
-            projectileCountBonus: SPREAD_AFFINITY_PROJ, fireRateReduction: 1.0, attackRangeMultiplier: 1.0, shield: 0, bounceCount: 0,
-            lifestealPercentage: 0.0, currency: 0, maxWeapons: 6,
-            meleeRangeMultiplier: 1.0
+            maxHp: 100, baseSpeed: 3.8, damageMultiplier: 1.0, armor: 0, evasion: 0,
+            projectileCountBonus: 0, fireRateReduction: 1.1, attackRangeMultiplier: 1.0, shield: 0, bounceCount: 0,
+            lifestealPercentage: 0, currency: 0, maxWeapons: 6, meleeRangeMultiplier: 1.0,
+            luck: 1.0, magnetRange: 50, xpMultiplier: 1.0, revivals: 0, curse: 1.0, greed: 1.0
         },
-        ratColors: { main: '#713e2f', light: '#a0522d', detail: '#dd6b20' },
-        starterWeapon: 'magicCheese'
+        ratColors: { main: '#B22222', light: '#FA8072', detail: '#FF4500' }, // Fire Red
+        starterWeapon: 'fireWand',
+        accessories: [{ type: 'beard', color: '#FF4500' }]
     },
-    // 6. The Long Range Sniper
-    marksman: {
-        name: "The Marksman",
-        description: "Focus: Range/Precision. Unmatched projectile travel distance and high damage.",
+    // 6. Rorta (Porta)
+    rorta: {
+        name: "Rorta Ladonna",
+        description: "Permanent +30% Area. Starts with temporary cooldown bonus.",
         initialStats: {
-            maxHp: 200, baseSpeed: 4.3, damageMultiplier: 1.3, armor: 0, evasion: 0.05,
-            projectileCountBonus: 0, fireRateReduction: 0.9, attackRangeMultiplier: RANGED_AFFINITY_RANGE, shield: 0, bounceCount: 0,
-            lifestealPercentage: 0.0, currency: 0, maxWeapons: 6,
-            meleeRangeMultiplier: 1.0
+            maxHp: 120, baseSpeed: 3.5, damageMultiplier: 1.0, armor: 0, evasion: 0,
+            projectileCountBonus: 0, fireRateReduction: 1.0, attackRangeMultiplier: 1.3, shield: 0, bounceCount: 0,
+            lifestealPercentage: 0, currency: 0, maxWeapons: 6, meleeRangeMultiplier: 1.0,
+            luck: 1.0, magnetRange: 50, xpMultiplier: 1.0, revivals: 0, curse: 1.0, greed: 1.0
         },
-        ratColors: { main: '#a0aec0', light: '#b0c4de', detail: '#63b3ed' },
-        starterWeapon: 'dagger'
+        ratColors: { main: '#4B0082', light: '#9370DB', detail: '#8A2BE2' }, // Indigo
+        starterWeapon: 'lightningRing',
+        accessories: [{ type: 'hood', color: '#4B0082' }]
     },
-    // 7. The Sustain DPS
-    minigunner: {
-        name: "The Minigunner",
-        description: "Focus: Fire Rate/Range. Top attack speed and solid range for sustained DPS.",
+    // 7. Rama (Lama)
+    rama: {
+        name: "Rama Ladonna",
+        description: "Gains +5% Might, MoveSpeed, and Curse every 10 levels (max +20%).",
         initialStats: {
-            maxHp: 240, baseSpeed: 4.7, damageMultiplier: 1.0, armor: 0, evasion: 0.0,
-            projectileCountBonus: 2, fireRateReduction: 1.7, attackRangeMultiplier: RANGED_AFFINITY_RANGE, shield: 0, bounceCount: 0,
-            lifestealPercentage: 0.0, currency: 0, maxWeapons: 6,
-            meleeRangeMultiplier: 1.0
+            maxHp: 110, baseSpeed: 4.2, damageMultiplier: 1.1, armor: 0, evasion: 0,
+            projectileCountBonus: 0, fireRateReduction: 1.0, attackRangeMultiplier: 1.0, shield: 0, bounceCount: 0,
+            lifestealPercentage: 0, currency: 0, maxWeapons: 6, meleeRangeMultiplier: 1.0,
+            luck: 1.0, magnetRange: 50, xpMultiplier: 1.0, revivals: 0, curse: 1.1, greed: 1.0
         },
-        ratColors: { main: '#5c646c', light: '#80878e', detail: '#3b4455' },
-        starterWeapon: 'magicCheese'
+        ratColors: { main: '#8B0000', light: '#CD5C5C', detail: '#000' }, // Dark Red
+        starterWeapon: 'axe',
+        accessories: [{ type: 'beard', color: '#000' }]
     },
-    // 8. The AoE Specialist
-    pyro: {
-        name: "The Pyro",
-        description: "Focus: Fire Rate/AoE. High attack speed and evasion for close-range clearing.",
+    // 8. Poe Ratcho (Poe)
+    poe: {
+        name: "Poe Ratcho",
+        description: "Permanent +25% Pickup Range. Starts with -30 Max Health.",
         initialStats: {
-            maxHp: 260, baseSpeed: 4.5, damageMultiplier: 1.1, armor: 0, evasion: 0.20,
-            projectileCountBonus: 2, fireRateReduction: 1.5, // Boosted fire rate and projectiles
-            attackRangeMultiplier: 0.7, shield: 0, bounceCount: 0,
-            lifestealPercentage: 0.0, currency: 0, maxWeapons: 6,
-            meleeRangeMultiplier: 1.0
+            maxHp: 70, baseSpeed: 3.5, damageMultiplier: 1.0, armor: 0, evasion: 0,
+            projectileCountBonus: 0, fireRateReduction: 1.0, attackRangeMultiplier: 1.0, shield: 0, bounceCount: 0,
+            lifestealPercentage: 0, currency: 0, maxWeapons: 6, meleeRangeMultiplier: 1.0,
+            luck: 1.0, magnetRange: 100, xpMultiplier: 1.0, revivals: 0, curse: 1.0, greed: 1.0
         },
-        ratColors: { main: '#e53e3e', light: '#f6ad55', detail: '#ff4500' },
-        starterWeapon: 'molotov'
+        ratColors: { main: '#F5DEB3', light: '#FFF8DC', detail: '#D2691E' }, // Old/Beige
+        starterWeapon: 'garlic',
+        accessories: [{ type: 'beard', color: '#fff' }, { type: 'glasses', color: '#000' }]
     },
-    // 9. The Explosives Expert
-    rocketRat: {
-        name: "The Rocket Rat",
-        description: "Focus: Explosives/HP. Highest damage multiplier and high HP for heavy ordnance.",
+    // 9. Suor Ratrica (Clerici)
+    ratrica: {
+        name: "Suor Ratrica",
+        description: "Permanent +0.5 HP Recovery and +50 Max Health.",
         initialStats: {
-            maxHp: 400, baseSpeed: 3.5, damageMultiplier: 2.0, armor: 1, evasion: 0.0,
-            projectileCountBonus: 0, fireRateReduction: 0.8, attackRangeMultiplier: 1.0, shield: 15, bounceCount: 0,
-            lifestealPercentage: 0.0, currency: 0, maxWeapons: 6,
-            meleeRangeMultiplier: 1.0
+            maxHp: 150, baseSpeed: 3.5, damageMultiplier: 1.0, armor: 0, evasion: 0,
+            projectileCountBonus: 0, fireRateReduction: 1.0, attackRangeMultiplier: 1.0, shield: 0, bounceCount: 0,
+            lifestealPercentage: 0, currency: 0, maxWeapons: 6, meleeRangeMultiplier: 1.0,
+            luck: 1.0, magnetRange: 50, xpMultiplier: 1.0, revivals: 0, curse: 1.0, greed: 1.0,
+            hpRegen: 0.5
         },
-        ratColors: { main: '#6b46c1', light: '#9f7aea', detail: '#44337a' },
-        starterWeapon: 'axe'
+        ratColors: { main: '#4682B4', light: '#87CEEB', detail: '#000080' }, // Blue nun
+        starterWeapon: 'santaWater',
+        accessories: [{ type: 'hood', color: '#000080' }]
+    },
+    // 10. Ratommario (Dommario)
+    ratommario: {
+        name: "Ratommario",
+        description: "Permanent +40% Duration and Speed. -40% MoveSpeed.",
+        initialStats: {
+            maxHp: 100, baseSpeed: 2.5, damageMultiplier: 1.0, armor: 0, evasion: 0,
+            projectileCountBonus: 0, fireRateReduction: 1.4, attackRangeMultiplier: 1.0, shield: 0, bounceCount: 0,
+            lifestealPercentage: 0, currency: 0, maxWeapons: 6, meleeRangeMultiplier: 1.0,
+            luck: 1.0, magnetRange: 50, xpMultiplier: 1.0, revivals: 0, curse: 1.0, greed: 1.0
+        },
+        ratColors: { main: '#DC143C', light: '#FF6347', detail: '#FFD700' }, // Cardinal Red
+        starterWeapon: 'kingBible',
+        accessories: [{ type: 'hat_wizard', color: '#DC143C' }, { type: 'beard', color: '#ccc' }]
+    },
+    // 11. Ratochi (Krochi)
+    ratochi: {
+        name: "Ratochi Freetto",
+        description: "Starts with 1 Revival. Gains +1 Revival at Level 33.",
+        initialStats: {
+            maxHp: 100, baseSpeed: 5.0, damageMultiplier: 1.0, armor: 0, evasion: 0,
+            projectileCountBonus: 0, fireRateReduction: 1.0, attackRangeMultiplier: 1.0, shield: 0, bounceCount: 0,
+            lifestealPercentage: 0, currency: 0, maxWeapons: 6, meleeRangeMultiplier: 1.0,
+            luck: 1.0, magnetRange: 50, xpMultiplier: 1.0, revivals: 1, curse: 1.0, greed: 1.0
+        },
+        ratColors: { main: '#800000', light: '#A52A2A', detail: '#000' }, // Demon red
+        starterWeapon: 'cross',
+        accessories: [{ type: 'mohawk', color: '#f00' }]
+    },
+    // 12. Ratstine (Christine)
+    ratstine: {
+        name: "Ratstine Davain",
+        description: "Starts with 1 level in Pentagram. -50% cooldown reduction.",
+        initialStats: {
+            maxHp: 50, baseSpeed: 4.5, damageMultiplier: 0.8, armor: 0, evasion: 0,
+            projectileCountBonus: 0, fireRateReduction: 1.5, attackRangeMultiplier: 1.0, shield: 0, bounceCount: 0,
+            lifestealPercentage: 0, currency: 0, maxWeapons: 6, meleeRangeMultiplier: 1.0,
+            luck: 1.3, magnetRange: 50, xpMultiplier: 1.2, revivals: 0, curse: 1.0, greed: 1.0
+        },
+        ratColors: { main: '#F0FFFF', light: '#FFFFFF', detail: '#ADD8E6' }, // White/Ice
+        starterWeapon: 'pentagram',
+        accessories: [{ type: 'ribbon', color: '#ADD8E6' }]
+    },
+    // 13. Ratnala (Pugnala)
+    ratnala: {
+        name: "Ratnala Provola",
+        description: "Gains +1% Might every level (no cap).",
+        initialStats: {
+            maxHp: 100, baseSpeed: 4.0, damageMultiplier: 1.0, armor: 0, evasion: 0,
+            projectileCountBonus: 0, fireRateReduction: 1.0, attackRangeMultiplier: 1.0, shield: 0, bounceCount: 0,
+            lifestealPercentage: 0, currency: 0, maxWeapons: 6, meleeRangeMultiplier: 1.0,
+            luck: 1.0, magnetRange: 50, xpMultiplier: 1.0, revivals: 0, curse: 1.0, greed: 1.0
+        },
+        ratColors: { main: '#C0C0C0', light: '#DCDCDC', detail: '#FF00FF' }, // Silver w/ Pink
+        starterWeapon: 'guns',
+        accessories: [{ type: 'hat_wizard', color: '#FF00FF' }]
+    },
+    // 14. Rattaccio (Mortaccio)
+    rattaccio: {
+        name: "Rattaccio",
+        description: "Gains +1 Projectile every 20 levels (max +3).",
+        initialStats: {
+            maxHp: 100, baseSpeed: 3.5, damageMultiplier: 1.0, armor: 1, evasion: 0,
+            projectileCountBonus: 0, fireRateReduction: 1.0, attackRangeMultiplier: 1.0, shield: 0, bounceCount: 0,
+            lifestealPercentage: 0, currency: 0, maxWeapons: 6, meleeRangeMultiplier: 1.0,
+            luck: 1.0, magnetRange: 50, xpMultiplier: 1.0, revivals: 0, curse: 1.0, greed: 1.0
+        },
+        ratColors: { main: '#F5F5DC', light: '#FFFFF0', detail: '#8B4513' }, // Bone
+        starterWeapon: 'bone',
+        accessories: []
+    },
+    // 15. Ravallo (Cavallo)
+    ravallo: {
+        name: "Yatta Ravallo",
+        description: "Gains +1 Projectile every 20 levels (max +3).",
+        initialStats: {
+            maxHp: 100, baseSpeed: 3.5, damageMultiplier: 1.0, armor: 1, evasion: 0,
+            projectileCountBonus: 0, fireRateReduction: 1.0, attackRangeMultiplier: 1.0, shield: 0, bounceCount: 0,
+            lifestealPercentage: 0, currency: 0, maxWeapons: 6, meleeRangeMultiplier: 1.0,
+            luck: 1.1, magnetRange: 50, xpMultiplier: 1.0, revivals: 0, curse: 1.0, greed: 1.0
+        },
+        ratColors: { main: '#A52A2A', light: '#D2691E', detail: '#000' }, // Brown/Panda?
+        starterWeapon: 'cherryBomb',
+        accessories: [{ type: 'glasses', color: '#000' }]
+    },
+    // 16. Ramba (Bianca Ramba)
+    ramba: {
+        name: "Bianca Ramba",
+        description: "Gains +1 Projectile every 20 levels (max +3).",
+        initialStats: {
+            maxHp: 100, baseSpeed: 3.5, damageMultiplier: 1.0, armor: 1, evasion: 0,
+            projectileCountBonus: 0, fireRateReduction: 1.0, attackRangeMultiplier: 1.0, shield: 0, bounceCount: 0,
+            lifestealPercentage: 0, currency: 0, maxWeapons: 6, meleeRangeMultiplier: 1.0,
+            luck: 1.0, magnetRange: 50, xpMultiplier: 1.0, revivals: 0, curse: 1.0, greed: 1.0
+        },
+        ratColors: { main: '#FFFFE0', light: '#FFFFF0', detail: '#808080' }, // Old lady
+        starterWeapon: 'carrello',
+        accessories: []
+    },
+    // 17. Rat'Sole (O'Sole Meeo)
+    ratsole: {
+        name: "Rat'Sole Meeo",
+        description: "Gains +1 Projectile every 20 levels (max +3).",
+        initialStats: {
+            maxHp: 100, baseSpeed: 3.5, damageMultiplier: 1.0, armor: 0, evasion: 0,
+            projectileCountBonus: 0, fireRateReduction: 1.0, attackRangeMultiplier: 1.0, shield: 0, bounceCount: 0,
+            lifestealPercentage: 0, currency: 0, maxWeapons: 6, meleeRangeMultiplier: 1.0,
+            luck: 1.0, magnetRange: 50, xpMultiplier: 1.0, revivals: 0, curse: 1.0, greed: 1.0
+        },
+        ratColors: { main: '#FFF', light: '#EEE', detail: '#FFD700' }, // Dog
+        starterWeapon: 'celestialDusting',
+        accessories: []
+    },
+    // 18. Rambojoe (Ambrojoe)
+    rambojoe: {
+        name: "Sir Rambojoe",
+        description: "Gains +1 Projectile every 20 levels (max +3).",
+        initialStats: {
+            maxHp: 100, baseSpeed: 3.5, damageMultiplier: 1.0, armor: 0, evasion: 0,
+            projectileCountBonus: 0, fireRateReduction: 1.0, attackRangeMultiplier: 1.0, shield: 0, bounceCount: 0,
+            lifestealPercentage: 0, currency: 0, maxWeapons: 6, meleeRangeMultiplier: 1.0,
+            luck: 1.2, magnetRange: 50, xpMultiplier: 1.0, revivals: 0, curse: 1.0, greed: 1.0
+        },
+        ratColors: { main: '#000', light: '#333', detail: '#fff' }, // Tuxedo
+        starterWeapon: 'laRobba',
+        accessories: [{ type: 'hat_wizard', color: '#000' }]
+    },
+    // 19. Rallo (Gallo)
+    rallo: {
+        name: "Iguana Rallo",
+        description: "Permanent +15% Duration. -15% Cooldown. +3 Reroll/Skip.",
+        initialStats: {
+            maxHp: 100, baseSpeed: 3.5, damageMultiplier: 1.0, armor: 0, evasion: 0,
+            projectileCountBonus: 0, fireRateReduction: 1.15, attackRangeMultiplier: 1.0, shield: 0, bounceCount: 0,
+            lifestealPercentage: 0, currency: 0, maxWeapons: 6, meleeRangeMultiplier: 1.0,
+            luck: 1.0, magnetRange: 50, xpMultiplier: 1.0, revivals: 0, curse: 1.0, greed: 1.0,
+            rerolls: 3, skips: 3
+        },
+        ratColors: { main: '#FFA500', light: '#FFD700', detail: '#FF4500' }, // Orange
+        starterWeapon: 'clockLancet',
+        accessories: []
+    },
+    // 20. Rivano (Divano)
+    rivano: {
+        name: "Rivano Thelma",
+        description: "Permanent +5 Armor. +3 Reroll/Banish.",
+        initialStats: {
+            maxHp: 100, baseSpeed: 3.5, damageMultiplier: 1.0, armor: 5, evasion: 0,
+            projectileCountBonus: 0, fireRateReduction: 1.0, attackRangeMultiplier: 1.0, shield: 0, bounceCount: 0,
+            lifestealPercentage: 0, currency: 0, maxWeapons: 6, meleeRangeMultiplier: 1.0,
+            luck: 1.0, magnetRange: 50, xpMultiplier: 1.3, revivals: 0, curse: 1.0, greed: 1.0,
+            rerolls: 3, banishes: 3
+        },
+        ratColors: { main: '#800080', light: '#9370DB', detail: '#fff' }, // Purple
+        starterWeapon: 'laurel',
+        accessories: []
+    },
+    // 21. Queen Rat (Sigma)
+    queenrat: {
+        name: "Queen Rat Sigma",
+        description: "She owns everything. Extreme stats.",
+        initialStats: {
+            maxHp: 333, baseSpeed: 5.0, damageMultiplier: 1.5, armor: 3, evasion: 0.1,
+            projectileCountBonus: 1, fireRateReduction: 1.2, attackRangeMultiplier: 1.2, shield: 0, bounceCount: 1,
+            lifestealPercentage: 0, currency: 0, maxWeapons: 6, meleeRangeMultiplier: 1.2,
+            luck: 1.5, magnetRange: 100, xpMultiplier: 1.5, revivals: 3, curse: 1.0, greed: 1.0,
+            rerolls: 5, skips: 5, banishes: 5
+        },
+        ratColors: { main: '#FFD700', light: '#FFFACD', detail: '#DAA520' }, // Gold
+        starterWeapon: 'victorySword',
+        accessories: [{ type: 'hat_wizard', color: '#FFD700' }]
     }
 };
+
+// --- WEAPON HELPER ---
+function createWeapon(key, name, emoji, description, type, requiredPassive, evolvesTo, iconColor, baseStats, levelUpgrades) {
+    const levels = [];
+    // Level 1: Base Stats
+    let currentStats = { ...baseStats };
+    levels.push({ ...currentStats });
+
+    // Generate Levels 2-8 (i=0 is Level 2)
+    for (let i = 0; i < 7; i++) {
+        const upgrade = (levelUpgrades && i < levelUpgrades.length) ? levelUpgrades[i] : null;
+        if (upgrade) {
+            Object.keys(upgrade).forEach(k => {
+                // If the key exists in base stats and is a number, treat as delta
+                if (typeof currentStats[k] === 'number' && typeof upgrade[k] === 'number') {
+                     currentStats[k] += upgrade[k];
+                } else {
+                     // Otherwise override (e.g. changing cooldown significantly or non-numeric)
+                     currentStats[k] = upgrade[k];
+                }
+            });
+        }
+        levels.push({ ...currentStats });
+    }
+
+    return {
+        key, name, emoji, description, type, requiredPassive, evolvesTo, iconColor, levels
+    };
+}
 
 
 // --- WEAPON DEFINITIONS ---
 const WEAPONS = {
-    // 1. MAGIC WAND (Nearest)
-    magicCheese: {
-        key: 'magicCheese', name: "Magic Cheese", emoji: "🧀",
-        description: "Fires a projectile at the nearest enemy.",
-        type: 'projectile-nearest',
-        requiredPassive: 'emptyTome', evolvesTo: 'minigunCheese',
-        iconColor: '#f6ad55',
-        levels: [
-            { damage: 10, amount: 1, cooldown: 1000, area: 1, speed: 10, duration: 0, knockback: 2, pierce: 0 },
-            { damage: 10, amount: 2, cooldown: 1000, area: 1, speed: 10, duration: 0, knockback: 2, pierce: 0 },
-            { damage: 10, amount: 2, cooldown: 900,  area: 1, speed: 10, duration: 0, knockback: 2, pierce: 0 },
-            { damage: 15, amount: 3, cooldown: 900,  area: 1, speed: 10, duration: 0, knockback: 2, pierce: 0 },
-            { damage: 15, amount: 3, cooldown: 900,  area: 1, speed: 10, duration: 0, knockback: 2, pierce: 1 },
-            { damage: 15, amount: 3, cooldown: 800,  area: 1, speed: 10, duration: 0, knockback: 2, pierce: 1 },
-            { damage: 20, amount: 4, cooldown: 800,  area: 1, speed: 10, duration: 0, knockback: 2, pierce: 1 },
-            { damage: 20, amount: 4, cooldown: 800,  area: 1, speed: 10, duration: 0, knockback: 2, pierce: 2 }
-        ]
-    },
-    // 2. KNIFE (Facing)
-    dagger: {
-        key: 'dagger', name: "Dagger", emoji: "🗡️",
-        description: "Fires quickly in the direction you are facing.",
-        type: 'projectile-facing',
-        requiredPassive: 'bracer', evolvesTo: 'thousandDaggers',
-        iconColor: '#718096',
-        levels: [
-            { damage: 6, amount: 1, cooldown: 300, area: 1, speed: 15, duration: 0, knockback: 1, pierce: 0 },
-            { damage: 6, amount: 2, cooldown: 300, area: 1, speed: 15, duration: 0, knockback: 1, pierce: 0 },
-            { damage: 6, amount: 3, cooldown: 300, area: 1, speed: 15, duration: 0, knockback: 1, pierce: 0 },
-            { damage: 9, amount: 3, cooldown: 300, area: 1, speed: 15, duration: 0, knockback: 1, pierce: 0 },
-            { damage: 9, amount: 4, cooldown: 300, area: 1, speed: 15, duration: 0, knockback: 1, pierce: 1 },
-            { damage: 9, amount: 4, cooldown: 300, area: 1, speed: 15, duration: 0, knockback: 1, pierce: 1 },
-            { damage: 12, amount: 5, cooldown: 300, area: 1, speed: 15, duration: 0, knockback: 1, pierce: 1 },
-            { damage: 12, amount: 5, cooldown: 300, area: 1, speed: 15, duration: 0, knockback: 1, pierce: 2 }
-        ]
-    },
-    // 3. AXE (Upward Arc)
-    axe: {
-        key: 'axe', name: "Axe", emoji: "🪓",
-        description: "Throws an axe in a high arc.",
-        type: 'projectile-upward',
-        requiredPassive: 'candelabrador', evolvesTo: 'deathSpiral',
-        iconColor: '#713e2f',
-        levels: [
-            { damage: 20, amount: 1, cooldown: 1500, area: 1.5, speed: 8, duration: 0, knockback: 5, pierce: 99 },
-            { damage: 20, amount: 2, cooldown: 1500, area: 1.5, speed: 8, duration: 0, knockback: 5, pierce: 99 },
-            { damage: 30, amount: 2, cooldown: 1500, area: 1.5, speed: 8, duration: 0, knockback: 5, pierce: 99 },
-            { damage: 30, amount: 2, cooldown: 1500, area: 1.7, speed: 8, duration: 0, knockback: 5, pierce: 99 },
-            { damage: 40, amount: 3, cooldown: 1500, area: 1.7, speed: 8, duration: 0, knockback: 5, pierce: 99 },
-            { damage: 40, amount: 3, cooldown: 1500, area: 1.7, speed: 8, duration: 0, knockback: 5, pierce: 99 },
-            { damage: 50, amount: 3, cooldown: 1300, area: 1.9, speed: 8, duration: 0, knockback: 5, pierce: 99 },
-            { damage: 50, amount: 4, cooldown: 1300, area: 1.9, speed: 8, duration: 0, knockback: 5, pierce: 99 }
-        ]
-    },
-    // 4. WHIP (Horizontal)
-    tailWhip: {
-        key: 'tailWhip', name: "Tail Whip", emoji: "🐁",
-        description: "Strikes horizontally, passing through enemies.",
-        type: 'directional-melee',
-        requiredPassive: 'emptyHeart', evolvesTo: 'bloodyTail',
-        iconColor: '#b794f4',
-        levels: [
-            { damage: 10, amount: 1, cooldown: 1350, area: 1.0, speed: 0, duration: 200, knockback: 3, pierce: 99 },
-            { damage: 10, amount: 1, cooldown: 1350, area: 1.0, speed: 0, duration: 200, knockback: 3, pierce: 99 },
-            { damage: 15, amount: 1, cooldown: 1350, area: 1.0, speed: 0, duration: 200, knockback: 3, pierce: 99 },
-            { damage: 15, amount: 1, cooldown: 1350, area: 1.1, speed: 0, duration: 200, knockback: 3, pierce: 99 },
-            { damage: 20, amount: 1, cooldown: 1350, area: 1.1, speed: 0, duration: 200, knockback: 3, pierce: 99 },
-            { damage: 20, amount: 1, cooldown: 1350, area: 1.2, speed: 0, duration: 200, knockback: 3, pierce: 99 },
-            { damage: 25, amount: 1, cooldown: 1350, area: 1.2, speed: 0, duration: 200, knockback: 3, pierce: 99 },
-            { damage: 30, amount: 1, cooldown: 1350, area: 1.3, speed: 0, duration: 200, knockback: 3, pierce: 99 }
-        ]
-    },
-    // 5. GARLIC (Aura)
-    stinkyCheese: {
-        key: 'stinkyCheese', name: "Stinky Cheese", emoji: "🤢",
-        description: "Damages nearby enemies. Reduces resistance to knockback.",
-        type: 'aura',
-        requiredPassive: 'pummarola', evolvesTo: 'toxicCloud',
-        iconColor: '#9ae6b4',
-        levels: [
-            { damage: 3, amount: 1, cooldown: 200, area: 1.0, speed: 0, duration: 0, knockback: 1, pierce: 99 },
-            { damage: 3, amount: 1, cooldown: 200, area: 1.2, speed: 0, duration: 0, knockback: 1, pierce: 99 },
-            { damage: 4, amount: 1, cooldown: 200, area: 1.2, speed: 0, duration: 0, knockback: 1, pierce: 99 },
-            { damage: 4, amount: 1, cooldown: 200, area: 1.4, speed: 0, duration: 0, knockback: 1, pierce: 99 },
-            { damage: 5, amount: 1, cooldown: 200, area: 1.4, speed: 0, duration: 0, knockback: 1, pierce: 99 },
-            { damage: 5, amount: 1, cooldown: 200, area: 1.6, speed: 0, duration: 0, knockback: 1, pierce: 99 },
-            { damage: 6, amount: 1, cooldown: 200, area: 1.6, speed: 0, duration: 0, knockback: 1, pierce: 99 },
-            { damage: 7, amount: 1, cooldown: 200, area: 1.8, speed: 0, duration: 0, knockback: 1, pierce: 99 }
-        ]
-    },
-    // 6. KING BIBLE (Orbit)
-    orbitingShield: {
-        key: 'orbitingShield', name: "Orbiting Shield", emoji: "🛡️",
-        description: "Orbits around the player.",
-        type: 'orbit',
-        requiredPassive: 'spellbinder', evolvesTo: 'thunderShield',
-        iconColor: '#63b3ed',
-        levels: [
-            { damage: 10, amount: 1, cooldown: 3000, area: 1.0, speed: 5, duration: 3000, knockback: 2, pierce: 99 },
-            { damage: 10, amount: 2, cooldown: 3000, area: 1.0, speed: 5, duration: 3000, knockback: 2, pierce: 99 },
-            { damage: 10, amount: 2, cooldown: 3000, area: 1.0, speed: 6, duration: 3000, knockback: 2, pierce: 99 },
-            { damage: 15, amount: 3, cooldown: 3000, area: 1.0, speed: 6, duration: 3500, knockback: 2, pierce: 99 },
-            { damage: 15, amount: 3, cooldown: 3000, area: 1.0, speed: 7, duration: 3500, knockback: 2, pierce: 99 },
-            { damage: 15, amount: 4, cooldown: 3000, area: 1.0, speed: 7, duration: 4000, knockback: 2, pierce: 99 },
-            { damage: 20, amount: 4, cooldown: 3000, area: 1.0, speed: 8, duration: 4000, knockback: 2, pierce: 99 },
-            { damage: 20, amount: 5, cooldown: 3000, area: 1.0, speed: 8, duration: 4500, knockback: 2, pierce: 99 }
-        ]
-    },
-    // 7. SANTA WATER (Zone)
-    molotov: {
-        key: 'molotov', name: "Molotov", emoji: "🍾",
-        description: "Generates damaging zones on the ground.",
-        type: 'zone-random',
-        requiredPassive: 'attractorb', evolvesTo: 'infernoRing',
-        iconColor: '#e53e3e',
-        levels: [
-            { damage: 10, amount: 1, cooldown: 2500, area: 1.0, speed: 0, duration: 2000, knockback: 0, pierce: 99 },
-            { damage: 15, amount: 1, cooldown: 2500, area: 1.2, speed: 0, duration: 2000, knockback: 0, pierce: 99 },
-            { damage: 15, amount: 1, cooldown: 2500, area: 1.2, speed: 0, duration: 2500, knockback: 0, pierce: 99 },
-            { damage: 20, amount: 1, cooldown: 2500, area: 1.4, speed: 0, duration: 2500, knockback: 0, pierce: 99 },
-            { damage: 20, amount: 2, cooldown: 2500, area: 1.4, speed: 0, duration: 2500, knockback: 0, pierce: 99 },
-            { damage: 25, amount: 2, cooldown: 2500, area: 1.6, speed: 0, duration: 3000, knockback: 0, pierce: 99 },
-            { damage: 25, amount: 2, cooldown: 2500, area: 1.6, speed: 0, duration: 3000, knockback: 0, pierce: 99 },
-            { damage: 30, amount: 3, cooldown: 2000, area: 1.8, speed: 0, duration: 3500, knockback: 0, pierce: 99 }
-        ]
-    }
+    whip: createWeapon('whip', "Whip", "🐁", "Strikes horizontally.", 'directional-melee', 'emptyHeart', 'bloodyTear', '#b794f4',
+        { damage: 10, amount: 1, cooldown: 1350, area: 1.0, speed: 0, duration: 200, knockback: 3, pierce: 99 },
+        [{ damage: 5 }, { damage: 5 }, { damage: 5, area: 0.1 }, { damage: 5 }, { damage: 5, area: 0.1 }, { damage: 5 }, { damage: 5, area: 0.1 }]
+    ),
+    magicWand: createWeapon('magicWand', "Magic Wand", "🪄", "Fires at nearest enemy.", 'projectile-nearest', 'emptyTome', 'holyWand', '#f6ad55',
+        { damage: 10, amount: 1, cooldown: 1000, area: 1, speed: 10, duration: 0, knockback: 2, pierce: 0 },
+        [{ amount: 1 }, { cooldown: -100 }, { amount: 1 }, { damage: 10 }, { amount: 1 }, { pierce: 1 }, { damage: 10 }]
+    ),
+    knife: createWeapon('knife', "Knife", "🗡️", "Fires in facing direction.", 'projectile-facing', 'bracer', 'thousandEdge', '#718096',
+        { damage: 7, amount: 1, cooldown: 300, area: 1, speed: 15, duration: 0, knockback: 1, pierce: 0 },
+        [{ amount: 1 }, { amount: 1 }, { damage: 5 }, { amount: 1 }, { amount: 1, pierce: 1 }, { damage: 5 }, { amount: 1, pierce: 1 }]
+    ),
+    axe: createWeapon('axe', "Axe", "🪓", "Thrown in a high arc.", 'projectile-upward', 'candelabrador', 'deathSpiral', '#713e2f',
+        { damage: 20, amount: 1, cooldown: 1500, area: 1.5, speed: 8, duration: 0, knockback: 5, pierce: 4 },
+        [{ amount: 1 }, { damage: 10 }, { area: 0.2 }, { amount: 1 }, { damage: 10 }, { area: 0.2 }, { amount: 1 }]
+    ),
+    cross: createWeapon('cross', "Cross", "✝️", "Returns like a boomerang.", 'boomerang', 'clover', 'heavenSword', '#fff',
+        { damage: 10, amount: 1, cooldown: 1000, area: 1, speed: 12, duration: 0, knockback: 5, pierce: 99 },
+        [{ damage: 5 }, { area: 0.1 }, { damage: 5 }, { area: 0.1 }, { damage: 5 }, { area: 0.1 }, { damage: 10 }]
+    ),
+    kingBible: createWeapon('kingBible', "King Bible", "📖", "Orbits around the player.", 'orbit', 'spellbinder', 'unholyVespers', '#63b3ed',
+        { damage: 10, amount: 1, cooldown: 3000, area: 1.0, speed: 5, duration: 3000, knockback: 2, pierce: 99 },
+        [{ amount: 1 }, { duration: 500, speed: 1 }, { amount: 1, damage: 5 }, { duration: 500, speed: 1 }, { amount: 1, damage: 5 }, { duration: 500, speed: 1 }, { amount: 1, damage: 5 }]
+    ),
+    fireWand: createWeapon('fireWand', "Fire Wand", "🔥", "Fires at random enemy, high damage.", 'projectile-nearest', 'spinach', 'hellfire', '#e53e3e',
+        { damage: 20, amount: 1, cooldown: 1200, area: 1, speed: 6, duration: 0, knockback: 2, pierce: 0 },
+        [{ damage: 10 }, { damage: 10 }, { damage: 10 }, { damage: 10 }, { damage: 10 }, { damage: 10 }, { damage: 10 }]
+    ),
+    garlic: createWeapon('garlic', "Garlic", "🧄", "Damages nearby enemies.", 'aura', 'pummarola', 'soulEater', '#9ae6b4',
+        { damage: 5, amount: 1, cooldown: 200, area: 1.0, speed: 0, duration: 0, knockback: 1, pierce: 99 },
+        [{ area: 0.2 }, { damage: 2 }, { area: 0.2 }, { damage: 2 }, { area: 0.2 }, { damage: 2 }, { area: 0.2 }]
+    ),
+    santaWater: createWeapon('santaWater', "Santa Water", "💧", "Generates damaging zones.", 'zone-random', 'attractorb', 'laBorra', '#4299e1',
+        { damage: 10, amount: 1, cooldown: 2000, area: 1.0, speed: 0, duration: 2000, knockback: 0, pierce: 99 },
+        [{ amount: 1 }, { damage: 10 }, { duration: 500 }, { amount: 1 }, { damage: 10 }, { duration: 500 }, { area: 0.2 }]
+    ),
+    runetracer: createWeapon('runetracer', "Runetracer", "💎", "Pierces and bounces.", 'projectile-facing', 'armor', 'noFuture', '#ffffff',
+        { damage: 10, amount: 1, cooldown: 1000, area: 1, speed: 15, duration: 2000, knockback: 1, pierce: 99, bounceCount: 3 },
+        [{ speed: 3 }, { damage: 5 }, { duration: 500 }, { speed: 3 }, { damage: 5 }, { duration: 500 }, { amount: 1 }]
+    ),
+    lightningRing: createWeapon('lightningRing', "Lightning Ring", "⚡", "Strikes random enemies.", 'lightning', 'duplicator', 'thunderLoop', '#63b3ed',
+        { damage: 15, amount: 2, cooldown: 1500, area: 1, speed: 0, duration: 0, knockback: 0, pierce: 0 },
+        [{ amount: 1 }, { damage: 10 }, { amount: 1 }, { damage: 10 }, { amount: 1 }, { damage: 20 }, { amount: 1 }]
+    ),
+    pentagram: createWeapon('pentagram', "Pentagram", "🔯", "Erases enemies.", 'screen-wipe', 'crown', 'gorgeousMoon', '#b794f4',
+        { damage: 9999, amount: 1, cooldown: 60000, area: 1, speed: 0, duration: 0, knockback: 0, pierce: 0 },
+        [{ cooldown: -5000 }, { cooldown: -5000 }, { cooldown: -5000 }, { cooldown: -5000 }, { cooldown: -5000 }, { cooldown: -5000 }, { cooldown: -5000 }]
+    ),
+    guns: createWeapon('guns', "Phiera Der Tuphello", "🔫", "Fires diagonally.", 'projectile-facing', 'tiragisu', 'phieraggi', '#ff0000',
+        { damage: 10, amount: 4, cooldown: 500, area: 1, speed: 15, duration: 0, knockback: 1, pierce: 1 },
+        [{ amount: 1 }, { pierce: 1 }, { amount: 1 }, { damage: 5 }, { amount: 1 }, { pierce: 1 }, { damage: 5 }]
+    ),
+    cats: createWeapon('cats', "Gatti Amari", "🐈", "Cats wander and fight.", 'boomerang', 'stoneMask', 'viciousHunger', '#ffffff',
+        { damage: 15, amount: 1, cooldown: 1000, area: 1, speed: 10, duration: 2000, knockback: 2, pierce: 99, bounceCount: 5 },
+        [{ amount: 1 }, { damage: 5 }, { duration: 500 }, { amount: 1 }, { damage: 5 }, { duration: 500 }, { amount: 1 }]
+    ),
+    songOfMana: createWeapon('songOfMana', "Song of Mana", "🎶", "Vertical column of damage.", 'vertical-zone', 'skullOmaniac', 'mannajja', '#b794f4',
+        { damage: 20, amount: 1, cooldown: 1500, area: 1.0, speed: 0, duration: 1000, knockback: 3, pierce: 99 },
+        [{ damage: 5 }, { duration: 500 }, { damage: 5 }, { duration: 500 }, { damage: 5 }, { duration: 500 }, { area: 0.2 }]
+    ),
+    shadowPinion: createWeapon('shadowPinion', "Shadow Pinion", "🌑", "Strikes behind, then launches.", 'projectile-facing', 'wings', 'valkyrieTurner', '#000',
+        { damage: 15, amount: 1, cooldown: 1000, area: 1, speed: 20, duration: 500, knockback: 3, pierce: 1 },
+        [{ amount: 1 }, { damage: 5 }, { duration: 200 }, { amount: 1 }, { damage: 5 }, { duration: 200 }, { pierce: 1 }]
+    ),
+    clockLancet: createWeapon('clockLancet', "Clock Lancet", "🕰️", "Freezes enemies.", 'projectile-facing', 'torronasBox', 'infiniteCorridor', '#87CEEB',
+        { damage: 0, amount: 1, cooldown: 1000, area: 1, speed: 15, duration: 3000, knockback: 5, pierce: 99, freeze: true },
+        [{ duration: 500 }, { cooldown: -100 }, { duration: 500 }, { cooldown: -100 }, { duration: 500 }, { cooldown: -100 }, { amount: 1 }]
+    ),
+    laurel: createWeapon('laurel', "Laurel", "🌿", "Shields the player.", 'orbit', 'torronasBox', 'crimsonShroud', '#32CD32',
+        { damage: 0, amount: 1, cooldown: 5000, area: 1, speed: 0, duration: 500, knockback: 5, pierce: 99, shield: 10 },
+        [{ cooldown: -500 }, { shield: 10 }, { cooldown: -500 }, { shield: 10 }, { cooldown: -500 }, { shield: 10 }, { cooldown: -500 }]
+    ),
+    ventoSacro: createWeapon('ventoSacro', "Vento Sacro", "🍃", "Continuous attack in front.", 'directional-melee', 'crown', 'fuwalafuwaloo', '#98FB98',
+        { damage: 10, amount: 1, cooldown: 200, area: 1, speed: 0, duration: 100, knockback: 1, pierce: 99 },
+        [{ damage: 5 }, { area: 0.1 }, { damage: 5 }, { area: 0.1 }, { damage: 5 }, { area: 0.1 }, { damage: 5 }]
+    ),
+    bone: createWeapon('bone', "Bone", "🦴", "Bounces off enemies.", 'projectile-nearest', 'none', null, '#fff',
+        { damage: 20, amount: 1, cooldown: 1000, area: 1, speed: 12, duration: 2000, knockback: 2, pierce: 99, bounceCount: 3 },
+        [{ damage: 5 }, { speed: 2 }, { damage: 5 }, { bounceCount: 1 }, { damage: 5 }, { speed: 2 }, { bounceCount: 1 }]
+    ),
+    cherryBomb: createWeapon('cherryBomb', "Cherry Bomb", "🍒", "Explodes on impact.", 'projectile-nearest', 'none', null, '#ff0000',
+        { damage: 30, amount: 1, cooldown: 1200, area: 1, speed: 10, duration: 0, knockback: 3, pierce: 0, isExplosive: true },
+        [{ damage: 10 }, { area: 0.2 }, { damage: 10 }, { area: 0.2 }, { damage: 10 }, { area: 0.2 }, { amount: 1 }]
+    ),
+    carrello: createWeapon('carrello', "Carréllo", "🛒", "Mine cart that bounces.", 'boomerang', 'none', null, '#8B4513',
+        { damage: 40, amount: 1, cooldown: 1500, area: 1.5, speed: 8, duration: 3000, knockback: 5, pierce: 99, bounceCount: 2 },
+        [{ damage: 10 }, { speed: 2 }, { damage: 10 }, { bounceCount: 1 }, { damage: 10 }, { speed: 2 }, { amount: 1 }]
+    ),
+    celestialDusting: createWeapon('celestialDusting', "Celestial Dusting", "🌸", "Fires flowers behind you.", 'projectile-facing', 'none', null, '#FFC0CB',
+        { damage: 15, amount: 2, cooldown: 500, area: 1, speed: 5, duration: 1000, knockback: 1, pierce: 99, angleOffset: Math.PI },
+        [{ damage: 5 }, { duration: 500 }, { damage: 5 }, { duration: 500 }, { damage: 5 }, { duration: 500 }, { amount: 1 }]
+    ),
+    laRobba: createWeapon('laRobba', "La Robba", "🛋️", "Furniture falls from sky.", 'projectile-upward', 'none', null, '#8B4513',
+        { damage: 30, amount: 1, cooldown: 1000, area: 1.5, speed: 10, duration: 0, knockback: 5, pierce: 99, gravity: 10 },
+        [{ damage: 10 }, { area: 0.2 }, { damage: 10 }, { area: 0.2 }, { damage: 10 }, { area: 0.2 }, { amount: 1 }]
+    ),
+    victorySword: createWeapon('victorySword', "Victory Sword", "⚔️", "Slash nearest enemies.", 'directional-melee', 'torronasBox', 'soleSolution', '#FFD700',
+        { damage: 50, amount: 1, cooldown: 800, area: 1.5, speed: 0, duration: 300, knockback: 5, pierce: 99 },
+        [{ damage: 10 }, { area: 0.1 }, { damage: 10 }, { area: 0.1 }, { damage: 10 }, { area: 0.1 }, { amount: 1 }]
+    )
 };
 
 const EVOLVED_WEAPONS = {
-    bloodyTail: {
-        key: 'bloodyTail', name: "Bloody Tail", emoji: "🩸",
-        description: "Steals health from enemies.",
-        type: 'directional-melee',
-        stats: { damage: 50, amount: 1, cooldown: 1000, area: 1.5, speed: 0, duration: 300, knockback: 10, pierce: 99, lifesteal: 0.1 },
-        iconColor: '#b794f4'
-    },
-    minigunCheese: {
-        key: 'minigunCheese', name: "Minigun Cheese", emoji: "🧀",
-        description: "Fires a constant stream of cheese.",
-        type: 'projectile-nearest',
-        stats: { damage: 30, amount: 1, cooldown: 80, area: 1.0, speed: 15, duration: 0, knockback: 2, pierce: 3 },
-        iconColor: '#f6ad55'
-    },
-    thousandDaggers: {
-        key: 'thousandDaggers', name: "Thousand Daggers", emoji: "🗡️",
-        description: "Unleashes a torrent of daggers.",
-        type: 'projectile-facing',
-        stats: { damage: 20, amount: 1, cooldown: 50, area: 1.0, speed: 20, duration: 0, knockback: 2, pierce: 4 },
-        iconColor: '#718096'
-    },
-    deathSpiral: {
-        key: 'deathSpiral', name: "Death Spiral", emoji: "🪓",
-        description: "Axes spiral outward from the center.",
-        type: 'projectile-spiral',
-        stats: { damage: 60, amount: 9, cooldown: 1000, area: 2.0, speed: 10, duration: 3000, knockback: 10, pierce: 99 },
-        iconColor: '#713e2f'
-    },
-    thunderShield: {
-        key: 'thunderShield', name: "Thunder Shield", emoji: "⚡",
-        description: "Permanently orbits and damages enemies.",
-        type: 'orbit',
-        stats: { damage: 30, amount: 6, cooldown: 0, area: 1.2, speed: 10, duration: 999999, knockback: 5, pierce: 99 },
-        iconColor: '#63b3ed'
-    },
-    toxicCloud: {
-        key: 'toxicCloud', name: "Toxic Cloud", emoji: "☠️",
-        description: "Steals life from enemies inside.",
-        type: 'aura',
-        stats: { damage: 15, amount: 1, cooldown: 150, area: 2.5, speed: 0, duration: 0, knockback: 2, pierce: 99, lifesteal: 0.05 },
-        iconColor: '#9ae6b4'
-    },
-    infernoRing: {
-        key: 'infernoRing', name: "Inferno Ring", emoji: "🔥",
-        description: "Zones move toward you and grow.",
-        type: 'zone-attract',
-        stats: { damage: 40, amount: 4, cooldown: 1500, area: 2.0, speed: 3, duration: 4000, knockback: 0, pierce: 99 },
-        iconColor: '#e53e3e'
-    }
+    bloodyTear: { name: "Bloody Tear", emoji: "🩸", type: 'directional-melee', stats: { damage: 60, amount: 1, cooldown: 1000, area: 2.0, lifesteal: 0.2 } },
+    holyWand: { name: "Holy Wand", emoji: "🪄", type: 'projectile-nearest', stats: { damage: 30, amount: 1, cooldown: 50, speed: 20 } },
+    thousandEdge: { name: "Thousand Edge", emoji: "🔪", type: 'projectile-facing', stats: { damage: 20, amount: 1, cooldown: 30, speed: 25 } },
+    deathSpiral: { name: "Death Spiral", emoji: "🪓", type: 'projectile-spiral', stats: { damage: 60, amount: 9, cooldown: 1000, area: 2.5 } },
+    heavenSword: { name: "Heaven Sword", emoji: "⚔️", type: 'boomerang', stats: { damage: 50, amount: 1, cooldown: 800, area: 1.5, speed: 15 } },
+    unholyVespers: { name: "Unholy Vespers", emoji: "📕", type: 'orbit', stats: { damage: 30, amount: 6, cooldown: 0, duration: 999999 } },
+    hellfire: { name: "Hellfire", emoji: "☄️", type: 'projectile-nearest', stats: { damage: 80, amount: 1, cooldown: 1000, area: 2.0, pierce: 99 } },
+    soulEater: { name: "Soul Eater", emoji: "🌑", type: 'aura', stats: { damage: 20, amount: 1, cooldown: 100, area: 3.0, lifesteal: 0.05 } },
+    laBorra: { name: "La Borra", emoji: "💧", type: 'zone-attract', stats: { damage: 40, amount: 4, cooldown: 1500, area: 2.5 } },
+    noFuture: { name: "NO FUTURE", emoji: "🌈", type: 'projectile-facing', stats: { damage: 40, amount: 2, cooldown: 800, bounceCount: 99, isExplosive: true } },
+    thunderLoop: { name: "Thunder Loop", emoji: "⛈️", type: 'lightning', stats: { damage: 50, amount: 4, cooldown: 1000, area: 2 } },
+    gorgeousMoon: { name: "Gorgeous Moon", emoji: "🌑", type: 'screen-wipe', stats: { damage: 9999, amount: 1, cooldown: 15000 } },
+    phieraggi: { name: "Phieraggi", emoji: "🔫", type: 'projectile-spiral', stats: { damage: 30, amount: 8, cooldown: 200, speed: 20 } },
+    viciousHunger: { name: "Vicious Hunger", emoji: "👀", type: 'boomerang', stats: { damage: 40, amount: 2, cooldown: 800, isExplosive: true } },
+    mannajja: { name: "Mannajja", emoji: "🌌", type: 'vertical-zone', stats: { damage: 60, amount: 1, cooldown: 1000, area: 2.0 } },
+    valkyrieTurner: { name: "Valkyrie Turner", emoji: "🔥", type: 'projectile-facing', stats: { damage: 50, amount: 1, cooldown: 500, speed: 30, area: 2 } },
+    infiniteCorridor: { name: "Infinite Corridor", emoji: "❄️", type: 'projectile-beam', stats: { damage: 0, amount: 1, cooldown: 500, freeze: true, area: 3 } },
+    crimsonShroud: { name: "Crimson Shroud", emoji: "🛡️", type: 'aura', stats: { damage: 100, amount: 1, cooldown: 100, shield: 50 } },
+    fuwalafuwaloo: { name: "Fuwalafuwaloo", emoji: "👻", type: 'directional-melee', stats: { damage: 40, amount: 2, cooldown: 100, area: 2 } },
+    soleSolution: { name: "Sole Solution", emoji: "🌌", type: 'aura', stats: { damage: 100, amount: 1, cooldown: 50, area: 3.0 } }
 };
 
 // --- PASSIVE ITEMS DEFINITIONS ---
@@ -892,12 +1079,12 @@ const PASSIVE_ITEMS = {
     bracer: {
         key: 'bracer', name: "Bracer", emoji: "🧤", description: "Increases projectile speed by 10%.",
         maxLevel: 5,
-        apply: (rat) => { /* Not implemented yet globally, but placeholder */ }
+        apply: (rat) => { /* Applied in Projectile stats */ }
     },
     spellbinder: {
         key: 'spellbinder', name: "Spellbinder", emoji: "🔮", description: "Increases duration of weapon effects.",
         maxLevel: 5,
-        apply: (rat) => { /* Placeholder for duration */ }
+        apply: (rat) => { /* Applied in Weapon stats (duration) */ }
     },
     duplicator: {
         key: 'duplicator', name: "Duplicator", emoji: "💍", description: "Weapons fire more projectiles.",
@@ -917,7 +1104,7 @@ const PASSIVE_ITEMS = {
     clover: {
         key: 'clover', name: "Clover", emoji: "🍀", description: "Increases luck (crit/drops).",
         maxLevel: 5,
-        apply: (rat) => { rat.luck += 0.1; } // Placeholder property
+        apply: (rat) => { rat.luck += 0.1; }
     },
     crown: {
         key: 'crown', name: "Crown", emoji: "👑", description: "Gains 8% more experience.",
@@ -928,6 +1115,37 @@ const PASSIVE_ITEMS = {
         key: 'pummarola', name: "Pummarola", emoji: "🍅", description: "Recover 0.2 HP per second.",
         maxLevel: 5,
         apply: (rat) => { rat.hpRegen += 0.2; }
+    },
+    stoneMask: {
+        key: 'stoneMask', name: "Stone Mask", emoji: "🗿", description: "Earn 10% more coins.",
+        maxLevel: 5,
+        apply: (rat) => { rat.greed += 0.1; }
+    },
+    skullOmaniac: {
+        key: 'skullOmaniac', name: "Skull O'Maniac", emoji: "💀", description: "Increases Enemy Speed, Health, Quantity, and Frequency by 10%.",
+        maxLevel: 5,
+        apply: (rat) => { rat.curse += 0.1; }
+    },
+    torronasBox: {
+        key: 'torronasBox', name: "Torrona's Box", emoji: "📦", description: "Increases Area, Duration, Speed, Might. Level 9 grants Curse.",
+        maxLevel: 9,
+        apply: (rat) => {
+            // Simplified: Just buffs stats globally.
+            // In VS it gives 4% per level up to level 8, then Curse.
+            // We'll give 3% per level.
+            rat.damageMultiplier += 0.03;
+            rat.attackRangeMultiplier += 0.03;
+            // rat.projectileSpeed? We don't have global projectile speed multiplier property easily accessible on Rat yet, handled in weapon stats.
+            // Just apply what we can.
+            if (rat.passives.find(p => p.key === 'torronasBox').level === 9) {
+                rat.curse += 1.0; // Massive curse at max level
+            }
+        }
+    },
+    tiragisu: {
+        key: 'tiragisu', name: "Tiragisú", emoji: "🍮", description: "Grants 1 Revival. Revivals restore 50% Health.",
+        maxLevel: 2,
+        apply: (rat) => { rat.revivals += 1; }
     }
 };
 
@@ -1559,6 +1777,52 @@ class Rat extends Entity {
         this.magnetRange = 50;   // New Magnet Range
         this.luck = 1.0;         // New Luck stat
         this.hpRegen = 0;        // New HP Regen
+        this.curse = 1.0;        // New Curse stat (Enemy Speed/Health/Quantity)
+        this.greed = 1.0;        // New Greed stat (Currency multiplier)
+        this.revivals = 0;       // New Revive stat (Revival count)
+        this.growth = 1.0;       // New Growth stat (XP Multiplier alias)
+        this.rerolls = 0;        // New Reroll stat
+        this.skips = 0;          // New Skip stat
+        this.banishes = 0;       // New Banish stat
+
+        // Visuals
+        this.accessories = [];   // Array of { type: 'hat', color: 'red' }
+
+        // --- APPLY POWER UPS ---
+        Object.keys(purchasedPowerUps).forEach(key => {
+            const rank = purchasedPowerUps[key];
+            const def = POWER_UP_STATS[key];
+            if (rank > 0 && def) {
+                const totalBoost = def.amount * rank;
+                if (typeof this[def.stat] === 'number') {
+                    // Assuming most are multipliers (like damageMultiplier) or additive (armor)
+                    // We need to know if it is additive or multiplier.
+                    // Based on initialStats:
+                    // Multipliers: damageMultiplier, attackRangeMultiplier, xpMultiplier, greed, curse, fireRateReduction (actually reduction multiplier?), luck
+                    // Additive: armor, maxHp (usually %), hpRegen, projectileCountBonus, revivals, skips, rerolls
+
+                    if (['damageMultiplier', 'attackRangeMultiplier', 'xpMultiplier', 'greed', 'curse', 'luck'].includes(def.stat)) {
+                        this[def.stat] += totalBoost; // Additive percentage to base 1.0 (e.g. 1.0 + 0.1 = 1.1)
+                    } else if (def.stat === 'maxHp') {
+                        // Max HP % boost
+                        const boostAmount = Math.floor(this.maxHp * totalBoost);
+                        this.maxHp += boostAmount;
+                        this.currentHp += boostAmount;
+                    } else if (def.stat === 'fireRateReduction') {
+                        // Cooldown reduction (additive to reduction factor? No, usually reduction %.
+                        // Current logic: 1.0 / fireRateReduction. So higher is faster?
+                        // Let's see Brawler: 1.0. Raca: 1.1 (faster?).
+                        // "Weapon cooldown reduces by 5%". So we want this number to go UP?
+                        // "1.0 / this.fireRateReduction". If reduction is 1.1, interval is smaller? Yes.
+                        // So we ADD to the rate.
+                        this[def.stat] += totalBoost;
+                    } else {
+                        // Pure additive
+                        this[def.stat] += totalBoost;
+                    }
+                }
+            }
+        });
 
         this.moveDirection = { x: 0, y: 0 };
         this.damageFlashTimer = 0;
@@ -1573,6 +1837,11 @@ class Rat extends Entity {
         this.ratColor = colors.main;
         this.ratLightFur = colors.light;
         this.ratDetailColor = colors.detail;
+
+        // Set accessories
+        if (CHARACTERS[characterKey].accessories) {
+            this.accessories = CHARACTERS[characterKey].accessories;
+        }
 
         // NEW BUFF TRACKING
         this.buffs = {
@@ -1658,7 +1927,7 @@ class Rat extends Entity {
 
     // NEW: Add currency handling
     gainCurrency(amount) {
-        this.currency += amount;
+        this.currency += Math.floor(amount * this.greed);
     }
 
     gainXp(amount, game) {
@@ -1932,10 +2201,104 @@ class Rat extends Entity {
                     game.pickups.push(new ZoneEntity(zx, zy, 50 * stats.area, stats.damage, stats.duration, WEAPONS[weapon.key].iconColor, weapon.key));
                 }
                 break;
+
+            case 'lightning':
+                // Strike random enemies on screen
+                const visibleTargets = game.getVisibleEnemies();
+                if (visibleTargets.length > 0) {
+                    for(let i=0; i<stats.amount; i++) {
+                        const target = visibleTargets[Math.floor(Math.random() * visibleTargets.length)];
+                        if (target) {
+                            // Instant damage
+                            target.currentHp -= stats.damage;
+                            game.addExplosionParticles(10, target.x, target.y, '#63b3ed', 4);
+                            // Visual lightning bolt
+                            const bolt = new Projectile(target.x, target.y - 300, 5, '#63b3ed', 0, Math.PI/2, 0, 0, false, 0, 'lightningRod');
+                            bolt.prevX = target.x; // Start point
+                            bolt.prevY = target.y - 300; // Sky
+                            bolt.x = target.x; // End point
+                            bolt.y = target.y;
+                            if (target.currentHp <= 0) game.handleEnemyDefeat(target);
+                        }
+                    }
+                }
+                break;
+
+            case 'screen-wipe':
+                // Pentagram logic
+                // Chance to fail (erase items)? Maybe simplified: just kill everything.
+                game.addExplosionParticles(100, this.x, this.y, '#b794f4', 10); // Big purple flash
+                game.enemies.forEach(e => {
+                    const dist = Math.hypot(e.x - this.x, e.y - this.y);
+                    if (dist < 800) { // Visible range
+                        e.currentHp = 0;
+                        game.handleEnemyDefeat(e);
+                    }
+                });
+                break;
+
+            case 'boomerang':
+                // Fires facing, then returns
+                const bAngle = this.lastFacingRight ? 0 : Math.PI;
+                for(let i=0; i<stats.amount; i++) {
+                    const angle = bAngle + (i * 0.1) - (stats.amount * 0.05);
+                    this.spawnProjectile(game, weapon, stats, angle, 0, true); // true for return
+                }
+                break;
+
+            case 'vertical-zone':
+                // Song of Mana: Stack of zones
+                const stackHeight = 600 * stats.area;
+                const count = 10;
+                for(let i=0; i<count; i++) {
+                    // Above
+                    game.pickups.push(new ZoneEntity(this.x, this.y - (i * 60 * stats.area), 40 * stats.area, stats.damage, stats.duration, WEAPONS[weapon.key].iconColor, weapon.key));
+                    // Below
+                    game.pickups.push(new ZoneEntity(this.x, this.y + (i * 60 * stats.area), 40 * stats.area, stats.damage, stats.duration, WEAPONS[weapon.key].iconColor, weapon.key));
+                }
+                break;
+
+            case 'projectile-rear':
+                const rearAngle = this.lastFacingRight ? Math.PI : 0;
+                for(let i=0; i<stats.amount; i++) {
+                    this.spawnProjectile(game, weapon, stats, rearAngle + (Math.random()-0.5)*0.5);
+                }
+                break;
+
+            case 'projectile-falling':
+                 for(let i=0; i<stats.amount; i++) {
+                     const spawnX = this.x + (Math.random() - 0.5) * (VIEWPORT_RADIUS * 1.5);
+                     const spawnY = this.y - VIEWPORT_RADIUS; // Top
+                     // Manual projectile spawn to override params
+                     const p = new Projectile(spawnX, spawnY, 20 * stats.area, WEAPONS[weapon.key].iconColor, stats.speed, Math.PI/2, stats.damage, 2000, false, 0, weapon.key, 10);
+                     p.pierce = stats.pierce;
+                     game.projectiles.push(p);
+                 }
+                 break;
+
+            case 'projectile-beam':
+            case 'projectile-bounce-explode':
+            case 'projectile-bounce-horizontal':
+            case 'projectile-diagonal':
+                // Treat as projectile-facing-ish
+                let fAngle = this.lastFacingRight ? 0 : Math.PI;
+                if (weapon.type === 'projectile-diagonal') {
+                    // 45 degrees
+                    fAngle = this.lastFacingRight ? -Math.PI/4 : -Math.PI*0.75;
+                    // Add secondary projectiles? Guns shoot 4. Just spread them.
+                }
+
+                const spread = (weapon.type === 'projectile-diagonal') ? 0.5 : 0.1;
+
+                for(let i=0; i<stats.amount; i++) {
+                    const angle = fAngle + (i * spread) - (stats.amount * spread / 2);
+                    this.spawnProjectile(game, weapon, stats, angle);
+                }
+                break;
         }
     }
 
-    spawnProjectile(game, weapon, stats, angle, gravity = 0) {
+    spawnProjectile(game, weapon, stats, angle, gravity = 0, returnToPlayer = false) {
         const p = new Projectile(
             this.x, this.y,
             6 + (stats.area * 2), // Radius
@@ -1947,7 +2310,8 @@ class Rat extends Entity {
             false,
             0,
             weapon.key,
-            gravity
+            gravity,
+            returnToPlayer
         );
         p.pierce = stats.pierce;
         game.projectiles.push(p);
@@ -2083,6 +2447,72 @@ class Rat extends Entity {
             context.stroke();
         }
 
+        // 8. Draw Accessories
+        this.accessories.forEach(acc => {
+            context.save();
+            if (acc.type === 'beard') {
+                context.fillStyle = acc.color || '#fff';
+                context.beginPath();
+                context.moveTo(bodyLength * 0.4, headRadius * 0.5);
+                context.quadraticCurveTo(bodyLength * 0.4 + 5, headRadius * 1.5, bodyLength * 0.4 - 10, headRadius * 1.2);
+                context.quadraticCurveTo(bodyLength * 0.4 - 5, headRadius * 0.8, bodyLength * 0.4, headRadius * 0.5);
+                context.fill();
+            } else if (acc.type === 'hat_wizard') {
+                context.fillStyle = acc.color || '#3182ce';
+                context.beginPath();
+                // Base
+                context.ellipse(bodyLength * 0.4, -headRadius * 0.8, headRadius * 1.2, headRadius * 0.3, 0, 0, Math.PI*2);
+                context.fill();
+                // Cone
+                context.beginPath();
+                context.moveTo(bodyLength * 0.4 - headRadius * 0.8, -headRadius * 0.8);
+                context.lineTo(bodyLength * 0.4 + headRadius * 0.8, -headRadius * 0.8);
+                context.lineTo(bodyLength * 0.3, -headRadius * 2.5); // Tip back a bit
+                context.fill();
+            } else if (acc.type === 'glasses') {
+                context.strokeStyle = acc.color || '#000';
+                context.lineWidth = 1;
+                context.beginPath();
+                context.arc(bodyLength * 0.4 + headRadius * 0.6, -headRadius * 0.3, headRadius * 0.25, 0, Math.PI*2);
+                context.stroke();
+                context.beginPath();
+                context.moveTo(bodyLength * 0.4 + headRadius * 0.35, -headRadius * 0.3);
+                context.lineTo(bodyLength * 0.4 + headRadius * 0.1, -headRadius * 0.35); // Bridge
+                context.stroke();
+            } else if (acc.type === 'bandana') {
+                context.fillStyle = acc.color || '#f00';
+                context.beginPath();
+                context.arc(bodyLength * 0.4, 0, headRadius, -Math.PI*0.8, -Math.PI*0.2); // Top part
+                context.fill();
+                // Knot
+                context.beginPath();
+                context.arc(bodyLength * 0.4 - headRadius, -headRadius * 0.5, 3, 0, Math.PI*2);
+                context.fill();
+            } else if (acc.type === 'ribbon') { // Imelda style
+                context.fillStyle = acc.color || '#e53e3e';
+                context.beginPath();
+                context.arc(bodyLength * 0.3 + headRadius * 0.2, -headRadius * 0.7, headRadius * 0.2, 0, Math.PI*2);
+                context.fill();
+            } else if (acc.type === 'mohawk') { // Krochi style
+                context.fillStyle = acc.color || '#f00';
+                context.beginPath();
+                for(let k=0; k<5; k++) {
+                    const x = bodyLength * 0.4 - headRadius + (k*4);
+                    const y = -headRadius * 0.8;
+                    context.moveTo(x, y);
+                    context.lineTo(x+2, y-8);
+                    context.lineTo(x+4, y);
+                }
+                context.fill();
+            } else if (acc.type === 'hood') { // Porta/Clerici
+                context.fillStyle = acc.color || '#4B0082';
+                context.beginPath();
+                context.arc(bodyLength * 0.4, 0, headRadius * 1.1, 0, Math.PI * 2); // Larger circle behind/over head
+                context.fill();
+            }
+            context.restore();
+        });
+
         context.restore();
     }
 
@@ -2200,105 +2630,93 @@ class EnemyProjectile extends Entity {
     }
 }
 
-// --- RE-INTRODUCED BASE ENEMY CLASS ---
+// --- ENEMIES ---
 class Enemy extends Entity {
-    constructor(x, y, radius = 10, waveFactor = 1) {
-        super(x, y, radius, null, 2.0); // Color handled by subclass/palette
+    constructor(x, y, radius = 10, waveFactor = 1, type = 'bat') {
+        super(x, y, radius, null, 2.0);
+        this.type = type;
 
-        // --- NERFED HEALTH SCALING FOR BETTER BALANCE ---
-
-        // 1. Much gentler linear increase
-        let baseHp = 30 + (waveFactor - 1) * 20;
-
+        let baseHp = 20 + (waveFactor - 1) * 15;
         let healthMultiplier = 1.0;
-
-        // 2. Removed exponential doubling, replaced with gentle curve
-        if (waveFactor >= 5) {
-            healthMultiplier = 1.0 + ((waveFactor - 5) * 0.1); // +10% per minute after minute 5
-        }
+        if (waveFactor >= 5) healthMultiplier = 1.0 + ((waveFactor - 5) * 0.1);
 
         this.maxHp = Math.floor(baseHp * healthMultiplier);
-        // --- END NERFED HEALTH SCALING ---
-
         this.currentHp = this.maxHp;
+        this.damage = 5 + (waveFactor - 1) * 5;
+        this.xpValue = 2 + (waveFactor - 1) * 2;
+        this.lastAttackTime = 0;
+        this.isSlowed = false;
+        this.isDead = false;
+        this.animationFrame = Math.random() * 100;
 
-        this.damage = 5 + (waveFactor - 1) * 7;
-
-        // Calculate base XP using a formula tied to scaling factor
-        this.xpValue = 5 + (waveFactor - 1) * 3;
-
-        this.lastAttackTime = 0; // For attack timers
-        this.isSlowed = false; // NEW: Slow status from Ice Aura
-        this.isDead = false; // NEW: Flag for clean deletion
-
-        // Color is assigned in subclass constructor, which is called after super()
+        // Type specifics
+        if (type === 'bat') {
+            this.speed = 3.5;
+            this.maxHp *= 0.5;
+            this.currentHp = this.maxHp;
+            this.color = '#800080';
+        } else if (type === 'skeleton') {
+            this.speed = 2.0;
+            this.color = '#e2e8f0';
+        } else if (type === 'zombie') {
+            this.speed = 1.5;
+            this.maxHp *= 1.5;
+            this.currentHp = this.maxHp;
+            this.color = '#68d391';
+        } else if (type === 'ghost') {
+            this.speed = 1.0;
+            this.maxHp *= 3.0;
+            this.currentHp = this.maxHp;
+            this.color = '#a0aec0';
+        } else if (type === 'werewolf') {
+            this.speed = 4.0;
+            this.maxHp *= 2.0;
+            this.currentHp = this.maxHp;
+            this.color = '#718096';
+        }
     }
 
     _drawHpBar(context, hpWidth = 25, hpHeight = 3, yOffset = -10) {
         const hpRatio = this.currentHp / this.maxHp;
-
         context.fillStyle = '#4a5568';
-        // Background bar drawn relative to the translated origin (0, 0)
         context.fillRect(-hpWidth / 2, -this.radius + yOffset, hpWidth, hpHeight);
-
         const hpColor = hpRatio > 0.5 ? '#48bb78' : (hpRatio > 0.2 ? '#fbd38d' : '#f56565');
         context.fillStyle = hpColor;
-        // Fill bar drawn relative to the translated origin (0, 0)
-        // Use Math.max(0) to ensure the bar doesn't draw backwards due to tiny negative numbers
         context.fillRect(-hpWidth / 2, -this.radius + yOffset, Math.max(0, hpWidth * hpRatio), hpHeight);
     }
 
     update(game, player, deltaTime) {
         let actualSpeed = this.speed;
-        const SLOW_FACTOR = 0.5; // 50% slow
-
-        // NEW: Apply Ice Aura slow effect
-        if (this.isSlowed) {
-            actualSpeed *= SLOW_FACTOR;
-        }
+        if (this.isSlowed) actualSpeed *= 0.5;
 
         const totalSpeed = actualSpeed * (deltaTime / 16.66);
-
         const dx = player.x - this.x;
         const dy = player.y - this.y;
         const distance = Math.hypot(dx, dy);
 
-        // --- OBSTACLE COLLISION CHECK for Enemy Movement ---
+        // Obstacle collision
         let hitObstacle = false;
-        if (distance > 0 && game && game.obstacles) {
+        if (this.type !== 'ghost' && distance > 0 && game && game.obstacles) {
             game.obstacles.forEach(o => {
                 const nextX = this.x + (dx / distance) * totalSpeed;
                 const nextY = this.y + (dy / distance) * totalSpeed;
                 const dist = Math.hypot(nextX - o.x, nextY - o.y);
-                if (dist < this.radius + o.radius) {
-                    hitObstacle = true;
-                }
+                if (dist < this.radius + o.radius) hitObstacle = true;
             });
         }
 
-        if (hitObstacle) {
-            // Stop movement if heading into an obstacle
-            return;
-        }
-        // --- END OBSTACLE CHECK ---
-
-
-        if (distance > 0) {
+        if (!hitObstacle && distance > 0) {
             this.x += (dx / distance) * totalSpeed;
             this.y += (dy / distance) * totalSpeed;
         }
+
+        this.animationFrame++;
     }
 
-    // NEW VISUALS: Redesigned enemy drawing logic
     draw(context) {
         context.save();
         context.translate(this.x, this.y);
 
-        const bodySegments = 8;
-        const pathLength = this.radius * 2;
-        const wave = Date.now() / 200 + this.x / 10;
-
-        // --- Draw Ice Aura Visual (if slowed) ---
         if (this.isSlowed) {
              const alpha = Math.sin(Date.now() / 100) * 0.3 + 0.4;
              context.fillStyle = `rgba(66, 153, 225, ${alpha})`;
@@ -2307,120 +2725,56 @@ class Enemy extends Entity {
              context.fill();
         }
 
-        // Calculate positions
-        const segmentPositions = [];
-        for (let i = 0; i < bodySegments; i++) {
-            const progress = i / (bodySegments - 1);
-            const x = (progress - 0.5) * pathLength;
-            const y = Math.sin(progress * Math.PI * 2 + wave) * this.radius * 0.5;
-            segmentPositions.push({ x, y });
-        }
-
-        // Draw shadow first (from back to front)
-        context.fillStyle = 'rgba(0, 0, 0, 0.15)';
-        for (let i = bodySegments - 1; i >= 0; i--) {
-            const seg = segmentPositions[i];
+        if (this.type === 'bat') {
+            // Flapping wings
+            const flap = Math.sin(this.animationFrame * 0.5) * 10;
+            context.fillStyle = this.color;
             context.beginPath();
-            context.arc(seg.x, seg.y + 4, this.radius, 0, Math.PI * 2);
+            context.arc(0, 0, this.radius * 0.8, 0, Math.PI*2); // Body
+            context.fill();
+            // Wings
+            context.beginPath();
+            context.moveTo(-5, 0);
+            context.quadraticCurveTo(-15, -10 + flap, -25, 0);
+            context.lineTo(-5, 5);
+            context.fill();
+            context.beginPath();
+            context.moveTo(5, 0);
+            context.quadraticCurveTo(15, -10 + flap, 25, 0);
+            context.lineTo(5, 5);
+            context.fill();
+        } else if (this.type === 'skeleton') {
+            context.fillStyle = '#fff';
+            context.beginPath();
+            context.arc(0, -5, 6, 0, Math.PI*2); // Skull
+            context.fill();
+            context.strokeStyle = '#fff';
+            context.lineWidth = 2;
+            context.beginPath();
+            context.moveTo(0, 0);
+            context.lineTo(0, 10); // Spine
+            context.moveTo(-5, 5);
+            context.lineTo(5, 5); // Ribs
+            context.stroke();
+        } else if (this.type === 'ghost') {
+            context.globalAlpha = 0.6;
+            context.fillStyle = this.color;
+            context.beginPath();
+            context.arc(0, 0, this.radius, Math.PI, 0); // Top half
+            context.lineTo(this.radius, this.radius);
+            context.lineTo(-this.radius, this.radius);
+            context.fill();
+            context.globalAlpha = 1.0;
+        } else {
+            // Default circle
+            context.fillStyle = this.color;
+            context.beginPath();
+            context.arc(0, 0, this.radius, 0, Math.PI * 2);
             context.fill();
         }
 
-        // OPTIMIZATION: Use cached sprite for segments
-        // Key based on color and radius
-        const segmentKey = `seg_${this.color}_${this.radius}`;
-        const segmentSize = this.radius * 2.5; // Slightly larger for padding
-
-        const segmentSprite = spriteCache.get(segmentKey, segmentSize, segmentSize, (ctx, cx, cy) => {
-            const gradient = ctx.createRadialGradient(cx - this.radius * 0.2, cy - this.radius * 0.2, 1, cx, cy, this.radius);
-            gradient.addColorStop(0, '#ffffff44'); // Highlight
-            gradient.addColorStop(0.5, this.color);
-            gradient.addColorStop(1, this.strokeColor || this.color);
-            ctx.fillStyle = gradient;
-            ctx.beginPath();
-            ctx.arc(cx, cy, this.radius, 0, Math.PI * 2);
-            ctx.fill();
-        });
-
-        // Draw body segments using cached sprite
-        for (let i = bodySegments - 1; i >= 0; i--) {
-            const seg = segmentPositions[i];
-            context.drawImage(segmentSprite, seg.x - segmentSize/2, seg.y - segmentSize/2);
-        }
-
-        // Draw Head (Could also be cached, but has eyes, slightly more complex.
-        // For now, let's keep head dynamic or cache it separately if needed.
-        // Drawing one head is cheap compared to 8 gradient segments.)
-        const head = segmentPositions[bodySegments - 1];
-
-        // Simple head draw (optimized gradient)
-        // Check if we can reuse the segment sprite for the base head?
-        // The head is radius * 1.2.
-
-        const headGradient = context.createRadialGradient(head.x - this.radius * 0.3, head.y - this.radius * 0.3, 1, head.x, head.y, this.radius * 1.2);
-        headGradient.addColorStop(0, '#ffffff66');
-        headGradient.addColorStop(0.5, this.color);
-        headGradient.addColorStop(1, this.strokeColor || this.color);
-
-        context.fillStyle = headGradient;
-        context.beginPath();
-        context.arc(head.x, head.y, this.radius * 1.2, 0, Math.PI * 2);
-        context.fill();
-
-        // Eyes
-        context.fillStyle = '#fff';
-        context.beginPath();
-        context.arc(head.x + this.radius * 0.5, head.y - this.radius * 0.3, this.radius * 0.25, 0, Math.PI * 2);
-        context.arc(head.x + this.radius * 0.5, head.y + this.radius * 0.3, this.radius * 0.25, 0, Math.PI * 2);
-        context.fill();
-        context.fillStyle = '#000';
-        context.beginPath();
-        context.arc(head.x + this.radius * 0.6, head.y - this.radius * 0.3, this.radius * 0.1, 0, Math.PI * 2);
-        context.arc(head.x + this.radius * 0.6, head.y + this.radius * 0.3, this.radius * 0.1, 0, Math.PI * 2);
-        context.fill();
-
-
         this._drawHpBar(context, this.radius * 2, 3, -this.radius - 8);
         context.restore();
-    }
-}
-// --- END RE-INTRODUCED BASE ENEMY CLASS ---
-
-class DefaultSnake extends Enemy {
-     constructor(x, y, waveFactor) {
-        super(x, y, 10, waveFactor);
-        // Health and Damage set in base Enemy constructor
-        this.speed = 2.0 + (waveFactor - 1) * 0.3; // INCREASED Speed Scaling: was * 0.1
-        // XP is base scaled (5 + 3 * (W-1))
-        this.color = currentPalette.defaultSnake;
-        this.strokeColor = this.color.slice(0, 5) + '00'; // Darken base color
-     }
-}
-
-class FastSnake extends Enemy {
-    constructor(x, y, waveFactor) {
-        super(x, y, 8, waveFactor);
-        // Health and Damage scale from base Enemy constructor
-        this.speed = 4.5; // Remains fast and constant
-        this.maxHp = Math.floor(this.maxHp * 0.4); // Naturally lower HP than default
-        this.currentHp = this.maxHp;
-        this.damage = Math.floor(this.damage * 0.6); // Lower base damage
-        this.xpValue = Math.floor(this.xpValue * 1.5); // 50% XP Bonus due to high speed/risk
-        this.color = currentPalette.fastSnake; // Dynamic color
-        this.strokeColor = this.color.slice(0, 5) + '00';
-    }
-}
-
-class TankSnake extends Enemy {
-    constructor(x, y, waveFactor) {
-        super(x, y, 20, waveFactor);
-        this.speed = 0.8 + (waveFactor - 1) * 0.05; // Subtle speed scaling
-        // Scale HP and Damage much higher than base Enemy
-        this.maxHp = Math.floor(this.maxHp * 3.5);
-        this.currentHp = this.maxHp;
-        this.damage = Math.floor(this.damage * 2.5);
-        this.xpValue = Math.floor(this.xpValue * 3.0); // 3x XP Bonus due to high durability
-        this.color = currentPalette.tankSnake; // Dynamic color
-        this.strokeColor = this.color.slice(0, 5) + '00';
     }
 }
 
@@ -2626,7 +2980,7 @@ class Boss extends Enemy {
 
 
 class Projectile extends Entity {
-    constructor(x, y, radius, color, speed, angle, damage, maxTravelDistance, isExplosive = false, currentBounces = 0, weaponKey, gravity = 0) {
+    constructor(x, y, radius, color, speed, angle, damage, maxTravelDistance, isExplosive = false, currentBounces = 0, weaponKey, gravity = 0, returnToPlayer = false) {
         super(x, y, radius, color, speed);
         this.angle = angle;
         this.dx = Math.cos(angle) * speed;
@@ -2647,13 +3001,41 @@ class Projectile extends Entity {
 
         this.gravity = gravity;
         this.vy = this.dy; // Vertical velocity for gravity
+        this.returnToPlayer = returnToPlayer;
+        this.returning = false;
+        this.elapsedTime = 0;
     }
 
-    update(deltaTime) {
+    update(deltaTime, player) {
         this.prevX = this.x;
         this.prevY = this.y;
+        this.elapsedTime += deltaTime;
 
-        if (this.gravity !== 0) {
+        if (this.returnToPlayer) {
+            if (!this.returning) {
+                // Outward phase
+                this.x += this.dx * (deltaTime / 16.66);
+                this.y += this.dy * (deltaTime / 16.66);
+
+                // Start returning after half max distance or time (simplified to time/dist)
+                const dist = Math.hypot(this.x - this.startX, this.y - this.startY);
+                if (dist > this.maxTravelDistance * 0.4) { // Turn around at 40% max range (makes ellipse)
+                     this.returning = true;
+                }
+            } else {
+                // Return phase (accelerate towards player)
+                const pdx = player.x - this.x;
+                const pdy = player.y - this.y;
+                const distToPlayer = Math.hypot(pdx, pdy);
+
+                // Increase speed on return
+                const returnSpeed = this.speed * 1.5;
+                this.x += (pdx / distToPlayer) * returnSpeed * (deltaTime / 16.66);
+                this.y += (pdy / distToPlayer) * returnSpeed * (deltaTime / 16.66);
+
+                if (distToPlayer < 20) return true; // Caught by player (despawn)
+            }
+        } else if (this.gravity !== 0) {
             // Apply gravity
             this.vy += this.gravity * (deltaTime / 16.66);
             this.x += this.dx * (deltaTime / 16.66);
@@ -2666,6 +3048,9 @@ class Projectile extends Entity {
 
         // No world center check
         const distanceTraveled = Math.hypot(this.x - this.startX, this.y - this.startY);
+
+        // Allow returning projectiles to exceed max distance if they are far away (they are returning)
+        if (this.returnToPlayer) return this.elapsedTime > 5000; // Hard timeout
 
         return distanceTraveled > this.maxTravelDistance;
     }
@@ -2802,12 +3187,13 @@ class SpawnDirector {
     constructor(game) {
         this.game = game;
         this.phases = [
-            { start: 0, end: 60, spawnInterval: 800, maxEnemies: 50, types: ['default'] },
-            { start: 60, end: 180, spawnInterval: 600, maxEnemies: 100, types: ['default', 'fast'] },
-            { start: 180, end: 300, spawnInterval: 400, maxEnemies: 200, types: ['default', 'fast', 'tank'] },
-            { start: 300, end: 600, spawnInterval: 200, maxEnemies: 400, types: ['default', 'fast', 'tank', 'detonator'] },
-            { start: 600, end: 1200, spawnInterval: 100, maxEnemies: 800, types: ['default', 'fast', 'tank', 'detonator', 'ranged'] }, // Ranged not impl yet
-            { start: 1200, end: 99999, spawnInterval: 50, maxEnemies: 1500, types: ['default', 'fast', 'tank', 'detonator'] }
+            { start: 0, end: 60, spawnInterval: 800, maxEnemies: 50, types: ['bat'] },
+            { start: 60, end: 120, spawnInterval: 600, maxEnemies: 100, types: ['bat', 'skeleton'] },
+            { start: 120, end: 180, spawnInterval: 500, maxEnemies: 150, types: ['skeleton', 'zombie'] },
+            { start: 180, end: 300, spawnInterval: 400, maxEnemies: 200, types: ['bat', 'skeleton', 'zombie'] },
+            { start: 300, end: 600, spawnInterval: 200, maxEnemies: 400, types: ['skeleton', 'ghost', 'zombie'] },
+            { start: 600, end: 900, spawnInterval: 100, maxEnemies: 600, types: ['bat', 'skeleton', 'ghost', 'werewolf'] },
+            { start: 900, end: 99999, spawnInterval: 50, maxEnemies: 1000, types: ['bat', 'skeleton', 'ghost', 'zombie', 'werewolf'] }
         ];
         this.nextBossTime = 60 * 5; // First boss at 5 minutes
     }
@@ -2818,8 +3204,8 @@ class SpawnDirector {
         // Find current phase
         const currentPhase = this.phases.find(p => timeInSeconds >= p.start && timeInSeconds < p.end) || this.phases[this.phases.length - 1];
 
-        this.game.enemySpawnInterval = currentPhase.spawnInterval;
-        this.game.maxEnemiesThisWave = currentPhase.maxEnemies;
+        this.game.enemySpawnInterval = Math.max(50, currentPhase.spawnInterval / this.game.player.curse); // More frequent
+        this.game.maxEnemiesThisWave = Math.floor(currentPhase.maxEnemies * this.game.player.curse); // More enemies
         this.game.allowedEnemyTypes = currentPhase.types;
 
         // Palette Swap every minute
@@ -3411,22 +3797,25 @@ class Game {
         spawnX = this.player.x + Math.cos(angle) * SPAWN_DISTANCE;
         spawnY = this.player.y + Math.sin(angle) * SPAWN_DISTANCE;
 
-        let enemy;
-        const allowed = this.allowedEnemyTypes || ['default'];
+        const allowed = this.allowedEnemyTypes || ['bat'];
         const type = allowed[Math.floor(Math.random() * allowed.length)];
         const waveFactor = this.currentMinute + 1;
 
-        if (type === 'tank') enemy = new TankSnake(spawnX, spawnY, waveFactor);
-        else if (type === 'fast') enemy = new FastSnake(spawnX, spawnY, waveFactor);
-        else if (type === 'detonator') enemy = new DetonatorSnake(spawnX, spawnY, waveFactor);
-        else enemy = new DefaultSnake(spawnX, spawnY, waveFactor);
+        // Use base Enemy class with type
+        const enemy = new Enemy(spawnX, spawnY, 12, waveFactor, type);
+
+        // Apply Curse
+        if (this.player.curse > 1.0) {
+            enemy.speed *= this.player.curse;
+            enemy.maxHp = Math.floor(enemy.maxHp * this.player.curse);
+            enemy.currentHp = enemy.maxHp;
+        }
 
         this.enemies.push(enemy);
-        // this.spatialGrid.insert(enemy); // Optimization
     }
 
 
-    checkCollisions() {
+    checkCollisions(deltaTime) {
 
         this.projectiles = this.projectiles.filter(p => {
             let hit = false;
@@ -3499,7 +3888,7 @@ class Game {
             }
 
             // Projectile removed if 'hit' is true (and it couldn't bounce) OR it's out of bounds.
-            return !(hit || p.update(16.66));
+            return !(hit || p.update(deltaTime, this.player));
         });
 
         this.enemyProjectiles = this.enemyProjectiles.filter(p => {
@@ -3642,6 +4031,14 @@ class Game {
             .sort((a, b) => a.distance - b.distance)
             .slice(0, n)
             .map(item => item.e);
+    }
+
+    getVisibleEnemies() {
+        const viewportRadius = VIEWPORT_RADIUS || 500;
+        return this.enemies.filter(e => {
+            const dist = Math.hypot(e.x - this.player.x, e.y - this.player.y);
+            return dist < viewportRadius;
+        });
     }
 
     generateLevelUpOptions() {
@@ -3908,9 +4305,28 @@ class Game {
     }
 
     endGame() {
+        if (this.player.revivals > 0) {
+            this.player.revivals--;
+            this.player.currentHp = Math.floor(this.player.maxHp * 0.5);
+            this.player.damageFlashTimer = 60; // 1 second invulnerability visual
+            // Clear enemies nearby?
+            this.addExplosionParticles(50, this.player.x, this.player.y, '#fff', 5);
+            // Push enemies away
+            this.enemies.forEach(e => {
+                const angle = Math.atan2(e.y - this.player.y, e.x - this.player.x);
+                e.x += Math.cos(angle) * 300;
+                e.y += Math.sin(angle) * 300;
+            });
+            return;
+        }
+
         this.gameOver = true;
         this.isPaused = true;
         cancelAnimationFrame(animationFrameId);
+
+        // SAVE GOLD
+        totalGold += this.player.currency;
+        saveGame();
 
         let highscoreMessage = '';
 
@@ -3927,6 +4343,7 @@ class Game {
         document.getElementById('messageTitle').textContent = "GAME OVER";
         document.getElementById('messageText').innerHTML = `
             You survived ${this.wave - 1} waves and earned ${this.kills} Kills.<br>
+            Gold Earned: <span class="text-yellow-400">${this.player.currency}</span><br>
             Final Level: ${this.player.level}<br><br>
             ${highscoreMessage}
         `;
@@ -4126,7 +4543,7 @@ class Game {
         this.explosions = this.explosions.filter(p => !p.update());
         this.enemyProjectiles = this.enemyProjectiles.filter(p => !p.update(deltaTime));
 
-        this.checkCollisions();
+        this.checkCollisions(deltaTime);
 
         // --- NEW CLEANUP FIX: Remove any enemy that died from any source (AoE, Detonator self-destruct) ---
         this.enemies = this.enemies.filter(e => !e.isDead);
@@ -4285,36 +4702,221 @@ function startGame(characterKey) {
     window.requestAnimationFrame(gameLoop);
 }
 
+let selectedCharacterKey = null;
+
 function showStartScreen() {
     startScreen.classList.remove('hidden');
+    characterOptionsDiv.innerHTML = ''; // Clear previous
 
-    // --- MODIFICATION: Updated ID to characterOptionsDiv ---
-    characterOptionsDiv.innerHTML = '';
+    // Create Container for Grid + Info
+    const container = document.createElement('div');
+    container.className = 'flex flex-col md:flex-row gap-6 w-full max-w-5xl mx-auto';
 
-    Object.entries(CHARACTERS).forEach(([key, character]) => {
-        const card = document.createElement('div');
-        card.className = 'character-card p-6 rounded-lg text-left shadow-xl';
-        card.innerHTML = `
-            <h3 class="2xl font-bold text-blue-300 mb-2">${character.name}</h3>
-            <p class="text-sm text-gray-300 mb-4">${character.description}</p>
-            <hr class="border-gray-600 mb-3">
-            <ul class="text-xs text-gray-400 space-y-1">
-                <li>HP: <span class="text-white">${character.initialStats.maxHp}</span></li>
-                <li>Damage Multiplier: <span class="text-white">${character.initialStats.damageMultiplier.toFixed(1)}x</span></li>
-                <li>Max Slots: <span class="text-yellow-500 font-bold">${character.initialStats.maxWeapons}</span></li>
-                <li>Armor: <span class="text-white">${character.initialStats.armor}</span></li>
-                <li>Evasion: <span class="text-white">${(character.initialStats.evasion * 100).toFixed(0)}%</span></li>
-                <li>Shield: <span class="text-blue-400">${character.initialStats.shield}</span></li> <li>Lifesteal: <span class="text-red-400">${(character.initialStats.lifestealPercentage * 100).toFixed(1)}%</span></li> <li class="mt-2 text-yellow-500">Starts with: ${WEAPONS[character.starterWeapon].name} ${WEAPONS[character.starterWeapon].emoji}</li>
-                <li class="text-sm mt-3 text-white font-semibold">SKIN: <span style="color: ${character.ratColors.main}">${character.name.split(' ').pop()} Style</span></li>
-            </ul>
-        `;
-        card.onclick = () => startGame(key);
-        characterOptionsDiv.appendChild(card);
+    // 1. LEFT: Character Grid
+    const gridDiv = document.createElement('div');
+    gridDiv.className = 'char-select-grid flex-1 border-2 border-gray-600 p-2 bg-gray-900/80 overflow-y-auto max-h-[60vh]';
+
+    // 2. RIGHT: Info Panel
+    const infoDiv = document.createElement('div');
+    infoDiv.className = 'char-select-info w-full md:w-1/3 bg-gray-800 border-2 border-gray-600 p-4 flex flex-col justify-between hidden';
+    infoDiv.id = 'charInfoPanel';
+
+    // Populate Grid
+    Object.entries(CHARACTERS).forEach(([key, char]) => {
+        const icon = document.createElement('div');
+        icon.className = 'char-select-icon relative group';
+        icon.onclick = () => selectCharacter(key, icon);
+
+        // Generate Mini-Portrait using SpriteCache approach
+        const canvasSize = 64;
+        const c = document.createElement('canvas');
+        c.width = canvasSize;
+        c.height = canvasSize;
+        const ctx = c.getContext('2d');
+
+        // Mock Entity for drawing
+        const mockRat = new Rat(key, canvasSize/2, canvasSize/2 + 5);
+        mockRat.radius = 12; // Adjust size for icon
+        mockRat.draw(ctx); // Use existing draw logic
+
+        icon.appendChild(c);
+
+        // Hover Tooltip (Name only)
+        const tooltip = document.createElement('div');
+        tooltip.className = 'absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition pointer-events-none whitespace-nowrap z-10';
+        tooltip.textContent = char.name;
+        icon.appendChild(tooltip);
+
+        gridDiv.appendChild(icon);
     });
-    // --- END MODIFICATION ---
 
-    // Initial HUD update for high score display
+    container.appendChild(gridDiv);
+    container.appendChild(infoDiv);
+    characterOptionsDiv.appendChild(container);
+
+    // Initial selection (first one)
+    const firstKey = Object.keys(CHARACTERS)[0];
+    const firstIcon = gridDiv.firstChild;
+    if (firstKey) selectCharacter(firstKey, firstIcon);
+
+    // Initial HUD update
     hud.bestKillCount.textContent = highScore;
+
+    // ADD SHOP BUTTON
+    const shopBtn = document.createElement('button');
+    shopBtn.className = 'fixed top-4 right-4 bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded border-2 border-yellow-800 shadow-lg z-50';
+    shopBtn.textContent = `POWER UP (Gold: ${totalGold})`;
+    shopBtn.onclick = showShop;
+    characterOptionsDiv.appendChild(shopBtn);
+}
+
+function showShop() {
+    characterOptionsDiv.innerHTML = ''; // Clear main screen
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'flex justify-between items-center mb-4 px-4';
+    header.innerHTML = `
+        <h2 class="text-3xl font-bold text-yellow-400">Power Up Selection</h2>
+        <div class="text-2xl text-yellow-200">Gold: <span id="shopGoldDisplay">${totalGold}</span></div>
+    `;
+    characterOptionsDiv.appendChild(header);
+
+    // Grid
+    const grid = document.createElement('div');
+    grid.className = 'shop-grid';
+
+    Object.entries(POWER_UP_STATS).forEach(([key, power]) => {
+        const currentRank = purchasedPowerUps[key] || 0;
+        const isMaxed = currentRank >= power.maxRank;
+
+        // Calculate cost (standard: cost * (rank + 1) * 0.1 flat increase? No, typically simpler in VS clones for now)
+        // Let's stick to flat cost increase: Base Cost * (1 + 0.1 * Rank)
+        const cost = Math.floor(power.cost * (1 + 0.1 * currentRank));
+
+        const item = document.createElement('div');
+        item.className = `shop-item ${isMaxed ? 'purchased-max' : ''}`;
+
+        // Pips visualization
+        let pipsHtml = '<div class="flex mt-2">';
+        for(let i=0; i<power.maxRank; i++) {
+            pipsHtml += `<div class="rank-pip ${i < currentRank ? 'filled' : ''}"></div>`;
+        }
+        pipsHtml += '</div>';
+
+        item.innerHTML = `
+            <div class="text-lg font-bold text-white">${power.name}</div>
+            <div class="text-xs text-gray-300 text-center mb-2 h-8">${power.description}</div>
+            ${pipsHtml}
+            <div class="mt-auto pt-2 w-full">
+                ${isMaxed
+                    ? `<div class="text-center text-green-400 font-bold">MAXED</div>`
+                    : `<button class="w-full bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-bold py-1 px-2 rounded border border-yellow-800" onclick="buyPowerUp('${key}')">
+                        ${cost} G
+                       </button>`
+                }
+            </div>
+        `;
+        grid.appendChild(item);
+    });
+
+    characterOptionsDiv.appendChild(grid);
+
+    // Footer buttons
+    const footer = document.createElement('div');
+    footer.className = 'flex justify-center gap-4 mt-6';
+    footer.innerHTML = `
+        <button class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded border-2 border-red-800" onclick="refundPowerUps()">REFUND POWER UPS</button>
+        <button class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded border-2 border-gray-800" onclick="showStartScreen()">DONE</button>
+    `;
+    characterOptionsDiv.appendChild(footer);
+}
+
+// Global scope for onclick handlers (since removed type=module)
+window.buyPowerUp = function(key) {
+    const power = POWER_UP_STATS[key];
+    const currentRank = purchasedPowerUps[key] || 0;
+
+    if (currentRank >= power.maxRank) return;
+
+    const cost = Math.floor(power.cost * (1 + 0.1 * currentRank));
+
+    if (totalGold >= cost) {
+        totalGold -= cost;
+        purchasedPowerUps[key] = currentRank + 1;
+        saveGame();
+        showShop(); // Redraw
+    }
+};
+
+window.refundPowerUps = function() {
+    // Refund logic: Calculate total spent?
+    // For simplicity, we just clear and give back a cheat amount or track spent?
+    // Better to track spent. But I didn't save spent.
+    // I will simply reset keys and NOT refund for this iteration (hardcore) or just give back based on current ranks calculation.
+
+    let refundAmount = 0;
+    Object.keys(purchasedPowerUps).forEach(key => {
+        const rank = purchasedPowerUps[key];
+        const power = POWER_UP_STATS[key];
+        for(let i=0; i<rank; i++) {
+             refundAmount += Math.floor(power.cost * (1 + 0.1 * i));
+        }
+    });
+
+    totalGold += refundAmount;
+    purchasedPowerUps = {};
+    saveGame();
+    showShop();
+};
+
+function selectCharacter(key, iconElement) {
+    selectedCharacterKey = key;
+    const char = CHARACTERS[key];
+    const weaponDef = WEAPONS[char.starterWeapon];
+
+    // Update visuals
+    document.querySelectorAll('.char-select-icon').forEach(el => el.classList.remove('selected'));
+    if (iconElement) iconElement.classList.add('selected');
+
+    // Update Info Panel
+    const infoPanel = document.getElementById('charInfoPanel');
+    if (infoPanel) {
+        infoPanel.classList.remove('hidden');
+        infoPanel.innerHTML = `
+            <div>
+                <h2 class="text-2xl font-bold text-yellow-400 mb-1">${char.name}</h2>
+                <div class="text-sm text-gray-400 mb-4 italic">"${char.description}"</div>
+
+                <div class="bg-gray-900 p-2 rounded mb-4 border border-gray-700">
+                    <div class="stat-row"><span>Max Health</span> <span class="text-green-400">${char.initialStats.maxHp}</span></div>
+                    <div class="stat-row"><span>Might</span> <span class="text-red-400">+${Math.round((char.initialStats.damageMultiplier-1)*100)}%</span></div>
+                    <div class="stat-row"><span>Speed</span> <span class="text-blue-400">${char.initialStats.baseSpeed}</span></div>
+                    <div class="stat-row"><span>Recovery</span> <span class="text-pink-400">${char.initialStats.hpRegen}</span></div>
+                    <div class="stat-row"><span>Area</span> <span class="text-purple-400">+${Math.round((char.initialStats.attackRangeMultiplier-1)*100)}%</span></div>
+                    <div class="stat-row"><span>Cooldown</span> <span class="text-yellow-400">-${Math.round((char.initialStats.fireRateReduction-1)*100)}%</span></div>
+                    ${char.initialStats.projectileCountBonus > 0 ? `<div class="stat-row"><span>Amount</span> <span class="text-orange-400">+${char.initialStats.projectileCountBonus}</span></div>` : ''}
+                    ${char.initialStats.revivals > 0 ? `<div class="stat-row"><span>Revivals</span> <span class="text-white">${char.initialStats.revivals}</span></div>` : ''}
+                </div>
+
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="text-3xl bg-gray-700 w-12 h-12 flex items-center justify-center rounded border border-gray-500" style="color: ${weaponDef.iconColor}">
+                        ${weaponDef.emoji}
+                    </div>
+                    <div>
+                        <div class="text-xs text-gray-400">Starting Weapon</div>
+                        <div class="font-bold text-white">${weaponDef.name}</div>
+                    </div>
+                </div>
+            </div>
+
+            <button id="startGameBtn" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded transition shadow-lg border-2 border-red-800 text-xl mt-auto">
+                START
+            </button>
+        `;
+
+        document.getElementById('startGameBtn').onclick = () => startGame(key);
+    }
 }
 
 
