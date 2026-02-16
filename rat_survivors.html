@@ -113,6 +113,63 @@ body {
      box-shadow: 0 0 15px #63b3ed, 0 0 25px #63b3ed;
      border-color: #63b3ed !important;
 }
+
+/* VS Style Character Select */
+.char-select-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+    gap: 10px;
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 10px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 8px;
+}
+
+.char-select-icon {
+    width: 80px;
+    height: 80px;
+    border: 2px solid #4a5568;
+    background: #2d3748;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    transition: all 0.2s;
+}
+
+.char-select-icon:hover {
+    border-color: #63b3ed;
+    background: #4a5568;
+}
+
+.char-select-icon.selected {
+    border-color: #fbd38d;
+    box-shadow: 0 0 10px #fbd38d;
+    background: #4a5568;
+}
+
+.char-select-info {
+    border: 2px solid #4a5568;
+    background: #1a202c;
+    border-radius: 8px;
+    padding: 20px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.stat-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    border-bottom: 1px solid #2d3748;
+    font-size: 0.9em;
+    color: #cbd5e0;
+}
+
 </style>
 </head>
 <body class="bg-gray-900 select-none">
@@ -4525,36 +4582,114 @@ function startGame(characterKey) {
     window.requestAnimationFrame(gameLoop);
 }
 
+let selectedCharacterKey = null;
+
 function showStartScreen() {
     startScreen.classList.remove('hidden');
+    characterOptionsDiv.innerHTML = ''; // Clear previous
 
-    // --- MODIFICATION: Updated ID to characterOptionsDiv ---
-    characterOptionsDiv.innerHTML = '';
+    // Create Container for Grid + Info
+    const container = document.createElement('div');
+    container.className = 'flex flex-col md:flex-row gap-6 w-full max-w-5xl mx-auto';
 
-    Object.entries(CHARACTERS).forEach(([key, character]) => {
-        const card = document.createElement('div');
-        card.className = 'character-card p-6 rounded-lg text-left shadow-xl';
-        card.innerHTML = `
-            <h3 class="2xl font-bold text-blue-300 mb-2">${character.name}</h3>
-            <p class="text-sm text-gray-300 mb-4">${character.description}</p>
-            <hr class="border-gray-600 mb-3">
-            <ul class="text-xs text-gray-400 space-y-1">
-                <li>HP: <span class="text-white">${character.initialStats.maxHp}</span></li>
-                <li>Damage Multiplier: <span class="text-white">${character.initialStats.damageMultiplier.toFixed(1)}x</span></li>
-                <li>Max Slots: <span class="text-yellow-500 font-bold">${character.initialStats.maxWeapons}</span></li>
-                <li>Armor: <span class="text-white">${character.initialStats.armor}</span></li>
-                <li>Evasion: <span class="text-white">${(character.initialStats.evasion * 100).toFixed(0)}%</span></li>
-                <li>Shield: <span class="text-blue-400">${character.initialStats.shield}</span></li> <li>Lifesteal: <span class="text-red-400">${(character.initialStats.lifestealPercentage * 100).toFixed(1)}%</span></li> <li class="mt-2 text-yellow-500">Starts with: ${WEAPONS[character.starterWeapon].name} ${WEAPONS[character.starterWeapon].emoji}</li>
-                <li class="text-sm mt-3 text-white font-semibold">SKIN: <span style="color: ${character.ratColors.main}">${character.name.split(' ').pop()} Style</span></li>
-            </ul>
-        `;
-        card.onclick = () => startGame(key);
-        characterOptionsDiv.appendChild(card);
+    // 1. LEFT: Character Grid
+    const gridDiv = document.createElement('div');
+    gridDiv.className = 'char-select-grid flex-1 border-2 border-gray-600 p-2 bg-gray-900/80 overflow-y-auto max-h-[60vh]';
+
+    // 2. RIGHT: Info Panel
+    const infoDiv = document.createElement('div');
+    infoDiv.className = 'char-select-info w-full md:w-1/3 bg-gray-800 border-2 border-gray-600 p-4 flex flex-col justify-between hidden';
+    infoDiv.id = 'charInfoPanel';
+
+    // Populate Grid
+    Object.entries(CHARACTERS).forEach(([key, char]) => {
+        const icon = document.createElement('div');
+        icon.className = 'char-select-icon relative group';
+        icon.onclick = () => selectCharacter(key, icon);
+
+        // Generate Mini-Portrait using SpriteCache approach
+        const canvasSize = 64;
+        const c = document.createElement('canvas');
+        c.width = canvasSize;
+        c.height = canvasSize;
+        const ctx = c.getContext('2d');
+
+        // Mock Entity for drawing
+        const mockRat = new Rat(key, canvasSize/2, canvasSize/2 + 5);
+        mockRat.radius = 12; // Adjust size for icon
+        mockRat.draw(ctx); // Use existing draw logic
+
+        icon.appendChild(c);
+
+        // Hover Tooltip (Name only)
+        const tooltip = document.createElement('div');
+        tooltip.className = 'absolute bottom-full mb-2 left-1/2 transform -translate-x-1/2 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition pointer-events-none whitespace-nowrap z-10';
+        tooltip.textContent = char.name;
+        icon.appendChild(tooltip);
+
+        gridDiv.appendChild(icon);
     });
-    // --- END MODIFICATION ---
 
-    // Initial HUD update for high score display
+    container.appendChild(gridDiv);
+    container.appendChild(infoDiv);
+    characterOptionsDiv.appendChild(container);
+
+    // Initial selection (first one)
+    const firstKey = Object.keys(CHARACTERS)[0];
+    const firstIcon = gridDiv.firstChild;
+    if (firstKey) selectCharacter(firstKey, firstIcon);
+
+    // Initial HUD update
     hud.bestKillCount.textContent = highScore;
+}
+
+function selectCharacter(key, iconElement) {
+    selectedCharacterKey = key;
+    const char = CHARACTERS[key];
+    const weaponDef = WEAPONS[char.starterWeapon];
+
+    // Update visuals
+    document.querySelectorAll('.char-select-icon').forEach(el => el.classList.remove('selected'));
+    if (iconElement) iconElement.classList.add('selected');
+
+    // Update Info Panel
+    const infoPanel = document.getElementById('charInfoPanel');
+    if (infoPanel) {
+        infoPanel.classList.remove('hidden');
+        infoPanel.innerHTML = `
+            <div>
+                <h2 class="text-2xl font-bold text-yellow-400 mb-1">${char.name}</h2>
+                <div class="text-sm text-gray-400 mb-4 italic">"${char.description}"</div>
+
+                <div class="bg-gray-900 p-2 rounded mb-4 border border-gray-700">
+                    <div class="stat-row"><span>Max Health</span> <span class="text-green-400">${char.initialStats.maxHp}</span></div>
+                    <div class="stat-row"><span>Might</span> <span class="text-red-400">+${Math.round((char.initialStats.damageMultiplier-1)*100)}%</span></div>
+                    <div class="stat-row"><span>Speed</span> <span class="text-blue-400">${char.initialStats.baseSpeed}</span></div>
+                    <div class="stat-row"><span>Recovery</span> <span class="text-pink-400">${char.initialStats.hpRegen}</span></div>
+                    <div class="stat-row"><span>Area</span> <span class="text-purple-400">+${Math.round((char.initialStats.attackRangeMultiplier-1)*100)}%</span></div>
+                    <div class="stat-row"><span>Cooldown</span> <span class="text-yellow-400">-${Math.round((char.initialStats.fireRateReduction-1)*100)}%</span></div>
+                    ${char.initialStats.projectileCountBonus > 0 ? `<div class="stat-row"><span>Amount</span> <span class="text-orange-400">+${char.initialStats.projectileCountBonus}</span></div>` : ''}
+                    ${char.initialStats.revivals > 0 ? `<div class="stat-row"><span>Revivals</span> <span class="text-white">${char.initialStats.revivals}</span></div>` : ''}
+                </div>
+
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="text-3xl bg-gray-700 w-12 h-12 flex items-center justify-center rounded border border-gray-500" style="color: ${weaponDef.iconColor}">
+                        ${weaponDef.emoji}
+                    </div>
+                    <div>
+                        <div class="text-xs text-gray-400">Starting Weapon</div>
+                        <div class="font-bold text-white">${weaponDef.name}</div>
+                    </div>
+                </div>
+            </div>
+
+            <button id="startGameBtn" class="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-4 rounded transition shadow-lg border-2 border-red-800 text-xl mt-auto">
+                START
+            </button>
+        `;
+
+        document.getElementById('startGameBtn').onclick = () => startGame(key);
+    }
 }
 
 

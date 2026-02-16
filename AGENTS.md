@@ -33,3 +33,8 @@ This script injects `src/styles.css` and the JS file into the HTML template.
 - **Projectile Types:** `projectile-nearest`, `projectile-facing`, `lightning` (instant), `screen-wipe`, `boomerang`, `vertical-zone`.
 - **Passives:** Handled via `PASSIVE_ITEMS` apply functions and `Rat` stats.
 - **Visuals:** Procedural drawing in `draw()` methods. No external assets.
+
+## User Interface
+The character selection screen uses a dynamic Grid + Info Panel layout.
+- **Classes:** `.char-select-grid`, `.char-select-icon`, `.char-select-info`.
+- **Logic:** `showStartScreen` creates DOM elements dynamically. `selectCharacter` updates the info panel.
