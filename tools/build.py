@@ -1,12 +1,12 @@
 import os
 
-def build():
+def build_file(js_filename, output_filename):
     # Paths
     SRC_DIR = 'src'
     INDEX_PATH = os.path.join(SRC_DIR, 'index.html')
     CSS_PATH = os.path.join(SRC_DIR, 'styles.css')
-    JS_PATH = os.path.join(SRC_DIR, 'game.js')
-    OUTPUT_FILE = 'ratato.html'
+    JS_PATH = os.path.join(SRC_DIR, js_filename)
+    OUTPUT_FILE = output_filename
 
     print(f"Building {OUTPUT_FILE} from {SRC_DIR}...")
 
@@ -30,7 +30,8 @@ def build():
 
         # Inject JS
         # We wrap it in <script type="module"> tags
-        js_block = f"<script type=\"module\">\n{js_content}\n</script>"
+        # REMOVE type="module" to allow global scope access for debugging as per memory
+        js_block = f"<script>\n{js_content}\n</script>"
         html_content = html_content.replace('<!-- {{JS}} -->', js_block)
 
         # Write output
@@ -45,4 +46,5 @@ def build():
         print(f"An error occurred: {e}")
 
 if __name__ == '__main__':
-    build()
+    build_file('game.js', 'ratato.html')
+    build_file('rat_survivors.js', 'rat_survivors.html')
