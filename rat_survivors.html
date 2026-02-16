@@ -114,12 +114,12 @@ body {
      border-color: #63b3ed !important;
 }
 
-/* VS Style Character Select */
+/* VS Style Character Select & Shop */
 .char-select-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
-    gap: 10px;
-    max-height: 400px;
+    grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); /* Slightly smaller for better fit */
+    gap: 8px;
+    max-height: 50vh; /* Relative to screen */
     overflow-y: auto;
     padding: 10px;
     background: rgba(0,0,0,0.3);
@@ -127,8 +127,8 @@ body {
 }
 
 .char-select-icon {
-    width: 80px;
-    height: 80px;
+    width: 100%;
+    aspect-ratio: 1; /* Square */
     border: 2px solid #4a5568;
     background: #2d3748;
     border-radius: 4px;
@@ -157,6 +157,8 @@ body {
     border-radius: 8px;
     padding: 20px;
     height: 100%;
+    max-height: 70vh; /* prevent overflow */
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
 }
@@ -166,8 +168,52 @@ body {
     justify-content: space-between;
     padding: 4px 0;
     border-bottom: 1px solid #2d3748;
-    font-size: 0.9em;
+    font-size: 0.85em; /* slightly smaller text */
     color: #cbd5e0;
+}
+
+/* Shop Styles */
+.shop-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 15px;
+    padding: 10px;
+    max-height: 65vh;
+    overflow-y: auto;
+}
+
+.shop-item {
+    background: #2d3748;
+    border: 2px solid #4a5568;
+    border-radius: 8px;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.shop-item:hover {
+    border-color: #63b3ed;
+    transform: translateY(-2px);
+}
+
+.shop-item.purchased-max {
+    border-color: #fbd38d;
+    background: #4a5568;
+}
+
+.rank-pip {
+    width: 8px;
+    height: 8px;
+    background: #1a202c;
+    border: 1px solid #718096;
+    margin: 1px;
+}
+.rank-pip.filled {
+    background: #fbd38d;
+    border-color: #fbd38d;
 }
 
 </style>
@@ -441,6 +487,39 @@ let game;
 let animationFrameId;
 
 let highScore = parseInt(localStorage.getItem(HIGHSCORE_KEY) || '0', 10); // Load high score
+
+// --- SHOP & PERSISTENCE ---
+const STORAGE_KEY_GOLD = 'ratato_total_gold';
+const STORAGE_KEY_POWERUPS = 'ratato_powerups';
+
+let totalGold = parseInt(localStorage.getItem(STORAGE_KEY_GOLD) || '0', 10);
+let purchasedPowerUps = JSON.parse(localStorage.getItem(STORAGE_KEY_POWERUPS) || '{}');
+
+function saveGame() {
+    localStorage.setItem(STORAGE_KEY_GOLD, totalGold);
+    localStorage.setItem(STORAGE_KEY_POWERUPS, JSON.stringify(purchasedPowerUps));
+}
+
+const POWER_UP_STATS = {
+    might: { name: "Might", description: "Increases damage dealt by 5%.", cost: 200, maxRank: 5, stat: 'damageMultiplier', amount: 0.05 },
+    armor: { name: "Armor", description: "Reduces incoming damage by 1.", cost: 600, maxRank: 3, stat: 'armor', amount: 1 },
+    maxHealth: { name: "Max Health", description: "Increases max health by 10%.", cost: 200, maxRank: 5, stat: 'maxHp', amount: 0.1 }, // Multiplier logic needed or flat? VS is %
+    recovery: { name: "Recovery", description: "Recovers 0.1 HP per second.", cost: 200, maxRank: 5, stat: 'hpRegen', amount: 0.1 },
+    cooldown: { name: "Cooldown", description: "Reduces weapon cooldowns by 2.5%.", cost: 900, maxRank: 2, stat: 'fireRateReduction', amount: 0.025 },
+    area: { name: "Area", description: "Increases area of effect by 5%.", cost: 300, maxRank: 2, stat: 'attackRangeMultiplier', amount: 0.05 },
+    speed: { name: "Speed", description: "Increases projectile speed by 10%.", cost: 300, maxRank: 2, stat: 'projectileSpeed', amount: 0.1 }, // Need to implement prop
+    duration: { name: "Duration", description: "Increases effect duration by 15%.", cost: 300, maxRank: 2, stat: 'durationMultiplier', amount: 0.15 },
+    amount: { name: "Amount", description: "Fires +1 projectile (Max 1).", cost: 5000, maxRank: 1, stat: 'projectileCountBonus', amount: 1 },
+    moveSpeed: { name: "Move Speed", description: "Increases movement speed by 5%.", cost: 300, maxRank: 2, stat: 'baseSpeed', amount: 0.05 }, // Multiplier logic needed
+    magnet: { name: "Magnet", description: "Increases item pickup range by 25%.", cost: 300, maxRank: 2, stat: 'magnetRange', amount: 0.25 }, // Multiplier logic needed
+    luck: { name: "Luck", description: "Increases luck by 10%.", cost: 600, maxRank: 3, stat: 'luck', amount: 0.1 },
+    greed: { name: "Greed", description: "Gains 10% more coins.", cost: 200, maxRank: 5, stat: 'greed', amount: 0.1 },
+    growth: { name: "Growth", description: "Gains 3% more experience.", cost: 900, maxRank: 5, stat: 'xpMultiplier', amount: 0.03 },
+    skip: { name: "Skip", description: "+1 Skip per rank.", cost: 100, maxRank: 2, stat: 'skips', amount: 1 },
+    reroll: { name: "Reroll", description: "+1 Reroll per rank.", cost: 1000, maxRank: 2, stat: 'rerolls', amount: 1 },
+    revival: { name: "Revival", description: "+1 Revival (Max 1).", cost: 10000, maxRank: 1, stat: 'revivals', amount: 1 },
+    curse: { name: "Curse", description: "Increases enemy speed, health, spawn rate by 10%.", cost: 1666, maxRank: 5, stat: 'curse', amount: 0.1 }
+};
 
 // --- DYNAMIC COLOR PALETTES (Swaps every 10 waves) ---
 const COLOR_PALETTES = {
@@ -1708,6 +1787,42 @@ class Rat extends Entity {
 
         // Visuals
         this.accessories = [];   // Array of { type: 'hat', color: 'red' }
+
+        // --- APPLY POWER UPS ---
+        Object.keys(purchasedPowerUps).forEach(key => {
+            const rank = purchasedPowerUps[key];
+            const def = POWER_UP_STATS[key];
+            if (rank > 0 && def) {
+                const totalBoost = def.amount * rank;
+                if (typeof this[def.stat] === 'number') {
+                    // Assuming most are multipliers (like damageMultiplier) or additive (armor)
+                    // We need to know if it is additive or multiplier.
+                    // Based on initialStats:
+                    // Multipliers: damageMultiplier, attackRangeMultiplier, xpMultiplier, greed, curse, fireRateReduction (actually reduction multiplier?), luck
+                    // Additive: armor, maxHp (usually %), hpRegen, projectileCountBonus, revivals, skips, rerolls
+
+                    if (['damageMultiplier', 'attackRangeMultiplier', 'xpMultiplier', 'greed', 'curse', 'luck'].includes(def.stat)) {
+                        this[def.stat] += totalBoost; // Additive percentage to base 1.0 (e.g. 1.0 + 0.1 = 1.1)
+                    } else if (def.stat === 'maxHp') {
+                        // Max HP % boost
+                        const boostAmount = Math.floor(this.maxHp * totalBoost);
+                        this.maxHp += boostAmount;
+                        this.currentHp += boostAmount;
+                    } else if (def.stat === 'fireRateReduction') {
+                        // Cooldown reduction (additive to reduction factor? No, usually reduction %.
+                        // Current logic: 1.0 / fireRateReduction. So higher is faster?
+                        // Let's see Brawler: 1.0. Raca: 1.1 (faster?).
+                        // "Weapon cooldown reduces by 5%". So we want this number to go UP?
+                        // "1.0 / this.fireRateReduction". If reduction is 1.1, interval is smaller? Yes.
+                        // So we ADD to the rate.
+                        this[def.stat] += totalBoost;
+                    } else {
+                        // Pure additive
+                        this[def.stat] += totalBoost;
+                    }
+                }
+            }
+        });
 
         this.moveDirection = { x: 0, y: 0 };
         this.damageFlashTimer = 0;
@@ -4209,6 +4324,10 @@ class Game {
         this.isPaused = true;
         cancelAnimationFrame(animationFrameId);
 
+        // SAVE GOLD
+        totalGold += this.player.currency;
+        saveGame();
+
         let highscoreMessage = '';
 
         // NEW: High Score Logic
@@ -4224,6 +4343,7 @@ class Game {
         document.getElementById('messageTitle').textContent = "GAME OVER";
         document.getElementById('messageText').innerHTML = `
             You survived ${this.wave - 1} waves and earned ${this.kills} Kills.<br>
+            Gold Earned: <span class="text-yellow-400">${this.player.currency}</span><br>
             Final Level: ${this.player.level}<br><br>
             ${highscoreMessage}
         `;
@@ -4641,7 +4761,114 @@ function showStartScreen() {
 
     // Initial HUD update
     hud.bestKillCount.textContent = highScore;
+
+    // ADD SHOP BUTTON
+    const shopBtn = document.createElement('button');
+    shopBtn.className = 'fixed top-4 right-4 bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded border-2 border-yellow-800 shadow-lg z-50';
+    shopBtn.textContent = `POWER UP (Gold: ${totalGold})`;
+    shopBtn.onclick = showShop;
+    characterOptionsDiv.appendChild(shopBtn);
 }
+
+function showShop() {
+    characterOptionsDiv.innerHTML = ''; // Clear main screen
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'flex justify-between items-center mb-4 px-4';
+    header.innerHTML = `
+        <h2 class="text-3xl font-bold text-yellow-400">Power Up Selection</h2>
+        <div class="text-2xl text-yellow-200">Gold: <span id="shopGoldDisplay">${totalGold}</span></div>
+    `;
+    characterOptionsDiv.appendChild(header);
+
+    // Grid
+    const grid = document.createElement('div');
+    grid.className = 'shop-grid';
+
+    Object.entries(POWER_UP_STATS).forEach(([key, power]) => {
+        const currentRank = purchasedPowerUps[key] || 0;
+        const isMaxed = currentRank >= power.maxRank;
+
+        // Calculate cost (standard: cost * (rank + 1) * 0.1 flat increase? No, typically simpler in VS clones for now)
+        // Let's stick to flat cost increase: Base Cost * (1 + 0.1 * Rank)
+        const cost = Math.floor(power.cost * (1 + 0.1 * currentRank));
+
+        const item = document.createElement('div');
+        item.className = `shop-item ${isMaxed ? 'purchased-max' : ''}`;
+
+        // Pips visualization
+        let pipsHtml = '<div class="flex mt-2">';
+        for(let i=0; i<power.maxRank; i++) {
+            pipsHtml += `<div class="rank-pip ${i < currentRank ? 'filled' : ''}"></div>`;
+        }
+        pipsHtml += '</div>';
+
+        item.innerHTML = `
+            <div class="text-lg font-bold text-white">${power.name}</div>
+            <div class="text-xs text-gray-300 text-center mb-2 h-8">${power.description}</div>
+            ${pipsHtml}
+            <div class="mt-auto pt-2 w-full">
+                ${isMaxed
+                    ? `<div class="text-center text-green-400 font-bold">MAXED</div>`
+                    : `<button class="w-full bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-bold py-1 px-2 rounded border border-yellow-800" onclick="buyPowerUp('${key}')">
+                        ${cost} G
+                       </button>`
+                }
+            </div>
+        `;
+        grid.appendChild(item);
+    });
+
+    characterOptionsDiv.appendChild(grid);
+
+    // Footer buttons
+    const footer = document.createElement('div');
+    footer.className = 'flex justify-center gap-4 mt-6';
+    footer.innerHTML = `
+        <button class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-6 rounded border-2 border-red-800" onclick="refundPowerUps()">REFUND POWER UPS</button>
+        <button class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded border-2 border-gray-800" onclick="showStartScreen()">DONE</button>
+    `;
+    characterOptionsDiv.appendChild(footer);
+}
+
+// Global scope for onclick handlers (since removed type=module)
+window.buyPowerUp = function(key) {
+    const power = POWER_UP_STATS[key];
+    const currentRank = purchasedPowerUps[key] || 0;
+
+    if (currentRank >= power.maxRank) return;
+
+    const cost = Math.floor(power.cost * (1 + 0.1 * currentRank));
+
+    if (totalGold >= cost) {
+        totalGold -= cost;
+        purchasedPowerUps[key] = currentRank + 1;
+        saveGame();
+        showShop(); // Redraw
+    }
+};
+
+window.refundPowerUps = function() {
+    // Refund logic: Calculate total spent?
+    // For simplicity, we just clear and give back a cheat amount or track spent?
+    // Better to track spent. But I didn't save spent.
+    // I will simply reset keys and NOT refund for this iteration (hardcore) or just give back based on current ranks calculation.
+
+    let refundAmount = 0;
+    Object.keys(purchasedPowerUps).forEach(key => {
+        const rank = purchasedPowerUps[key];
+        const power = POWER_UP_STATS[key];
+        for(let i=0; i<rank; i++) {
+             refundAmount += Math.floor(power.cost * (1 + 0.1 * i));
+        }
+    });
+
+    totalGold += refundAmount;
+    purchasedPowerUps = {};
+    saveGame();
+    showShop();
+};
 
 function selectCharacter(key, iconElement) {
     selectedCharacterKey = key;

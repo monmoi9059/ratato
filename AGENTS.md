@@ -25,6 +25,11 @@ Key features:
 Enemies use a single `Enemy` class with a `type` parameter ('bat', 'skeleton', etc.) which determines stats and drawing logic.
 Spawn logic is controlled by `SpawnDirector.phases`.
 
+## Persistence & Shop
+- **Storage:** `localStorage` uses keys `ratato_total_gold` and `ratato_powerups`.
+- **Shop Logic:** `POWER_UP_STATS` defines purchasable items.
+- **Application:** `Rat` constructor reads `purchasedPowerUps` and modifies `this` stats (e.g., `damageMultiplier`, `maxHp`) before the game starts.
+
 ## Build Process
 Run `python3 tools/build.py` to generate `rat_survivors.html` (and `ratato.html`).
 This script injects `src/styles.css` and the JS file into the HTML template.
@@ -38,3 +43,4 @@ This script injects `src/styles.css` and the JS file into the HTML template.
 The character selection screen uses a dynamic Grid + Info Panel layout.
 - **Classes:** `.char-select-grid`, `.char-select-icon`, `.char-select-info`.
 - **Logic:** `showStartScreen` creates DOM elements dynamically. `selectCharacter` updates the info panel.
+- **Shop:** Accessed via "POWER UP" button, renders `.shop-grid`.
