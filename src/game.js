@@ -673,8 +673,9 @@ class ChunkSystem {
     // Determine biome based on chunk coordinates
     getBiome(chunkX, chunkY) {
         // Use Perlin-like noise or simple large-scale hashing for biomes
-        // Scale down coordinates to make biomes large
-        const scale = 0.1;
+        // Scale down coordinates to make biomes large.
+        // 0.1 / 40 = 0.0025 to make biomes 40x bigger as requested.
+        const scale = 0.0025;
         const val = this.rand(chunkX * scale, chunkY * scale);
 
         const palettes = Object.values(COLOR_PALETTES);
