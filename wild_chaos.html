@@ -1,0 +1,4175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wild Chaos: Animal Defenders</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for the game canvas and feel */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a202c; /* Dark background */
+        }
+        #gameCanvas {
+            border: 4px solid #fbd38d; /* Gold border - controlled dynamically in JS now */
+            box-shadow: 0 0 20px rgba(251, 211, 141, 0.5); /* Glowing effect - controlled dynamically */
+            background-color: #3b4455; /* Arena floor color - controlled dynamically */
+            display: block;
+            margin: 0 auto;
+            touch-action: none; /* Prevents default mobile touch behavior */
+        }
+        .hud-stat {
+            font-weight: bold;
+            color: #fff;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        .xp-bar-fill {
+            background-color: #63b3ed; /* Blue */
+            height: 100%;
+            border-radius: 6px;
+            transition: width 0.3s;
+        }
+        .upgrade-card, .weapon-card {
+            cursor: pointer;
+            transition: transform 0.1s, box-shadow 0.1s;
+            border: 3px solid transparent;
+        }
+        .upgrade-card {
+            background-color: #2d3748;
+        }
+        /* Style for stat cards (yellow/gold) */
+        .upgrade-card.stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px rgba(251, 211, 141, 0.2);
+            border-color: #fbd38d;
+        }
+        /* Style for weapon cards (green) */
+        .upgrade-card.weapon-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 10px 15px rgba(72, 187, 120, 0.4);
+            border-color: #48bb78;
+        }
+        .character-card {
+            cursor: pointer;
+            transition: transform 0.1s, box-shadow 0.1s;
+            border: 3px solid transparent;
+            background-color: #2d3748;
+        }
+        .character-card:hover {
+            transform: translateY(-4px);
+            border-color: #63b3ed; /* Blue hover border for character selection */
+            box-shadow: 0 10px 15px rgba(99, 179, 237, 0.4);
+        }
+        .unavailable {
+            opacity: 0.5;
+            cursor: not-allowed;
+            filter: grayscale(100%);
+        }
+        .free-upgrade {
+            box-shadow: 0 0 15px #63b3ed; /* Blue glow for free item */
+            border-color: #63b3ed !important;
+        }
+        .free-upgrade:hover {
+            box-shadow: 0 0 20px #63b3ed;
+        }
+        /* New class for selected/staged items */
+        .selected-item {
+            box-shadow: 0 0 10px #fbd38d, 0 0 20px #fbd38d;
+            border-color: #fbd38d !important;
+        }
+        .selected-item.free-upgrade {
+             box-shadow: 0 0 15px #63b3ed, 0 0 25px #63b3ed;
+             border-color: #63b3ed !important;
+        }
+
+        /* Mobile Joystick Styles */
+        #mobileControls {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 100;
+            display: none; /* Hidden by default */
+        }
+        .joystick-zone {
+            width: 150px;
+            height: 150px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            position: relative;
+            touch-action: none;
+        }
+        .joystick-nipple {
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+
+        /* Landscape Warning Overlay */
+        #landscapeWarning {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: #1a202c;
+            z-index: 9999;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            color: white;
+        }
+        /* Only show warning if mobile mode is active (class on body) AND in portrait */
+        body.mobile-mode #landscapeWarning {
+            display: flex;
+        }
+        @media (orientation: landscape) {
+            body.mobile-mode #landscapeWarning {
+                display: none;
+            }
+        }
+
+        /* Fullscreen Mode Overrides */
+        body.fullscreen-mode {
+            padding: 0 !important;
+            align-items: center;
+            justify-content: center;
+            background-color: #000; /* Black bars */
+        }
+        body.fullscreen-mode #gameContainer {
+            max-width: none;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        body.fullscreen-mode #gameCanvas {
+            /* Responsive sizing handled by JS or simple CSS constraints */
+            max-width: 100vw;
+            max-height: 100vh;
+            width: auto;
+            height: auto;
+            aspect-ratio: 1 / 1; /* Keep square */
+            margin: auto;
+            border: 2px solid #fbd38d; /* Thinner border in fullscreen */
+        }
+        body.fullscreen-mode #gameUI {
+            /* Overlay UI on top of canvas or adjust layout?
+               For simplicity, we let flexbox handle it, but minimal UI might be better.
+               We'll try to keep it visible but small.
+            */
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            pointer-events: none; /* Let clicks pass through to canvas if needed */
+            z-index: 10;
+            background: rgba(31, 41, 55, 0.8); /* Transparent bg */
+        }
+    </style>
+</head>
+<body class="p-4 flex items-center justify-center min-h-screen">
+    <div id="landscapeWarning">
+        <div class="text-4xl mb-4">📱➡️🔄</div>
+        <h2 class="text-2xl font-bold">Please Rotate Your Device</h2>
+        <p class="text-gray-400 mt-2">Landscape mode is required for the best experience.</p>
+    </div>
+
+    <div id="mobileControls">
+        <div id="joystickZone" class="joystick-zone">
+            <div id="joystickNipple" class="joystick-nipple"></div>
+        </div>
+    </div>
+
+    <div id="gameContainer" class="max-w-4xl w-full relative">
+        <h1 class="text-3xl font-extrabold text-center mb-4 text-white">
+            🦁 Wild Chaos: Animal Defenders 👽
+        </h1>
+
+        <div id="gameUI" class="flex flex-col lg:flex-row justify-between mb-4 space-y-4 lg:space-y-0 lg:space-x-4">
+            <div class="w-full lg:w-1/3 bg-gray-800 p-4 rounded-lg shadow-xl border border-gray-700">
+                <div class="flex flex-col space-y-2 text-sm">
+                    <div class="hud-stat text-lg text-yellow-400">Wave: <span id="waveCount">1</span></div>
+                    <div class="hud-stat text-lg text-red-400">Best Score: <span id="bestKillCount">0</span></div>
+                    <div class="hud-stat text-lg text-green-400">Currency: <span id="killCount">0</span></div>
+                    <div class="hud-stat">
+                        HP: <span id="currentHP"></span> / <span id="maxHP"></span>
+                        <span id="buffTimer" class="text-xs text-red-400 ml-1"></span>
+                    </div>
+                    <div class="hud-stat">
+                        EXP:
+                        <div class="xp-bar-bg bg-gray-600 h-2 rounded-full mt-1">
+                            <div id="xpBarFill" class="xp-bar-fill w-0"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="w-full lg:w-2/3 bg-gray-800 p-4 rounded-lg shadow-xl border border-gray-700 text-sm text-gray-200">
+                <h2 class="text-lg font-semibold mb-2 text-yellow-400">Animal Stats & Inventory</h2>
+                <div class="grid grid-cols-4 gap-2">
+                    <div>Movement Speed: <span id="statSpeed"></span></div>
+                    <div>Damage Multiplier: <span id="statDamage"></span>x</div>
+                    <div>Armor: <span id="statArmor"></span></div>
+                    <div>Evasion: <span id="statEvasion"></span>%</div>
+                    <div>Add. Projectiles: <span id="statProjectiles"></span></div>
+                    <div>Attack Speed: <span id="statAttackSpeed"></span>%</div>
+                    <div>Attack Range: <span id="statRange"></span>x</div>
+                    <div>Shield: <span id="statShield"></span></div>
+                    <div class="col-span-4">
+                        Weapons: <span id="weaponList" class="text-green-400 font-medium"></span>
+                        <span id="weaponSlots" class="text-gray-500">(Slots: 0/0)</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <canvas id="gameCanvas" width="800" height="800"></canvas>
+
+        <div id="startScreen" class="absolute inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
+            <div class="bg-gray-900 p-10 rounded-xl shadow-2xl text-white max-w-5xl w-full text-center border-4 border-yellow-500">
+                <h2 class="text-4xl font-extrabold mb-8 text-yellow-400">CHOOSE YOUR HERO</h2>
+
+                <div class="mb-6 flex flex-col items-center justify-center space-y-4">
+                    <div class="flex items-center space-x-3">
+                        <input type="checkbox" id="mobileModeToggle" class="w-6 h-6 text-yellow-500 rounded focus:ring-yellow-500">
+                        <label for="mobileModeToggle" class="text-xl text-gray-300 cursor-pointer select-none">
+                            Enable Mobile Controls (Joystick)
+                        </label>
+                    </div>
+
+                    <button id="forceMobileFullscreenBtn" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition shadow-lg border-2 border-blue-400">
+                        📱 Play Fullscreen (Mobile)
+                    </button>
+                </div>
+
+                <div id="characterOptions" class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    </div>
+            </div>
+        </div>
+
+        <div id="messageBox" class="hidden absolute inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+            <div class="bg-gray-800 p-8 rounded-lg shadow-2xl text-white max-w-md w-full text-center border-4 border-red-500">
+                <h2 id="messageTitle" class="text-3xl font-bold mb-4 text-red-500">GAME OVER</h2>
+                <p id="messageText" class="mb-6 text-lg">You survived 0 waves and earned 0 Kills.</p>
+                <button id="restartButton" class="px-6 py-3 bg-yellow-600 hover:bg-yellow-500 text-gray-900 font-bold rounded-lg transition">Restart Game</button>
+            </div>
+        </div>
+
+        <div id="upgradeScreen" class="hidden absolute inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+            <div class="bg-gray-900 p-8 rounded-lg shadow-2xl text-white max-w-4xl w-full text-center border-4 border-yellow-400">
+                <h2 id="upgradeScreenTitle" class="text-4xl font-extrabold mb-8 text-yellow-400">LEVEL UP! Choose an Upgrade</h2>
+                <div id="upgradeOptionsContainer" class="flex flex-col items-center">
+                    <div id="upgradeOptions" class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+                        </div>
+                    <div id="purchaseSummary" class="text-xl font-bold text-gray-300 mb-4">
+                        Total Cost: 0 Kills | Remaining: 0 Kills
+                    </div>
+                    <button id="confirmPurchase" class="px-8 py-4 bg-green-600 hover:bg-green-500 text-white font-extrabold rounded-lg transition text-2xl shadow-lg border-2 border-green-400">
+                        CONFIRM PURCHASE (0 Kills)
+                    </button>
+                    <button id="skipButton" class="mt-3 text-gray-400 hover:text-gray-200 underline">
+                        Skip
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <p class="text-center mt-4 text-gray-400 text-sm">
+            Use WASD or Arrow Keys to move your Hero, or **hold the left mouse button** to guide it!
+        </p>
+    </div>
+
+    <script type="module">
+        // Constants and Initialization
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // --- NEW WORLD/CAMERA CONSTANTS ---
+        const VIEWPORT_RADIUS = 350; // Radius of the visible area
+        const WORLD_RADIUS = 1500;   // Radius of the entire explorable world
+        const WORLD_CENTER_X = 0;
+        const WORLD_CENTER_Y = 0;
+        // The center of the visible canvas (where the Rat is drawn)
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+
+        const ARENA_RADIUS = VIEWPORT_RADIUS; // Alias for old code compatibility
+        // --- END NEW CONSTANTS ---
+
+        const BASE_PROJECTILE_RANGE = 173; // Was 230, reduced by 25%
+
+        const HIGHSCORE_KEY = 'wildchaos_best_score'; // Key for localStorage
+
+        let game;
+        let animationFrameId;
+
+        let highScore = parseInt(localStorage.getItem(HIGHSCORE_KEY) || '0', 10); // Load high score
+
+        // --- DYNAMIC COLOR PALETTES (Swaps every 10 waves) ---
+        const COLOR_PALETTES = {
+            // Planet 1: Wasteland
+            dirt: {
+                name: "Alien Wasteland",
+                arenaBase: '#3b4455',
+                arenaPebbles: '#718096',
+                arenaBorder: '#fbd38d',
+                enemyDefault: '#4CAF50', // Alien Green
+                enemyFast: '#FF5722',    // Robot Orange
+                enemyTank: '#673AB7',    // Brute Purple
+                enemyDetonator: '#FFEB3B', // Warning Yellow
+                enemyRanged: '#9C27B0',
+                boss: '#F44336',         // Red Boss
+            },
+            // Planet 2: Toxic Moon
+            toxic: {
+                name: "Toxic Moon",
+                arenaBase: '#263238',
+                arenaPebbles: '#37474F',
+                arenaBorder: '#00E676',
+                enemyDefault: '#76FF03', // Neon Green
+                enemyFast: '#E040FB',    // Neon Purple
+                enemyTank: '#3E2723',    // Dark Organic
+                enemyDetonator: '#FF1744',
+                enemyRanged: '#00B0FF',
+                boss: '#651FFF',
+            },
+            // Planet 3: Mars Base
+            desert: {
+                name: "Mars Base",
+                arenaBase: '#BF360C',
+                arenaPebbles: '#E64A19',
+                arenaBorder: '#FF3D00',
+                enemyDefault: '#FF9800',
+                enemyFast: '#D50000',
+                enemyTank: '#212121',    // Black Metal
+                enemyDetonator: '#FFD600',
+                enemyRanged: '#607D8B',
+                boss: '#FF6D00',
+            },
+            // Planet 4: Frozen Core
+            ice: {
+                name: "Frozen Core",
+                arenaBase: '#455A64',
+                arenaPebbles: '#607D8B',
+                arenaBorder: '#00B0FF',
+                enemyDefault: '#80DEEA',
+                enemyFast: '#FF1744',
+                enemyTank: '#0D47A1',
+                enemyDetonator: '#FF9100',
+                enemyRanged: '#F06292',
+                boss: '#00E5FF',
+            }
+        };
+        let currentPalette = COLOR_PALETTES.dirt;
+
+
+        // --- CHARACTER DEFINITIONS (Custom Colors/Skins & Uniform Inventory Limits) ---
+        const UNIFORM_MAX_SLOTS = 8; // Max slots is 8 for all classes on start
+
+        // Define affinity constants
+        const MELEE_AFFINITY_RANGE = 3.0; // +200% base melee radius
+        const RANGED_AFFINITY_RANGE = 2.0; // +100% base ranged range
+        const SPREAD_AFFINITY_PROJ = 3;   // +3 base projectiles
+
+        const CHARACTERS = {
+            // 1. The Melee/Tank
+            bear: {
+                name: "Grizzly Bear",
+                type: 'bear',
+                description: "Tank/Melee. High HP and Armor with massive claw reach.",
+                initialStats: {
+                    maxHp: 500, baseSpeed: 3.5, damageMultiplier: 1.0, armor: 4, evasion: 0.0,
+                    projectileCountBonus: 0, fireRateReduction: 1.0, attackRangeMultiplier: 0.9, shield: 10, bounceCount: 0,
+                    lifestealPercentage: 0.0, currency: 0, maxWeapons: UNIFORM_MAX_SLOTS,
+                    meleeRangeMultiplier: MELEE_AFFINITY_RANGE
+                },
+                ratColors: { main: '#5D4037', light: '#8D6E63', detail: '#3E2723' },
+                starterWeapon: 'sledgehammer' // Re-flavour as "Giant Paw"
+            },
+            // 2. The Heavy Ranged
+            eagle: {
+                name: "Golden Eagle",
+                type: 'eagle',
+                description: "Pure Damage/Range. Extreme damage and range for aerial superiority.",
+                initialStats: {
+                    maxHp: 160, baseSpeed: 4.0, damageMultiplier: 1.8, armor: 0, evasion: 0.05,
+                    projectileCountBonus: 0, fireRateReduction: 0.9, attackRangeMultiplier: RANGED_AFFINITY_RANGE, shield: 0, bounceCount: 0,
+                    lifestealPercentage: 0.0, currency: 0, maxWeapons: UNIFORM_MAX_SLOTS,
+                    meleeRangeMultiplier: 1.0
+                },
+                ratColors: { main: '#3E2723', light: '#FFFFFF', detail: '#FFC107' }, // Brown body, white head, yellow beak
+                starterWeapon: 'pistol' // Re-flavour as "Feather Dart"
+            },
+            // 3. The Evasion/Speedster
+            cheetah: {
+                name: "Cheetah",
+                type: 'cheetah',
+                description: "Speed/Bounce. Max speed and evasion.",
+                initialStats: {
+                    maxHp: 180, baseSpeed: 7.0, damageMultiplier: 0.9, armor: 0, evasion: 0.25,
+                    projectileCountBonus: 0, fireRateReduction: 1.1, attackRangeMultiplier: 1.0, shield: 0, bounceCount: 2,
+                    lifestealPercentage: 0.0, currency: 0, maxWeapons: UNIFORM_MAX_SLOTS,
+                    meleeRangeMultiplier: 1.0
+                },
+                ratColors: { main: '#FFB74D', light: '#FFE0B2', detail: '#000000' },
+                starterWeapon: 'shuriken'
+            },
+            // 4. The Fast Melee
+            lion: {
+                name: "Lion",
+                type: 'lion',
+                description: "Melee Speed/Range. King of the Beasts with fast attacks.",
+                initialStats: {
+                    maxHp: 320, baseSpeed: 5.0, damageMultiplier: 1.1, armor: 1, evasion: 0.10,
+                    projectileCountBonus: 2, fireRateReduction: 1.3, attackRangeMultiplier: 1.0, shield: 5, bounceCount: 0,
+                    lifestealPercentage: 0.0, currency: 0, maxWeapons: UNIFORM_MAX_SLOTS,
+                    meleeRangeMultiplier: MELEE_AFFINITY_RANGE
+                },
+                ratColors: { main: '#FBC02D', light: '#FFF9C4', detail: '#E65100' }, // Gold body, orange mane
+                starterWeapon: 'sword' // Re-flavour as "Claw Slash"
+            },
+            // 5. The Projectile Volley
+            porcupine: {
+                name: "Porcupine",
+                type: 'porcupine',
+                description: "Spread/Projectiles. Launches sprays of quills in all directions.",
+                initialStats: {
+                    maxHp: 280, baseSpeed: 4.3, damageMultiplier: 1.1, armor: 2, evasion: 0.0,
+                    projectileCountBonus: SPREAD_AFFINITY_PROJ, fireRateReduction: 1.0, attackRangeMultiplier: 1.0, shield: 0, bounceCount: 0,
+                    lifestealPercentage: 0.0, currency: 0, maxWeapons: UNIFORM_MAX_SLOTS,
+                    meleeRangeMultiplier: 1.0
+                },
+                ratColors: { main: '#4E342E', light: '#8D6E63', detail: '#D7CCC8' },
+                starterWeapon: 'shotgun' // Re-flavour as "Quill Spray"
+            },
+            // 6. The Long Range Sniper
+            owl: {
+                name: "Great Owl",
+                type: 'owl',
+                description: "Range/Precision. Silent night hunter with high crit potential.",
+                initialStats: {
+                    maxHp: 200, baseSpeed: 4.3, damageMultiplier: 1.3, armor: 0, evasion: 0.05,
+                    projectileCountBonus: 0, fireRateReduction: 0.9, attackRangeMultiplier: RANGED_AFFINITY_RANGE, shield: 0, bounceCount: 0,
+                    lifestealPercentage: 0.0, currency: 0, maxWeapons: UNIFORM_MAX_SLOTS,
+                    meleeRangeMultiplier: 1.0
+                },
+                ratColors: { main: '#5D4037', light: '#D7CCC8', detail: '#FFD54F' },
+                starterWeapon: 'crossbow'
+            },
+            // 7. The Sustain DPS
+            elephant: {
+                name: "Elephant",
+                type: 'elephant',
+                description: "Fire Rate/Range. Durable and sustained firepower.",
+                initialStats: {
+                    maxHp: 240, baseSpeed: 4.7, damageMultiplier: 1.0, armor: 0, evasion: 0.0,
+                    projectileCountBonus: 2, fireRateReduction: 1.7, attackRangeMultiplier: RANGED_AFFINITY_RANGE, shield: 0, bounceCount: 0,
+                    lifestealPercentage: 0.0, currency: 0, maxWeapons: UNIFORM_MAX_SLOTS,
+                    meleeRangeMultiplier: 1.0
+                },
+                ratColors: { main: '#78909C', light: '#B0BEC5', detail: '#FFFFFF' }, // Grey, tusks
+                starterWeapon: 'minigun' // Re-flavour as "Trunk Blast"
+            },
+            // 8. The AoE Specialist
+            fox: {
+                name: "Red Fox",
+                type: 'fox',
+                description: "Fire Rate/AoE. Cunning and agile area denial.",
+                initialStats: {
+                    maxHp: 260, baseSpeed: 4.5, damageMultiplier: 1.1, armor: 0, evasion: 0.20,
+                    projectileCountBonus: 2, fireRateReduction: 1.5,
+                    attackRangeMultiplier: 0.7, shield: 0, bounceCount: 0,
+                    lifestealPercentage: 0.0, currency: 0, maxWeapons: UNIFORM_MAX_SLOTS,
+                    meleeRangeMultiplier: 1.0
+                },
+                ratColors: { main: '#E64A19', light: '#FFCCBC', detail: '#212121' },
+                starterWeapon: 'flamethrower'
+            },
+            // 9. The Explosives Expert
+            gorilla: {
+                name: "Gorilla",
+                type: 'gorilla',
+                description: "Explosives/HP. Throws explosive barrels and rocks.",
+                initialStats: {
+                    maxHp: 400, baseSpeed: 3.5, damageMultiplier: 2.0, armor: 1, evasion: 0.0,
+                    projectileCountBonus: 0, fireRateReduction: 0.8, attackRangeMultiplier: 1.0, shield: 15, bounceCount: 0,
+                    lifestealPercentage: 0.0, currency: 0, maxWeapons: UNIFORM_MAX_SLOTS,
+                    meleeRangeMultiplier: 1.0
+                },
+                ratColors: { main: '#212121', light: '#424242', detail: '#757575' },
+                starterWeapon: 'rocketLauncher'
+            }
+        };
+
+
+        // --- WEAPON DEFINITIONS ---
+        const WEAPONS = {
+            pistol: {
+                key: 'pistol', name: "Pistol", emoji: "🔫", damage: Math.floor(15 * 1.2), fireRate: Math.round(469 / 1.2),
+                projectileSpeed: 10,
+                projectiles: 1, spread: 0, radius: 5, description: "Reliable single-shot weapon. Great precision, standard stats.", iconColor: '#a0a0a0',
+            },
+            shotgun: {
+                key: 'shotgun', name: "Shotgun", emoji: "💣", damage: Math.floor(9 * 1.2), fireRate: Math.round(1406 / 1.2),
+                projectileSpeed: 8,
+                projectiles: 6, // Base Projectiles increased
+                spread: 0.5, radius: 4, description: "High burst damage, wide spread, but very slow attack speed.", iconColor: '#dd6b20',
+            },
+            shuriken: {
+                key: 'shuriken', name: "Shuriken", emoji: "🔪", damage: Math.floor(7.5 * 1.2), fireRate: Math.round(235 / 1.2),
+                projectileSpeed: 15,
+                projectiles: 1, spread: 0, radius: 6, description: "Low damage but exceptionally fast firing and high projectile velocity. Now bounces once!", iconColor: '#c0c0c0',
+                bounceCount: 1, // Base Shuriken bounce
+            },
+            rocketLauncher: {
+                key: 'rocketLauncher', name: "Rocket Launcher", emoji: "🚀", damage: Math.floor(60 * 1.2), fireRate: Math.round(1500 / 1.2),
+                projectileSpeed: 7,
+                projectiles: 1, spread: 0, radius: 10, description: "Extremely slow, high-damage projectile. Boom!", iconColor: '#e53e3e',
+            },
+            flamethrower: {
+                key: 'flamethrower', name: "Flamethrower", emoji: "🔥", damage: Math.floor(5 * 1.2),
+                fireRate: Math.round(94 / 1.2),
+                projectileSpeed: 6,
+                projectiles: 2, // Base Projectiles increased
+                spread: 0.8, radius: 3, description: "Low damage, rapid fire, creates a short-range cone of fire.", iconColor: '#f6e05e',
+            },
+            crossbow: {
+                key: 'crossbow', name: "Crossbow", emoji: "🏹", damage: Math.floor(30 * 1.2), fireRate: Math.round(750 / 1.2),
+                projectileSpeed: 12,
+                projectiles: 1, spread: 0, radius: 7, description: "High damage, slow firing, straight-shot bolt.", iconColor: '#a0aec0',
+            },
+            lightningRod: {
+                key: 'lightningRod', name: "Lightning Rod", emoji: "⚡", damage: Math.floor(12 * 1.2), fireRate: Math.round(281 / 1.2),
+                projectileSpeed: 6,
+                projectiles: 1, spread: 0.1, radius: 12, description: "Rapidly fires large, slow energy bolts with area damage. Medium range.", iconColor: '#63b3ed',
+            },
+            minigun: {
+                key: 'minigun', name: "Minigun", emoji: "⚙️", damage: Math.floor(4.5 * 1.2), fireRate: Math.round(100 / 1.2),
+                projectileSpeed: 11,
+                projectiles: 1, spread: 0.15, radius: 4, description: "Extremely high fire rate, low damage. Slight inaccuracy.", iconColor: '#5c646c',
+            },
+            phaser: {
+                key: 'phaser', name: "Phaser", emoji: "✨", damage: Math.floor(22.5 * 1.2), fireRate: Math.round(328 / 1.2),
+                projectileSpeed: 25,
+                projectiles: 1, spread: 0, radius: 3, description: "Pinpoint accuracy with a very high velocity energy bolt.", iconColor: '#9f7aea',
+            },
+            // --- NEW RANGED WEAPONS ---
+            railgun: {
+                key: 'railgun', name: "Railgun", emoji: "💥", damage: 150, fireRate: 2500, projectileSpeed: 30, projectiles: 1, spread: 0, radius: 8, description: "Charges for a devastating, high-velocity shot. Pierces through reality.", iconColor: '#00ffff',
+            },
+            pulseRifle: {
+                key: 'pulseRifle', name: "Pulse Rifle", emoji: "📡", damage: 12, fireRate: 800, projectileSpeed: 14, projectiles: 3, spread: 0.1, radius: 5, description: "Fires a tight three-shot burst. Excellent for focused fire.", iconColor: '#b794f4',
+            },
+            discLauncher: {
+                key: 'discLauncher', name: "Disc Launcher", emoji: "💿", damage: 40, fireRate: 900, projectileSpeed: 5, projectiles: 1, spread: 0, radius: 25, description: "Launches a large, slow-moving disc that cleaves through enemies.", iconColor: '#f56565',
+            },
+            acidSprayer: {
+                key: 'acidSprayer', name: "Acid Sprayer", emoji: "🧪", damage: 3, fireRate: 80, projectileSpeed: 7, projectiles: 1, spread: 0.6, radius: 4, description: "Sprays a short-range cone of corrosive acid. Melts armor.", iconColor: '#9ae6b4',
+            },
+
+            // --- MELEE WEAPONS WITH CONE PROPERTIES ---
+            sledgehammer: {
+                key: 'sledgehammer', name: "Sledgehammer", emoji: "🔨", damage: 50, fireRate: 400, radius: 60, arcAngle: Math.PI / 3, isMelee: true, knockback: 15, description: "Instant hit, high damage, forward sweeping attack.", iconColor: '#b8860b',
+            },
+            axe: {
+                key: 'axe', name: "Battle Axe", emoji: "🪓", damage: 35, fireRate: 600, radius: 90, arcAngle: Math.PI / 2, isMelee: true, knockback: 10, description: "High damage, medium range, wide sweeping attack.", iconColor: '#713e2f',
+            },
+            sword: {
+                key: 'sword', name: "Short Sword", emoji: "⚔️", damage: 15, fireRate: 200, radius: 50, arcAngle: Math.PI / 4, isMelee: true, knockback: 5, description: "Very fast attack, low damage, narrow sweep.", iconColor: '#b0b0b0',
+            },
+            spear: {
+                key: 'spear', name: "Spear", emoji: "🔱", damage: 20, fireRate: 250, radius: 120, arcAngle: Math.PI / 8, isMelee: true, knockback: 8, description: "Medium damage, fast attack, narrow forward thrust.", iconColor: '#f9a825',
+            },
+            lance: {
+                key: 'lance', name: "Lance", emoji: "🗡️", damage: 80, fireRate: 750,
+                radius: 80,
+                arcAngle: Math.PI * 0.75, isMelee: true, knockback: 25, description: "Fast thrust, high damage, massive forward arc.", iconColor: '#4a5568',
+            },
+            // --- NEW MELEE WEAPONS ---
+            dagger: {
+                key: 'dagger', name: "Dagger", emoji: "匕", damage: 8, fireRate: 100, radius: 35, arcAngle: Math.PI / 6, isMelee: true, knockback: 2, description: "A lightning-fast stab with very short reach. Death by a thousand cuts.", iconColor: '#718096',
+            },
+            scythe: {
+                key: 'scythe', name: "Scythe", emoji: "💀", damage: 100, fireRate: 1800, radius: 100, arcAngle: Math.PI * 2, isMelee: true, knockback: 15, description: "A slow, sweeping 360-degree attack that reaps all nearby foes.", iconColor: '#2d3748',
+            },
+            warhammer: {
+                key: 'warhammer', name: "Warhammer", emoji: "🔨", damage: 70, fireRate: 1100, radius: 75, arcAngle: Math.PI / 1.5, isMelee: true, knockback: 30, description: "A colossal hammer that sends enemies flying with a wide, crushing blow.", iconColor: '#4a5568',
+            },
+            katana: {
+                key: 'katana', name: "Katana", emoji: "🈹", damage: 25, fireRate: 180, radius: 85, arcAngle: Math.PI / 5, isMelee: true, knockback: 4, description: "A swift, precise slash with exceptional reach. The blade is sworn to a single path.", iconColor: '#e2e8f0',
+            },
+        };
+
+        // UI Elements
+        const hud = {
+            waveCount: document.getElementById('waveCount'),
+            killCount: document.getElementById('killCount'),
+            bestKillCount: document.getElementById('bestKillCount'),
+            currentHP: document.getElementById('currentHP'),
+            maxHP: document.getElementById('maxHP'),
+            xpBarFill: document.getElementById('xpBarFill'),
+            statSpeed: document.getElementById('statSpeed'),
+            statDamage: document.getElementById('statDamage'),
+            statArmor: document.getElementById('statArmor'),
+            statEvasion: document.getElementById('statEvasion'),
+            statProjectiles: document.getElementById('statProjectiles'),
+            statAttackSpeed: document.getElementById('statAttackSpeed'),
+            statRange: document.getElementById('statRange'),
+            statShield: document.getElementById('statShield'),
+            weaponList: document.getElementById('weaponList'),
+            weaponSlots: document.getElementById('weaponSlots'),
+            buffTimer: document.getElementById('buffTimer')
+        };
+        const startScreen = document.getElementById('startScreen');
+        const characterOptionsDiv = document.getElementById('characterOptions');
+        const messageBox = document.getElementById('messageBox');
+        const upgradeScreen = document.getElementById('upgradeScreen');
+        const upgradeOptionsDiv = document.getElementById('upgradeOptions');
+        const upgradeScreenTitle = document.getElementById('upgradeScreenTitle');
+        const restartButton = document.getElementById('restartButton');
+
+        // NEW UI elements for multiple purchase logic
+        const purchaseSummary = document.getElementById('purchaseSummary');
+        const confirmPurchaseButton = document.getElementById('confirmPurchase');
+        const skipButton = document.getElementById('skipButton');
+
+        const mobileModeToggle = document.getElementById('mobileModeToggle');
+        const mobileControlsDiv = document.getElementById('mobileControls');
+        const joystickZone = document.getElementById('joystickZone');
+        const joystickNipple = document.getElementById('joystickNipple');
+
+        let isMobileMode = false;
+        let isFullscreen = false;
+        let joystickActive = false;
+        let joystickCenter = { x: 0, y: 0 };
+        let joystickTouchId = null;
+        let joystickVector = { x: 0, y: 0 };
+
+        // --- GAME OBJECTS ---
+
+        class Entity {
+            constructor(x, y, radius, color, speed) {
+                // FIX: Removed super() call here
+                this.x = x; // Now World X
+                this.y = y; // Now World Y
+                this.radius = radius;
+                this.color = color;
+                this.speed = speed;
+                this.maxHp = 1;
+                this.currentHp = 1;
+            }
+
+            // Base draw is now minimal, entities will override this
+            draw(context) {
+                context.fillStyle = this.color;
+                context.beginPath();
+                context.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                context.fill();
+            }
+        }
+
+        class Obstacle extends Entity {
+            constructor(x, y, radius) {
+                super(x, y, radius, '#505050', 0);
+                this.color = '#505050';
+                this.strokeColor = '#303030';
+                this.type = 'rock';
+
+                // NEW: Calculate and store the fixed jagged points once in the constructor
+                this.points = [];
+                const numPoints = 8 + Math.floor(Math.random() * 4); // 8-11 points
+                for(let i = 0; i <= numPoints; i++) {
+                    const angle = i * (Math.PI * 2 / numPoints);
+                    // Slight randomization in radius for jagged edges
+                    const r = this.radius * (0.8 + Math.random() * 0.4);
+                    this.points.push({ x: r * Math.cos(angle), y: r * Math.sin(angle) });
+                }
+            }
+
+            draw(context) {
+                context.save();
+                context.translate(this.x, this.y);
+
+                // NEW: Add a drop shadow for depth
+                context.fillStyle = 'rgba(0,0,0,0.25)';
+                context.beginPath();
+                context.ellipse(0, this.radius * 0.8, this.radius, this.radius * 0.4, 0, 0, Math.PI * 2);
+                context.fill();
+
+
+                // Draw main rock body (rounded shape with a gradient for texture)
+                const gradient = context.createRadialGradient(
+                    this.radius * 0.3, -this.radius * 0.3, 0,
+                    0, 0, this.radius
+                );
+                gradient.addColorStop(0, this.color);
+                gradient.addColorStop(1, this.strokeColor);
+
+                context.fillStyle = gradient;
+                context.strokeStyle = this.strokeColor;
+                context.lineWidth = 2;
+
+                // Draw the fixed, irregular shape using stored points
+                context.beginPath();
+
+                // --- USE STORED POINTS FOR STATIC SHAPE ---
+                if (this.points.length > 0) {
+                    context.moveTo(this.points[0].x, this.points[0].y);
+                    // Loop up to the second to last point, then close path
+                    for(let i = 1; i < this.points.length; i++) {
+                        context.lineTo(this.points[i].x, this.points[i].y);
+                    }
+                }
+                // --- END USE STORED POINTS ---
+
+                context.closePath();
+                context.fill();
+                context.stroke();
+
+                // Add texture details
+                context.fillStyle = 'rgba(0, 0, 0, 0.2)';
+                context.beginPath();
+                context.arc(this.radius * 0.4, this.radius * 0.4, this.radius * 0.2, 0, Math.PI * 2);
+                context.fill();
+
+                context.fillStyle = 'rgba(255, 255, 255, 0.2)';
+                context.beginPath();
+                context.arc(-this.radius * 0.5, -this.radius * 0.5, this.radius * 0.15, 0, Math.PI * 2);
+                context.fill();
+
+                // NEW: Palette-specific visual flair
+                context.globalCompositeOperation = 'lighter'; // Additive blending for glows
+                let effectApplied = false;
+                switch (currentPalette.name) {
+                    case "Toxic Swamp":
+                        const toxicGlow = context.createRadialGradient(0, 0, this.radius * 0.5, 0, 0, this.radius);
+                        toxicGlow.addColorStop(0, 'rgba(154, 230, 180, 0.4)');
+                        toxicGlow.addColorStop(1, 'rgba(154, 230, 180, 0)');
+                        context.fillStyle = toxicGlow;
+                        context.beginPath();
+                        context.arc(0, 0, this.radius * 1.2, 0, Math.PI * 2);
+                        context.fill();
+                        effectApplied = true;
+                        break;
+                    case "Ice Cave":
+                        context.fillStyle = 'rgba(255, 255, 255, 0.3)';
+                        context.fill(); // Re-fill with a white sheen
+                        effectApplied = true;
+                        break;
+                }
+                if (effectApplied) {
+                    context.globalCompositeOperation = 'source-over'; // Reset blending mode
+                }
+
+
+                context.restore();
+            }
+        }
+
+        class Particle extends Entity {
+            constructor(x, y, color, size = 3) {
+                // FIX: Particle must correctly call super() since it extends Entity
+                super(x, y, size, color, 0);
+
+                this.velocity = { x: (Math.random() - 0.5) * 2, y: (Math.random() - 0.5) * 2 };
+                this.life = 60; // Frames of life
+                this.maxLife = 60;
+            }
+
+            update() {
+                this.x += this.velocity.x;
+                this.y += this.velocity.y;
+                this.life--;
+                return this.life <= 0; // Returns true if particle is dead
+            }
+
+            draw(context) {
+                // Fade effect
+                context.globalAlpha = this.life / this.maxLife;
+                context.fillStyle = this.color;
+
+                // Spark shape
+                const size = this.radius * (this.life / this.maxLife);
+                context.save();
+                context.translate(this.x, this.y);
+                context.rotate(Math.random() * Math.PI);
+                context.fillRect(-size/2, -size/2, size, size);
+                context.restore();
+
+                context.globalAlpha = 1.0; // Reset alpha
+            }
+        }
+
+        class HealthDrop extends Entity {
+            constructor(x, y) {
+                super(x, y, 8, '#48bb78', 0); // Green color, stationary
+                this.healAmount = 150; // MODIFIED: Increased heal amount
+                this.color = '#48bb78';
+            }
+
+            draw(context) {
+                // Draw as a custom green plus sign
+                context.fillStyle = this.color;
+                context.strokeStyle = '#fff';
+                context.lineWidth = 2;
+
+                // Vertical bar
+                context.fillRect(this.x - 2, this.y - 6, 4, 12);
+                // Horizontal bar
+                context.fillRect(this.x - 6, this.y - 2, 12, 4);
+
+                // Add a white stroke to the edges for visibility
+                context.strokeRect(this.x - 2, this.y - 6, 4, 12);
+                context.strokeRect(this.x - 6, this.y - 2, 12, 4);
+            }
+        }
+
+        // NEW CLASS: Explosive Bullet Drop
+        class ExplosiveBulletDrop extends Entity {
+            constructor(x, y) {
+                super(x, y, 8, '#ff4500', 0); // Red-Orange color
+                this.buffDuration = 10000; // 10 seconds in milliseconds
+                this.color = '#ff4500';
+            }
+
+            draw(context) {
+                // Draw as a stylized projectile with a flash/explosion hint
+                context.save();
+                context.translate(this.x, this.y);
+
+                // Base projectile body (small circle)
+                context.fillStyle = this.color;
+                context.beginPath();
+                context.arc(0, 0, this.radius, 0, Math.PI * 2);
+                context.fill();
+
+                // Flash lines (Yellow/White)
+                context.strokeStyle = '#fff';
+                context.lineWidth = 1;
+                context.beginPath();
+                for (let i = 0; i < 4; i++) {
+                    const angle = i * Math.PI / 2;
+                    context.moveTo(0, 0);
+                    context.lineTo(Math.cos(angle) * (this.radius + 4), Math.sin(angle) * (this.radius + 4));
+                }
+                context.stroke();
+
+                context.restore();
+            }
+        }
+        // END NEW CLASS
+
+        // NEW CLASS: Ice Power-up Drop
+        class IcePowerupDrop extends Entity {
+            constructor(x, y) {
+                super(x, y, 8, '#4299e1', 0); // Blue color
+                this.buffDuration = 5000; // 5 seconds
+            }
+            draw(context) {
+                // Draw as a rotating blue crystal/gem
+                context.save();
+                context.translate(this.x, this.y);
+                context.rotate(Date.now() / 500); // Continuous rotation
+
+                context.fillStyle = '#63b3ed';
+                context.strokeStyle = '#fff';
+                context.lineWidth = 1;
+
+                // Draw diamond shape
+                context.beginPath();
+                context.moveTo(0, -this.radius);
+                context.lineTo(this.radius, 0);
+                context.lineTo(0, this.radius);
+                context.lineTo(-this.radius, 0);
+                context.closePath();
+                context.fill();
+                context.stroke();
+
+                context.restore();
+            }
+        }
+
+        // NEW CLASS: Extreme Fire Speed Power-up Drop
+        class SpeedPowerupDrop extends Entity {
+            constructor(x, y) {
+                super(x, y, 8, '#ff4500', 0); // Red/Orange
+                this.buffDuration = 5000; // 5 seconds
+            }
+            draw(context) {
+                // Draw as a stylized red lightning bolt
+                context.save();
+                context.translate(this.x, this.y);
+                context.rotate(Math.sin(Date.now() / 150) * 0.2); // Wiggle
+
+                context.fillStyle = '#ff4500';
+                context.strokeStyle = '#ffc700'; // Yellow outline
+                context.lineWidth = 1.5;
+
+                // Draw Z shape (lightning)
+                context.beginPath();
+                context.moveTo(-5, -5);
+                context.lineTo(5, -5);
+                context.lineTo(0, 5);
+                context.lineTo(-10, 5);
+                context.lineTo(-5, -5);
+                context.closePath();
+                context.fill();
+                context.stroke();
+
+                context.restore();
+            }
+        }
+
+        // NEW CLASS: Bomb Drop (Nuclear Option)
+        class BombDrop extends Entity {
+            constructor(x, y) {
+                super(x, y, 10, '#000000', 0);
+                this.color = '#000000';
+            }
+            draw(context) {
+                // Draw as a pulsing black/yellow bomb icon
+                context.save();
+                context.translate(this.x, this.y);
+                const pulse = Math.sin(Date.now() / 150) * 0.5 + 1;
+
+                // Bomb body
+                context.fillStyle = '#1a1a1a';
+                context.beginPath();
+                context.arc(0, 0, this.radius * pulse, 0, Math.PI * 2);
+                context.fill();
+
+                // Fuse/Warning sign (yellow)
+                context.fillStyle = '#fbd38d';
+                context.fillRect(-2, -this.radius * pulse * 1.5, 4, 10);
+
+                // Warning stripes
+                context.strokeStyle = '#ffc700';
+                context.lineWidth = 1;
+                context.beginPath();
+                context.moveTo(-this.radius * pulse * 0.8, -this.radius * pulse * 0.5);
+                context.lineTo(this.radius * pulse * 0.8, this.radius * pulse * 0.5);
+                context.stroke();
+
+                context.restore();
+            }
+        }
+
+        // END NEW POWERUP CLASSES
+
+        class Hero extends Entity {
+            constructor(characterKey) {
+                super(WORLD_CENTER_X, WORLD_CENTER_Y, 15, null, 4); // Initialize at world center
+                this.type = CHARACTERS[characterKey].type;
+
+                const initialStats = CHARACTERS[characterKey].initialStats;
+                const colors = CHARACTERS[characterKey].ratColors;
+
+                this.maxHp = initialStats.maxHp;
+                this.currentHp = initialStats.maxHp;
+                this.baseSpeed = initialStats.baseSpeed;
+                this.damageMultiplier = initialStats.damageMultiplier;
+                this.armor = initialStats.armor;
+                this.evasion = initialStats.evasion;
+                // NEW RANGED STATS
+                this.projectileCountBonus = initialStats.projectileCountBonus;
+                this.fireRateReduction = initialStats.fireRateReduction;
+                this.attackRangeMultiplier = initialStats.attackRangeMultiplier;
+                this.shield = initialStats.shield; // NEW SHIELD STAT
+                this.bounceCount = initialStats.bounceCount; // NEW GLOBAL BOUNCE STAT
+                this.lifestealPercentage = initialStats.lifestealPercentage; // NEW LIFESTEAL STAT
+
+                // NEW AFFINITY STAT
+                this.meleeRangeMultiplier = initialStats.meleeRangeMultiplier;
+
+                // NEW CURRENCY STAT
+                this.currency = initialStats.currency;
+                // NEW WEAPON SLOTS
+                this.maxWeapons = initialStats.maxWeapons;
+
+                this.level = 1;
+                this.xp = 0;
+                this.xpToNextLevel = 10;
+                this.moveDirection = { x: 0, y: 0 };
+                this.damageFlashTimer = 0;
+                this.animationFrame = 0;
+                this.facingRight = true;
+
+                this.weapons = [];
+                this.weaponTimers = {};
+
+                // Set character-specific colors
+                this.ratColor = colors.main;
+                this.ratLightFur = colors.light;
+                this.ratDetailColor = colors.detail;
+
+                // NEW BUFF TRACKING
+                this.buffs = {
+                    explosiveBullets: 0, // Milliseconds remaining
+                    iceAura: 0,
+                    extremeSpeed: 0 // New speed buff
+                };
+
+                this.addWeapon(CHARACTERS[characterKey].starterWeapon);
+            }
+
+            addWeapon(weaponKey) {
+                const weaponDefinition = WEAPONS[weaponKey];
+
+                // --- MODIFIED SLOT CHECK ---
+                const uniqueWeaponCount = Object.keys(this.weapons.reduce((acc, w) => { acc[w.key] = true; return acc; }, {})).length;
+
+                if (uniqueWeaponCount >= this.maxWeapons && this.weapons.filter(w => w.key === weaponKey).length === 0) {
+                    // Prevent adding a NEW type if slots are full
+                    return;
+                }
+                // --- END MODIFIED SLOT CHECK ---
+
+
+                const currentStackCount = this.weapons.filter(w => w.key === weaponKey).length;
+
+                // 1. Create the new weapon instance (copying base stats)
+                const newWeapon = JSON.parse(JSON.stringify(weaponDefinition));
+                newWeapon.key = weaponKey;
+                newWeapon.stackDamageFactor = 1.0; // Initialize stack damage factor
+
+                // NEW: Initialize bounce count if applicable (Shuriken)
+                if (newWeapon.bounceCount > 0) {
+                    newWeapon.currentBounces = newWeapon.bounceCount;
+                }
+
+                // 2. Add the new weapon
+                this.weapons.push(newWeapon);
+
+                // 3. Handle timer setup if this is the first stack
+                if (currentStackCount === 0) {
+                     this.weaponTimers[weaponKey] = 0;
+                }
+
+                // 4. Handle Stacking Logic (Damage and Melee Range)
+                const newTotalStacks = currentStackCount + 1;
+
+                // Damage Stacking: Factor increases linearly (1.0, 2.0, 3.0, etc.)
+                const stackDamageFactor = newTotalStacks;
+
+                // Update ALL instances of this weapon with the new final stats
+                this.weapons.forEach(w => {
+                    if (w.key === weaponKey) {
+                        // Apply damage factor to all instances of this weapon type
+                        w.stackDamageFactor = stackDamageFactor;
+
+                        // Apply Melee Range Scaling (Melee logic only)
+                        if (w.isMelee) {
+                             const BASE_RADIUS = WEAPONS[weaponKey].radius;
+                             // Melee radius scaling is now based on total stacks, applied to ALL instances
+                             // BASE RADIUS is multiplied by the CHARACTER's affinity multiplier (3.0 for Brawler/Swordsman)
+                            const initialBaseRadius = BASE_RADIUS * this.meleeRangeMultiplier;
+
+                            // UPDATED: Added new melee weapons to the scaling logic
+                            const radiusIncrease = (weaponKey === 'sledgehammer') ? 10 * newTotalStacks :
+                                                     (weaponKey === 'axe') ? 5 * newTotalStacks :
+                                                     (weaponKey === 'sword') ? 3 * newTotalStacks :
+                                                     (weaponKey === 'spear') ? 7 * newTotalStacks :
+                                                     (weaponKey === 'lance') ? 12 * newTotalStacks :
+                                                     (weaponKey === 'warhammer') ? 15 * newTotalStacks :
+                                                     (weaponKey === 'dagger') ? 2 * newTotalStacks :
+                                                     (weaponKey === 'katana') ? 6 * newTotalStacks :
+                                                     (weaponKey === 'scythe') ? 8 * newTotalStacks : 0;
+
+                            w.radius = initialBaseRadius + radiusIncrease;
+                        }
+                    }
+                });
+            }
+
+            // NEW: Add currency handling
+            gainCurrency(amount) {
+                this.currency += amount;
+            }
+
+            gainXp(amount) {
+                this.xp += amount;
+                while (this.xp >= this.xpToNextLevel) {
+                    this.levelUp();
+                }
+            }
+
+            heal(amount) {
+                this.currentHp = Math.min(this.maxHp, this.currentHp + amount);
+            }
+
+            // NEW: Apply explosive bullet buff
+            applyExplosiveBuff(duration) {
+                this.buffs.explosiveBullets = duration;
+            }
+
+            // NEW: Apply Ice Aura buff
+            applyIceAura(duration) {
+                this.buffs.iceAura = duration;
+                game.enemies.forEach(e => e.isSlowed = true);
+            }
+
+            // NEW: Apply Extreme Speed buff
+            applyExtremeSpeed(duration) {
+                this.buffs.extremeSpeed = duration;
+            }
+
+
+            levelUp() {
+                this.xp -= this.xpToNextLevel;
+                this.level += 1;
+
+                // NEW leveling curve: Steeper at the start, flatter at higher levels.
+                // The growth factor starts high and decreases as the player levels up.
+                const growthFactor = Math.max(1.1, 1.8 - (this.level / 50));
+                this.xpToNextLevel = Math.floor(this.xpToNextLevel * growthFactor);
+
+                game.pauseAndShowStatUpgrades();
+            }
+
+            update(deltaTime) {
+                const totalSpeed = this.baseSpeed * (deltaTime / 16.66);
+                let newX = this.x + this.moveDirection.x * totalSpeed;
+                let newY = this.y + this.moveDirection.y * totalSpeed;
+
+                // Update facing direction based on horizontal movement
+                if (this.moveDirection.x > 0) {
+                    this.facingRight = true;
+                } else if (this.moveDirection.x < 0) {
+                    this.facingRight = false;
+                }
+
+
+                // --- WORLD BOUNDARY CLAMPING ---
+                const distToCenter = Math.hypot(newX - WORLD_CENTER_X, newY - WORLD_CENTER_Y);
+                if (distToCenter + this.radius > WORLD_RADIUS) {
+                    const angle = Math.atan2(newY - WORLD_CENTER_Y, newX - WORLD_CENTER_X);
+                    newX = WORLD_CENTER_X + Math.cos(angle) * (WORLD_RADIUS - this.radius);
+                    newY = WORLD_CENTER_Y + Math.sin(angle) * (WORLD_RADIUS - this.radius);
+                }
+
+                this.x = newX; // Now updating World X
+                this.y = newY; // Now updating World Y
+                // --- END WORLD CLAMPING ---
+
+                if (this.moveDirection.x !== 0 || this.moveDirection.y !== 0) {
+                    this.animationFrame++;
+                }
+
+                // NEW: Update Buff timers
+                this.buffs.explosiveBullets = Math.max(0, this.buffs.explosiveBullets - deltaTime);
+                this.buffs.iceAura = Math.max(0, this.buffs.iceAura - deltaTime);
+                this.buffs.extremeSpeed = Math.max(0, this.buffs.extremeSpeed - deltaTime);
+
+                // Debuff removal: remove slow effect if timer hits zero
+                if (this.buffs.iceAura === 0) {
+                     game.enemies.forEach(e => e.isSlowed = false);
+                }
+
+
+                const currentTime = Date.now();
+
+                // NEW TARGETING LOGIC
+                // Get all enemies sorted by distance, once per frame.
+                const sortedEnemies = game.enemies
+                    .map(e => ({ e, distance: Math.hypot(e.x - this.x, e.y - this.y) }))
+                    .sort((a, b) => a.distance - b.distance)
+                    .map(item => item.e);
+
+                // Group weapons by type but keep a deterministic order based on the player's weapon list
+                const weaponTypeOrder = [];
+                const weaponsByType = this.weapons.reduce((acc, weapon) => {
+                    if (!acc[weapon.key]) {
+                        acc[weapon.key] = [];
+                        weaponTypeOrder.push(weapon.key); // Store the order of first appearance
+                    }
+                    acc[weapon.key].push(weapon);
+                    return acc;
+                }, {});
+
+                // Calculate temporary speed boost from power-up
+                const speedBuffFactor = this.buffs.extremeSpeed > 0 ? 1.5 : 1.0;
+
+                let globalWeaponIndex = 0;
+
+                // Iterate using the deterministic order to ensure target "slots" are consistent
+                weaponTypeOrder.forEach(key => {
+                    const stacks = weaponsByType[key];
+                    const baseFireRate = stacks[0].fireRate;
+                    const totalFireRateReduction = this.fireRateReduction * speedBuffFactor;
+                    const adjustedFireRate = Math.max(10, baseFireRate / totalFireRateReduction);
+
+                    if (currentTime - this.weaponTimers[key] > adjustedFireRate) {
+                        // This weapon type is ready to fire. Pass its starting "target slot" index.
+                        this.shootWeaponStacks(key, stacks, sortedEnemies, globalWeaponIndex);
+                        this.weaponTimers[key] = currentTime;
+                    }
+
+                    // Move the global index along for the next weapon type
+                    globalWeaponIndex += stacks.length;
+                });
+            }
+
+            shootWeaponStacks(weaponKey, stacks, sortedEnemies, startingGlobalIndex) {
+                // Each stack of this weapon type will fire.
+                stacks.forEach((weapon, stackIndex) => {
+                    // The "target slot" for this specific weapon instance is its global index.
+                    const currentGlobalIndex = startingGlobalIndex + stackIndex;
+
+                    let initialAngle;
+
+                    // Handle Melee weapons separately. They don't consume a target slot and only attack once per type.
+                    if (weapon.isMelee) {
+                         if (stackIndex === 0) {
+                            game.meleeAttack(this.x, this.y, weapon);
+                         }
+                         return; // Go to next stack in forEach (but do nothing)
+                    }
+
+                    // RANGED WEAPONS:
+                    if (sortedEnemies.length > 0) {
+                        // Use the global index to pick a target. Loop around if not enough enemies.
+                        const targetIndex = currentGlobalIndex % sortedEnemies.length;
+                        let targetEnemy = sortedEnemies[targetIndex];
+                        initialAngle = Math.atan2(targetEnemy.y - this.y, targetEnemy.x - this.x);
+                        this.fireSingleWeaponStack(weapon, initialAngle);
+                    }
+                    // If no enemies, do nothing.
+                });
+            }
+
+            fireSingleWeaponStack(weapon, initialAngle) {
+                if (weapon.isMelee) {
+                    // This function should only be reached by ranged weapons now, but kept for clarity
+                    return;
+                }
+
+                const bulletColor = WEAPONS[weapon.key].iconColor || '#fbd38d';
+
+                // --- APPLY GLOBAL RANGED STATS & NEW STACK DAMAGE ---
+
+                // NEW: Use weapon.stackDamageFactor for damage amplification (1.0, 2.0, 3.0, etc.)
+                const baseDamage = weapon.damage * weapon.stackDamageFactor;
+
+                // Note: Projectiles count only uses base + global bonus (no stack based projectile increase)
+                const totalProjectiles = weapon.projectiles + this.projectileCountBonus;
+
+                const finalDamage = baseDamage * this.damageMultiplier;
+                const finalSpeed = weapon.projectileSpeed;
+
+                // Max travel distance calculated using the updated BASE_PROJECTILE_RANGE
+                const maxTravelDistance = BASE_PROJECTILE_RANGE * this.attackRangeMultiplier;
+                // --- END APPLY GLOBAL RANGED STATS & NEW STACK DAMAGE ---
+
+
+                const halfSpread = weapon.spread / 2;
+                const angleIncrement = totalProjectiles > 1 ? weapon.spread / (totalProjectiles - 1) : 0;
+
+                let startingAngle;
+
+                // --- FLAMETHROWER/SPREAD FIX ---
+                // The flamethrower relies on spreading around the target line.
+                if (weapon.key === 'flamethrower' || weapon.key === 'acidSprayer') {
+                    // Ensure the angle spread is centered correctly
+                    startingAngle = initialAngle - halfSpread;
+                } else if (totalProjectiles > 1) {
+                    startingAngle = initialAngle - halfSpread;
+                } else {
+                    startingAngle = initialAngle;
+                }
+                // --- END FLAMETHROWER/SPREAD FIX ---
+
+
+                const isExplosive = this.buffs.explosiveBullets > 0; // Check if buff is active
+
+                // Get initial bounce count (0 or 1 for shuriken)
+                const initialBounces = weapon.bounceCount || 0;
+
+                for (let i = 0; i < totalProjectiles; i++) {
+                    let angle;
+                    if (totalProjectiles === 1 && weapon.spread === 0) {
+                         angle = initialAngle;
+                    } else if (totalProjectiles === 1 && weapon.spread > 0) {
+                        angle = initialAngle + (Math.random() * weapon.spread - halfSpread);
+                    }
+                    else {
+                        angle = startingAngle + angleIncrement * i;
+                    }
+
+                    // Pass maxTravelDistance, explosive status, and initial bounce count
+                    // --- FIX: Pass total bounces (weapon base + global player stat) ---
+                    const totalBounces = initialBounces + this.bounceCount;
+
+                    const bullet = new Projectile(this.x, this.y, weapon.radius, bulletColor, finalSpeed, angle, finalDamage, maxTravelDistance, isExplosive, totalBounces, weapon.key);
+                    game.projectiles.push(bullet);
+                }
+            }
+
+            drawAnimalBody(context) {
+                const isMoving = this.moveDirection.x !== 0 || this.moveDirection.y !== 0;
+                const idleBob = isMoving ? 0 : Math.sin(Date.now() / 200) * 1.5;
+
+                context.save();
+                context.translate(this.x, this.y + idleBob);
+
+                if (!this.facingRight) {
+                    context.scale(-1, 1);
+                }
+
+                // Shadow
+                context.fillStyle = 'rgba(0, 0, 0, 0.2)';
+                context.beginPath();
+                context.ellipse(0, 10, this.radius * 1.5, this.radius * 0.5, 0, 0, Math.PI * 2);
+                context.fill();
+
+                const type = this.type;
+                const color = this.ratColor;
+                const lightColor = this.ratLightFur;
+                const detailColor = this.ratDetailColor;
+
+                // --- COMMON ANIMATION VARS ---
+                const strideAmplitude = 4;
+                const strideOffset = isMoving ? Math.sin(this.animationFrame * 0.4) * strideAmplitude : 0;
+
+                // --- SPECIFIC ANIMAL DRAWING ---
+
+                if (type === 'bear' || type === 'lion' || type === 'fox' || type === 'cheetah' || type === 'porcupine') {
+                    // QUADRUPED BODY
+                    const bodyLength = this.radius * 2.2;
+                    const bodyHeight = this.radius * 1.3;
+
+                    // Tail
+                    if (type === 'fox' || type === 'cheetah' || type === 'lion') {
+                        context.strokeStyle = (type === 'lion' || type === 'fox') ? color : detailColor;
+                        context.lineWidth = (type === 'fox') ? 8 : 3;
+                        context.beginPath();
+                        context.moveTo(-bodyLength/2, 0);
+                        context.quadraticCurveTo(-bodyLength, -10, -bodyLength - 10, 0);
+                        context.stroke();
+                        // Lion tail tuft
+                        if (type === 'lion') {
+                             context.fillStyle = detailColor;
+                             context.beginPath();
+                             context.arc(-bodyLength - 10, 0, 4, 0, Math.PI*2);
+                             context.fill();
+                        }
+                    }
+
+                    // Body
+                    context.fillStyle = color;
+                    context.beginPath();
+                    context.ellipse(0, 0, bodyLength/2, bodyHeight/2, 0, 0, Math.PI*2);
+                    context.fill();
+
+                    // Spots for Cheetah
+                    if (type === 'cheetah') {
+                        context.fillStyle = detailColor; // Black spots
+                        for(let i=0; i<5; i++) {
+                            context.beginPath();
+                            context.arc((Math.random()-0.5)*bodyLength*0.6, (Math.random()-0.5)*bodyHeight*0.6, 2, 0, Math.PI*2);
+                            context.fill();
+                        }
+                    }
+
+                    // Spikes for Porcupine
+                    if (type === 'porcupine') {
+                        context.fillStyle = detailColor;
+                        for(let i=0; i<5; i++) {
+                            context.beginPath();
+                            const x = -bodyLength/3 + i * 5;
+                            context.moveTo(x, -bodyHeight/2);
+                            context.lineTo(x + 2, -bodyHeight/2 - 10);
+                            context.lineTo(x + 4, -bodyHeight/2);
+                            context.fill();
+                        }
+                    }
+
+                    // Head
+                    const headX = bodyLength * 0.4;
+                    const headY = -5;
+                    const headRadius = this.radius * 0.9;
+
+                    // Lion Mane
+                    if (type === 'lion') {
+                        context.fillStyle = detailColor; // Orange
+                        context.beginPath();
+                        context.arc(headX, headY, headRadius * 1.4, 0, Math.PI*2);
+                        context.fill();
+                    }
+
+                    context.fillStyle = (type === 'eagle') ? lightColor : color; // Eagle head is white
+                    context.beginPath();
+                    context.arc(headX, headY, headRadius, 0, Math.PI*2);
+                    context.fill();
+
+                    // Ears
+                    context.fillStyle = color;
+                    if (type === 'fox' || type === 'cat') {
+                        // Pointy ears
+                        context.beginPath();
+                        context.moveTo(headX, headY - headRadius);
+                        context.lineTo(headX + 5, headY - headRadius - 8);
+                        context.lineTo(headX + 10, headY - headRadius);
+                        context.fill();
+                    } else {
+                        // Round ears (Bear, Lion, Cheetah)
+                        context.beginPath();
+                        context.arc(headX + 2, headY - headRadius + 2, 4, 0, Math.PI*2);
+                        context.fill();
+                    }
+
+                    // Eyes & Snout
+                    context.fillStyle = 'black';
+                    context.beginPath();
+                    context.arc(headX + 5, headY - 2, 2, 0, Math.PI*2);
+                    context.fill();
+
+                    // Legs
+                    context.fillStyle = lightColor;
+                    context.beginPath();
+                    context.arc(bodyLength*0.2 + strideOffset, bodyHeight/2, 4, 0, Math.PI*2); // Front R
+                    context.fill();
+                    context.beginPath();
+                    context.arc(-bodyLength*0.2 - strideOffset, bodyHeight/2, 4, 0, Math.PI*2); // Back R
+                    context.fill();
+
+                } else if (type === 'eagle' || type === 'owl') {
+                    // BIRD BODY
+                    const bodyLength = this.radius * 1.8;
+
+                    // Tail feathers
+                    context.fillStyle = detailColor;
+                    context.beginPath();
+                    context.moveTo(-bodyLength/2, 0);
+                    context.lineTo(-bodyLength, -5);
+                    context.lineTo(-bodyLength, 5);
+                    context.fill();
+
+                    // Body
+                    context.fillStyle = color;
+                    context.beginPath();
+                    context.ellipse(0, 0, bodyLength/2, this.radius, 0, 0, Math.PI*2);
+                    context.fill();
+
+                    // Wing
+                    context.fillStyle = detailColor;
+                    context.beginPath();
+                    context.ellipse(5, 5, bodyLength/2.5, this.radius/2, 0.2, 0, Math.PI*2);
+                    context.fill();
+
+                    // Head
+                    const headX = bodyLength * 0.3;
+                    const headY = -8;
+                    const headRadius = this.radius * 0.7;
+                    context.fillStyle = (type === 'eagle') ? lightColor : color;
+                    context.beginPath();
+                    context.arc(headX, headY, headRadius, 0, Math.PI*2);
+                    context.fill();
+
+                    // Beak
+                    context.fillStyle = '#FFC107'; // Yellow
+                    context.beginPath();
+                    context.moveTo(headX + 5, headY);
+                    context.lineTo(headX + 12, headY + 2);
+                    context.lineTo(headX + 5, headY + 4);
+                    context.fill();
+
+                    // Eye
+                    context.fillStyle = 'black';
+                    context.beginPath();
+                    context.arc(headX + 3, headY - 2, (type==='owl'? 3 : 2), 0, Math.PI*2);
+                    context.fill();
+
+                } else if (type === 'elephant' || type === 'gorilla') {
+                    // HEAVY BODY
+                    const bodySize = this.radius * 1.5;
+
+                    context.fillStyle = color;
+                    context.beginPath();
+                    context.arc(0, 0, bodySize, 0, Math.PI*2);
+                    context.fill();
+
+                    if (type === 'elephant') {
+                        // Ear
+                        context.fillStyle = lightColor;
+                        context.beginPath();
+                        context.ellipse(-5, -5, 10, 15, -0.2, 0, Math.PI*2);
+                        context.fill();
+
+                        // Trunk
+                        context.strokeStyle = color;
+                        context.lineWidth = 6;
+                        context.beginPath();
+                        context.moveTo(10, 0);
+                        context.quadraticCurveTo(20, 10, 25, 5);
+                        context.stroke();
+
+                        // Tusk
+                        context.strokeStyle = '#FFF';
+                        context.lineWidth = 3;
+                        context.beginPath();
+                        context.moveTo(10, 5);
+                        context.lineTo(18, 12);
+                        context.stroke();
+                    }
+
+                    if (type === 'gorilla') {
+                        // Big arms
+                        context.fillStyle = detailColor;
+                        context.beginPath();
+                        context.arc(10 + strideOffset, 5, 8, 0, Math.PI*2);
+                        context.fill();
+
+                        // Face
+                        context.fillStyle = '#000';
+                        context.beginPath();
+                        context.arc(5, -5, 6, 0, Math.PI*2);
+                        context.fill();
+                    }
+                } else {
+                    // Fallback to basic shape
+                    context.fillStyle = color;
+                    context.beginPath();
+                    context.arc(0, 0, this.radius, 0, Math.PI*2);
+                    context.fill();
+                }
+
+                context.restore();
+            }
+            draw(context) {
+                // --- Buff Glow ---
+                if (this.buffs.explosiveBullets > 0) {
+                    const alpha = Math.sin(Date.now() / 50) * 0.5 + 0.5; // Pulsing effect
+                    context.save();
+                    context.globalAlpha = alpha * 0.6;
+                    context.fillStyle = '#ff4500'; // Red-orange glow
+                    context.beginPath();
+                    context.arc(this.x, this.y, this.radius * 2, 0, Math.PI * 2);
+                    context.fill();
+                    context.restore();
+                } else if (this.buffs.extremeSpeed > 0) {
+                    // Attack speed buff visual
+                    const alpha = Math.sin(Date.now() / 30) * 0.5 + 0.5;
+                    context.save();
+                    context.globalAlpha = alpha * 0.5;
+                    context.fillStyle = '#ffc700'; // Yellow/Gold glow
+                    context.beginPath();
+                    context.arc(this.x, this.y, this.radius * 1.8, 0, Math.PI * 2);
+                    context.fill();
+                    context.restore();
+                }
+
+                // --- Damage Flash Effect ---
+                if (this.damageFlashTimer > 0) {
+                    context.globalAlpha = 0.3 + (this.damageFlashTimer % 2) * 0.7;
+                    this.damageFlashTimer--;
+                }
+
+                this.drawAnimalBody(context);
+
+                context.globalAlpha = 1.0;
+
+                // Draw HP Bar
+                const hpWidth = 40;
+                const hpHeight = 5;
+                const hpRatio = this.currentHp / this.maxHp;
+
+                context.fillStyle = '#4a5568';
+                context.fillRect(this.x - hpWidth / 2, this.y - this.radius - 10, hpWidth, hpHeight);
+
+                const hpColor = hpRatio > 0.5 ? '#48bb78' : (hpRatio > 0.25 ? '#fbd38d' : '#f56565');
+                context.fillStyle = hpColor;
+                context.fillRect(this.x - hpWidth / 2, this.y - this.radius - 10, hpWidth * hpRatio, hpHeight);
+
+                // NEW: Draw Shield Bar if present
+                if (this.shield > 0) {
+                    const SHIELD_HP_MAX = this.maxHp + this.shield; // Temporary Max HP + Shield value for calculation
+                    const shieldRatio = this.shield / SHIELD_HP_MAX;
+                    const shieldColor = '#4299e1'; // Blue
+
+                    context.fillStyle = '#4a5568';
+                    context.fillRect(this.x - hpWidth / 2, this.y - this.radius - 17, hpWidth, hpHeight); // Above HP bar
+
+                    context.fillStyle = shieldColor;
+                    context.fillRect(this.x - hpWidth / 2, this.y - this.radius - 17, hpWidth * shieldRatio, hpHeight);
+                }
+            }
+        }
+
+        class EnemyProjectile extends Entity {
+            constructor(x, y, radius, color, speed, angle, damage) {
+                super(x, y, radius, color, speed);
+                this.dx = Math.cos(angle) * speed;
+                this.dy = Math.sin(angle) * speed;
+                this.damage = damage;
+            }
+
+            update(deltaTime) {
+                this.x += this.dx * (deltaTime / 16.66);
+                this.y += this.dy * (deltaTime / 16.66);
+                const distToCenter = Math.hypot(this.x - WORLD_CENTER_X, this.y - WORLD_CENTER_Y);
+                return distToCenter > WORLD_RADIUS; // Remove if out of world
+            }
+
+            draw(context) {
+                context.fillStyle = this.color;
+                context.beginPath();
+                context.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                context.fill();
+            }
+        }
+
+        // --- RE-INTRODUCED BASE ENEMY CLASS ---
+        class Enemy extends Entity {
+            constructor(x, y, radius = 10, waveFactor = 1) {
+                super(x, y, radius, null, 2.0); // Color handled by subclass/palette
+
+                // --- MODIFIED HEALTH SCALING FOR EXTREME DIFFICULTY ---
+
+                // 1. Set a higher base linear increase for "way more health"
+                let baseHp = 50 + (waveFactor - 1) * 80; // Increased base HP and steeper linear scaling
+
+                let healthMultiplier = 1.0;
+
+                // 2. Apply exponential doubling starting from Wave 5
+                if (waveFactor >= 5) {
+                    // Wave 5 = 2^1, Wave 6 = 2^1, Wave 7 = 2^2, Wave 8 = 2^2, etc.
+                    // Calculate how many times we've passed a 2-wave increment starting from Wave 5
+                    const doublingCycles = Math.floor((waveFactor - 5) / 2) + 1;
+                    healthMultiplier = Math.pow(2, doublingCycles);
+                }
+
+                this.maxHp = Math.floor(baseHp * healthMultiplier);
+                // --- END MODIFIED HEALTH SCALING ---
+
+                this.currentHp = this.maxHp;
+
+                this.damage = 5 + (waveFactor - 1) * 7;
+
+                // Calculate base XP using a formula tied to scaling factor
+                this.xpValue = 5 + (waveFactor - 1) * 3;
+
+                this.lastAttackTime = 0; // For attack timers
+                this.isSlowed = false; // NEW: Slow status from Ice Aura
+                this.isDead = false; // NEW: Flag for clean deletion
+
+                // Color is assigned in subclass constructor, which is called after super()
+            }
+
+            _drawHpBar(context, hpWidth = 25, hpHeight = 3, yOffset = -10) {
+                const hpRatio = this.currentHp / this.maxHp;
+
+                context.fillStyle = '#4a5568';
+                // Background bar drawn relative to the translated origin (0, 0)
+                context.fillRect(-hpWidth / 2, -this.radius + yOffset, hpWidth, hpHeight);
+
+                const hpColor = hpRatio > 0.5 ? '#48bb78' : (hpRatio > 0.2 ? '#fbd38d' : '#f56565');
+                context.fillStyle = hpColor;
+                // Fill bar drawn relative to the translated origin (0, 0)
+                // Use Math.max(0) to ensure the bar doesn't draw backwards due to tiny negative numbers
+                context.fillRect(-hpWidth / 2, -this.radius + yOffset, Math.max(0, hpWidth * hpRatio), hpHeight);
+            }
+
+            update(player, deltaTime) {
+                let actualSpeed = this.speed;
+                const SLOW_FACTOR = 0.5; // 50% slow
+
+                // NEW: Apply Ice Aura slow effect
+                if (this.isSlowed) {
+                    actualSpeed *= SLOW_FACTOR;
+                }
+
+                const totalSpeed = actualSpeed * (deltaTime / 16.66);
+
+                const dx = player.x - this.x;
+                const dy = player.y - this.y;
+                const distance = Math.hypot(dx, dy);
+
+                // --- OBSTACLE COLLISION CHECK for Enemy Movement ---
+                let hitObstacle = false;
+                game.obstacles.forEach(o => {
+                    const nextX = this.x + (dx / distance) * totalSpeed;
+                    const nextY = this.y + (dy / distance) * totalSpeed;
+                    const dist = Math.hypot(nextX - o.x, nextY - o.y);
+                    if (dist < this.radius + o.radius) {
+                        hitObstacle = true;
+                    }
+                });
+
+                if (hitObstacle) {
+                    // Stop movement if heading into an obstacle
+                    return;
+                }
+                // --- END OBSTACLE CHECK ---
+
+
+                if (distance > 0) {
+                    this.x += (dx / distance) * totalSpeed;
+                    this.y += (dy / distance) * totalSpeed;
+                }
+            }
+
+            // NEW VISUALS: Redesigned enemy drawing logic
+            // NEW VISUALS: Alien/Robot drawing logic
+            draw(context) {
+                context.save();
+                context.translate(this.x, this.y);
+
+                // --- Draw Ice Aura Visual (if slowed) ---
+                if (this.isSlowed) {
+                     const alpha = Math.sin(Date.now() / 100) * 0.3 + 0.4;
+                     context.fillStyle = `rgba(66, 153, 225, ${alpha})`;
+                     context.beginPath();
+                     context.arc(0, 0, this.radius + 5, 0, Math.PI * 2);
+                     context.fill();
+                }
+
+                // Shadow
+                context.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                context.beginPath();
+                context.ellipse(0, this.radius * 0.8, this.radius, this.radius * 0.3, 0, 0, Math.PI * 2);
+                context.fill();
+
+                const type = this.constructor.name;
+                const time = Date.now();
+
+                if (type === 'AlienGrunt') {
+                    // Classic Alien: Inverted teardrop head
+                    context.fillStyle = this.color;
+                    context.beginPath();
+                    context.moveTo(0, this.radius);
+                    context.bezierCurveTo(this.radius, this.radius, this.radius, -this.radius, 0, -this.radius * 1.5);
+                    context.bezierCurveTo(-this.radius, -this.radius, -this.radius, this.radius, 0, this.radius);
+                    context.fill();
+
+                    // Eyes
+                    context.fillStyle = 'black';
+                    context.beginPath();
+                    context.ellipse(-this.radius*0.4, -this.radius*0.2, this.radius*0.2, this.radius*0.4, 0.2, 0, Math.PI*2);
+                    context.ellipse(this.radius*0.4, -this.radius*0.2, this.radius*0.2, this.radius*0.4, -0.2, 0, Math.PI*2);
+                    context.fill();
+                }
+                else if (type === 'RobotSentry') {
+                    // Robot: Boxy, mechanical
+                    context.fillStyle = '#607D8B'; // Grey metal
+                    context.fillRect(-this.radius, -this.radius, this.radius*2, this.radius*2);
+                    context.strokeStyle = this.color; // Orange trim
+                    context.lineWidth = 2;
+                    context.strokeRect(-this.radius, -this.radius, this.radius*2, this.radius*2);
+
+                    // Scanning Eye
+                    const scan = Math.sin(time / 100) * (this.radius * 0.8);
+                    context.fillStyle = '#FF0000';
+                    context.fillRect(scan, -2, 4, 4);
+                    context.fillStyle = 'rgba(255, 0, 0, 0.5)';
+                    context.fillRect(-this.radius * 0.8, -4, this.radius * 1.6, 8);
+                }
+                else if (type === 'AlienBrute') {
+                    // Brute: Bulky, spikes
+                    context.fillStyle = this.color;
+                    context.beginPath();
+                    context.arc(0, 0, this.radius, 0, Math.PI*2);
+                    context.fill();
+
+                    // Spikes
+                    context.fillStyle = '#212121';
+                    for(let i=0; i<6; i++) {
+                        const angle = time/1000 + i * (Math.PI/3);
+                        const sx = Math.cos(angle) * this.radius;
+                        const sy = Math.sin(angle) * this.radius;
+                        context.beginPath();
+                        context.arc(sx, sy, 5, 0, Math.PI*2);
+                        context.fill();
+                    }
+                }
+                else if (type === 'ExplosiveBot') {
+                    // Bomb Bot: Round with flashing light
+                    context.fillStyle = '#37474F';
+                    context.beginPath();
+                    context.arc(0, 0, this.radius, 0, Math.PI*2);
+                    context.fill();
+
+                    // Flashing Core
+                    const flash = Math.abs(Math.sin(time / 100));
+                    context.fillStyle = (Math.floor(time / 75) % 2 === 0) ? '#ff4500' : '#ffc700'; // Flash colors
+                    context.beginPath();
+                    context.arc(0, 0, this.radius * 0.6, 0, Math.PI*2);
+                    context.fill();
+                }
+                else if (type === 'GalacticWarlord') {
+                    // Boss: Huge saucer
+                    context.fillStyle = '#263238'; // Dark metal
+                    context.beginPath();
+                    context.ellipse(0, 0, this.radius, this.radius * 0.6, 0, 0, Math.PI*2);
+                    context.fill();
+
+                    // Dome
+                    context.fillStyle = this.color; // Palette boss color
+                    context.beginPath();
+                    context.arc(0, -this.radius * 0.3, this.radius * 0.5, Math.PI, 0);
+                    context.fill();
+
+                    // Lights
+                    for(let i=0; i<8; i++) {
+                        const angle = time/500 + i * (Math.PI/4);
+                        const lx = Math.cos(angle) * this.radius * 0.8;
+                        const ly = Math.sin(angle) * this.radius * 0.4;
+                        context.fillStyle = (i%2===0) ? '#00E676' : '#F44336';
+                        context.beginPath();
+                        context.arc(lx, ly, 4, 0, Math.PI*2);
+                        context.fill();
+                    }
+                }
+                else {
+                    // Fallback
+                    context.fillStyle = this.color;
+                    context.beginPath();
+                    context.arc(0, 0, this.radius, 0, Math.PI*2);
+                    context.fill();
+                }
+
+                // Fuse Timer Text (for ExplosiveBot)
+                if (this.isFusing) {
+                    const remaining = ((this.fuseTime - (Date.now() - this.fuseStart)) / 1000).toFixed(1);
+                    context.fillStyle = '#fff';
+                    context.font = 'bold 12px Inter';
+                    context.textAlign = 'center';
+                    context.shadowColor = 'black';
+                    context.shadowBlur = 3;
+                    context.fillText(remaining, 0, -this.radius - 15);
+                }
+
+                this._drawHpBar(context, this.radius * 2, 3, -this.radius - 8);
+                context.restore();
+            }
+        }
+        // --- END RE-INTRODUCED BASE ENEMY CLASS ---
+
+        class AlienGrunt extends Enemy {
+             constructor(x, y, waveFactor) {
+                super(x, y, 10, waveFactor);
+                // Health and Damage set in base Enemy constructor
+                this.speed = 2.0 + (waveFactor - 1) * 0.3; // INCREASED Speed Scaling: was * 0.1
+                // XP is base scaled (5 + 3 * (W-1))
+                this.color = currentPalette.enemyDefault;
+                this.strokeColor = this.color.slice(0, 5) + '00'; // Darken base color
+             }
+        }
+
+        class RobotSentry extends Enemy {
+            constructor(x, y, waveFactor) {
+                super(x, y, 8, waveFactor);
+                // Health and Damage scale from base Enemy constructor
+                this.speed = 4.5; // Remains fast and constant
+                this.maxHp = Math.floor(this.maxHp * 0.4); // Naturally lower HP than default
+                this.currentHp = this.maxHp;
+                this.damage = Math.floor(this.damage * 0.6); // Lower base damage
+                this.xpValue = Math.floor(this.xpValue * 1.5); // 50% XP Bonus due to high speed/risk
+                this.color = currentPalette.enemyFast; // Dynamic color
+                this.strokeColor = this.color.slice(0, 5) + '00';
+            }
+        }
+
+        class AlienBrute extends Enemy {
+            constructor(x, y, waveFactor) {
+                super(x, y, 20, waveFactor);
+                this.speed = 0.8 + (waveFactor - 1) * 0.05; // Subtle speed scaling
+                // Scale HP and Damage much higher than base Enemy
+                this.maxHp = Math.floor(this.maxHp * 3.5);
+                this.currentHp = this.maxHp;
+                this.damage = Math.floor(this.damage * 2.5);
+                this.xpValue = Math.floor(this.xpValue * 3.0); // 3x XP Bonus due to high durability
+                this.color = currentPalette.enemyTank; // Dynamic color
+                this.strokeColor = this.color.slice(0, 5) + '00';
+            }
+        }
+
+        // NEW Enemy: Detonator Snake (Replaces Warlock)
+        class ExplosiveBot extends Enemy {
+            constructor(x, y, waveFactor) {
+                super(x, y, 15, waveFactor);
+                this.speed = 3.5 + (waveFactor - 1) * 0.1; // Subtle speed scaling
+                this.maxHp = Math.floor(this.maxHp * 0.7); // Moderate HP
+                this.currentHp = this.maxHp;
+                this.damage = 0; // Does not deal collision damage (only explosion)
+                this.xpValue = Math.floor(this.xpValue * 2.0); // 2x XP Bonus due to high risk
+                this.color = currentPalette.enemyDetonator; // Dynamic Detonator color
+                this.strokeColor = '#ff4500'; // Red
+
+                this.detonationRange = 40;
+                this.fuseTime = 1500; // 1.5 seconds
+                this.isFusing = false;
+                this.fuseStart = 0;
+                // Explosion damage scales aggressively
+                this.explosionDamage = 30 + (waveFactor - 1) * 15;
+                this.explosionRadius = 100;
+            }
+
+            update(player, deltaTime) {
+                let actualSpeed = this.speed;
+                const SLOW_FACTOR = 0.5; // 50% slow
+
+                if (this.isSlowed) {
+                    actualSpeed *= SLOW_FACTOR;
+                }
+
+                const totalSpeed = actualSpeed * (deltaTime / 16.66);
+                const dx = player.x - this.x;
+                const dy = player.y - this.y;
+                const distance = Math.hypot(dx, dy);
+                const currentTime = Date.now();
+
+                if (this.isFusing) {
+                    // Stop movement while fusing
+                    if (currentTime - this.fuseStart >= this.fuseTime) {
+                        // DETONATE!
+                        game.detonate(this.x, this.y, this.explosionDamage, this.explosionRadius);
+                        this.currentHp = 0; // Ensures removal from game loop
+                    }
+                    return;
+                }
+
+                // --- OBSTACLE COLLISION CHECK for Detonator Movement ---
+                let hitObstacle = false;
+                let obstacleHit = null;
+                game.obstacles.forEach(o => {
+                    const nextX = this.x + (dx / distance) * totalSpeed;
+                    const nextY = this.y + (dy / distance) * totalSpeed;
+                    const dist = Math.hypot(nextX - o.x, nextY - o.y);
+                    if (dist < this.radius + o.radius) {
+                        hitObstacle = true;
+                        obstacleHit = o;
+                    }
+                });
+
+                if (hitObstacle) {
+                    // If blocked by obstacle, initiate fuse immediately
+                    this.isFusing = true;
+                    this.fuseStart = currentTime;
+                    return;
+                }
+                // --- END OBSTACLE CHECK ---
+
+                if (distance <= this.detonationRange + player.radius) {
+                    // Initiate fuse
+                    this.isFusing = true;
+                    this.fuseStart = currentTime;
+                    return;
+                }
+
+                if (distance > 0) {
+                    this.x += (dx / distance) * totalSpeed;
+                    this.y += (dy / distance) * totalSpeed;
+                }
+            }
+
+        }
+
+
+        class GalacticWarlord extends Enemy {
+            constructor(x, y, wave) {
+                super(x, y, 40, wave);
+
+                this.speed = 1.5;
+                const bossMultiplier = wave / 10;
+
+                // --- BOSS HP INCREASE: 10x HP (5000 * multiplier) ---
+                this.maxHp = Math.floor(5000 * bossMultiplier);
+                this.currentHp = this.maxHp;
+                // --- END BOSS HP INCREASE ---
+
+                this.damage = Math.floor(10 * bossMultiplier) * 0.5;
+                this.xpValue = Math.floor(200 * bossMultiplier);
+                this.color = currentPalette.boss; // Dynamic Boss color
+                this.strokeColor = currentPalette.arenaBorder;
+            }
+
+            update(player, deltaTime) {
+                let actualSpeed = this.speed;
+                const SLOW_FACTOR = 0.5;
+
+                if (this.isSlowed) {
+                    actualSpeed *= SLOW_FACTOR;
+                }
+
+                const totalSpeed = actualSpeed * (deltaTime / 16.66);
+
+                const dx = player.x - this.x;
+                const dy = player.y - this.y;
+                const distance = Math.hypot(dx, dy);
+
+                // --- OBSTACLE COLLISION CHECK for Boss Movement ---
+                let obstacleHit = null; // Changed from boolean to object holder
+                game.obstacles.forEach(o => {
+                    if (obstacleHit) return; // Already found one, no need to check more
+                    const nextX = this.x + (dx / distance) * totalSpeed;
+                    const nextY = this.y + (dy / distance) * totalSpeed;
+                    const dist = Math.hypot(nextX - o.x, nextY - o.y);
+                    if (dist < this.radius + o.radius) {
+                        obstacleHit = o; // Store the obstacle object
+                    }
+                });
+
+                if (obstacleHit) { // Check if an object was stored
+                    // Boss is deterred by obstacles, but keeps moving toward player
+                    // Try to move around the obstacle instead of stopping
+                    const pushAngle = Math.atan2(this.x - obstacleHit.x, this.y - obstacleHit.y);
+                    this.x += Math.cos(pushAngle) * totalSpeed * 0.5;
+                    this.y += Math.sin(pushAngle) * totalSpeed * 0.5;
+                    return;
+                }
+                // --- END OBSTACLE CHECK ---
+
+                if (distance > 0) {
+                    this.x += (dx / distance) * totalSpeed;
+                    this.y += (dy / distance) * totalSpeed;
+                }
+            }
+
+        }
+
+
+        class Projectile extends Entity {
+            constructor(x, y, radius, color, speed, angle, damage, maxTravelDistance, isExplosive = false, currentBounces = 0, weaponKey) {
+                super(x, y, radius, color, speed);
+                this.angle = angle;
+                this.dx = Math.cos(angle) * speed;
+                this.dy = Math.sin(angle) * speed;
+                this.damage = damage;
+
+                this.prevX = x;
+                this.prevY = y;
+
+                this.startX = x;
+                this.startY = y;
+                this.maxTravelDistance = maxTravelDistance;
+                this.isExplosive = isExplosive;
+                this.currentBounces = currentBounces;
+                this.maxBounces = currentBounces;
+                this.weaponKey = weaponKey; // NEW: Store the weapon key for custom drawing
+                this.hitEnemies = new Set(); // NEW: To track which enemies this projectile has hit
+            }
+
+            update(deltaTime) {
+                // Store current position as previous before updating
+                this.prevX = this.x;
+                this.prevY = this.y;
+
+                this.x += this.dx * (deltaTime / 16.66);
+                this.y += this.dy * (deltaTime / 16.66);
+
+                const distToCenter = Math.hypot(this.x - WORLD_CENTER_X, this.y - WORLD_CENTER_Y);
+                const distanceTraveled = Math.hypot(this.x - this.startX, this.y - this.startY);
+
+                // Return true if projectile is out of WORLD OR exceeded max range
+                return distToCenter > WORLD_RADIUS || distanceTraveled > this.maxTravelDistance;
+            }
+
+            // NEW: Handle bounce logic
+            bounce(enemies) {
+                if (this.currentBounces <= 0) return false;
+
+                let nearest = null;
+                let minDistSq = Infinity;
+
+                // Find all enemies that are alive and not already hit by this projectile
+                enemies.forEach(e => {
+                    // NEW: Check if the projectile has already hit this enemy
+                    if (!this.hitEnemies.has(e)) {
+                        const distSq = (e.x - this.x) ** 2 + (e.y - this.y) ** 2;
+                        if (distSq < minDistSq) {
+                            minDistSq = distSq;
+                            nearest = e;
+                        }
+                    }
+                });
+
+                if (nearest) {
+                    // 2. Calculate new angle and velocity towards the new target
+                    const angle = Math.atan2(nearest.y - this.y, nearest.x - this.x);
+                    this.dx = Math.cos(angle) * this.speed;
+                    this.dy = Math.sin(angle) * this.speed;
+
+                    // 3. Consume bounce count
+                    this.currentBounces--;
+
+                    // 4. Reset travel distance check (so it can travel max range again)
+                    this.startX = this.x;
+                    this.startY = this.y;
+
+                    return true;
+                }
+
+                return false;
+            }
+
+            draw(context) {
+                // --- SPECIALIZED DRAWING LOGIC ---
+                switch (this.weaponKey) {
+                    case 'flamethrower':
+                    case 'acidSprayer':
+                        context.fillStyle = this.color;
+                        context.globalAlpha = Math.random() * 0.5 + 0.3; // flicker
+                        for (let i=0; i < 3; i++) {
+                            const offsetX = (Math.random() - 0.5) * this.radius * 3;
+                            const offsetY = (Math.random() - 0.5) * this.radius * 3;
+                            const size = Math.random() * this.radius * 1.5;
+                            context.beginPath();
+                            context.arc(this.x + offsetX, this.y + offsetY, size, 0, Math.PI * 2);
+                            context.fill();
+                        }
+                        context.globalAlpha = 1.0;
+                        return;
+
+                    case 'lightningRod':
+                        context.strokeStyle = this.color;
+                        context.lineWidth = this.radius * 0.5;
+                        context.globalAlpha = 0.8;
+                        context.shadowBlur = 15;
+                        context.shadowColor = this.color;
+                        context.beginPath();
+                        context.moveTo(this.prevX, this.prevY);
+                        const midX = (this.x + this.prevX) / 2 + (Math.random() - 0.5) * 10;
+                        const midY = (this.y + this.prevY) / 2 + (Math.random() - 0.5) * 10;
+                        context.quadraticCurveTo(midX, midY, this.x, this.y);
+                        context.stroke();
+                        context.shadowBlur = 0;
+                        context.globalAlpha = 1.0;
+                        return;
+
+                    case 'railgun':
+                         context.strokeStyle = this.color;
+                         context.lineWidth = this.radius * 0.75;
+                         context.globalAlpha = 0.9;
+                         context.shadowBlur = 25;
+                         context.shadowColor = this.color;
+                         context.beginPath();
+                         context.moveTo(this.prevX, this.prevY);
+                         context.lineTo(this.x, this.y);
+                         context.stroke();
+                         context.shadowBlur = 0;
+                         context.globalAlpha = 1.0;
+                         return;
+                }
+
+                // --- DEFAULT DRAWING LOGIC ---
+                context.save();
+                context.strokeStyle = this.color;
+                context.lineWidth = this.radius * 2;
+                context.lineCap = 'round';
+
+                context.beginPath();
+                context.moveTo(this.prevX, this.prevY);
+                context.lineTo(this.x, this.y);
+                context.stroke();
+                context.restore();
+
+                context.fillStyle = this.color;
+                context.beginPath();
+                context.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                context.fill();
+
+                if (this.isExplosive) {
+                    context.strokeStyle = '#fff';
+                    context.lineWidth = 1;
+                    context.beginPath();
+                    context.arc(this.x, this.y, this.radius * 1.5, 0, Math.PI * 2);
+                    context.stroke();
+                }
+
+                 if (this.maxBounces > 0) {
+                    context.strokeStyle = this.color;
+                    context.lineWidth = 2;
+                    context.beginPath();
+                    for(let i = 0; i < 4; i++) {
+                        const angle = i * Math.PI / 2;
+                        context.moveTo(this.x + Math.cos(angle) * this.radius * 1.5, this.y + Math.sin(angle) * this.radius * 1.5);
+                        context.lineTo(this.x + Math.cos(angle + Math.PI / 4) * this.radius * 0.5, this.y + Math.sin(angle + Math.PI / 4) * this.radius * 0.5);
+                    }
+                    context.closePath();
+                    context.stroke();
+                 }
+            }
+        }
+
+        // --- GAME LOGIC ---
+
+        class Game {
+            constructor(characterKey) {
+                this.player = new Hero(characterKey);
+                this.MAX_PARTICLES = 300;
+                this.enemies = [];
+                this.projectiles = [];
+                this.enemyProjectiles = [];
+                this.pickups = [];
+                this.obstacles = []; // NEW: Obstacles Array
+                this.explosions = [];
+                this.wave = 0;
+                this.kills = 0;
+                this.lastWaveTime = Date.now();
+                this.waveDuration = 30000; // Waves now last 30 seconds (30000ms)
+                this.enemySpawnInterval = 1000;
+                this.lastSpawnTime = 0;
+                this.enemyCountThisWave = 0;
+                this.maxEnemiesThisWave = 0;
+                this.isPaused = false;
+                this.gameOver = false;
+                this.lastUpdateTime = performance.now();
+                this.isBossWave = false;
+
+                this.currentUpgradeOptions = []; // Stores the currently displayed options data
+                this.currentUpgradeType = null; // 'stat' or 'weapon'
+
+                this.bestKills = highScore; // Initialize with global high score
+
+                this.keyState = { up: false, down: false, left: false, right: false };
+
+                // Mouse control variables
+                this.mouseTargetX = WORLD_CENTER_X; // Mouse target is now in WORLD coordinates
+                this.mouseTargetY = WORLD_CENTER_Y;
+                this.mouseTolerance = 10; // Distance tolerance for stopping
+                this.isMouseMoving = false; // Flag to check if mouse is actively moving the Rat
+                this.isMouseDown = false; // Tracks if the left mouse button is held
+
+                // Melee Animation Variables
+                this.isMeleeSwinging = false;
+                this.meleeSwingTimer = 0; // Timer for the visual swing animation
+                this.MELEE_SWING_DURATION = 15; // 15 frames for the visual effect
+                this.meleeSwingTargetAngle = 0; // New: Angle for drawing cone
+                this.meleeSwingRadius = 0;      // New: Radius for drawing cone
+                this.meleeSwingArc = 0;         // New: Arc for drawing cone
+
+
+                // --- TIERED UPGRADE DEFINITIONS ---
+                // The 'apply' function now uses the 'tier' (0, 1, 2) to determine the bonus.
+                const TIER_BRONZE = 0; // 10% base value
+                const TIER_SILVER = 1; // 25% base value
+                const TIER_GOLD = 2;   // 50% base value
+
+                // MODIFIED: Cost for all tiers is now a uniform 25 Kills. Exponential scaling handles the rest.
+                const INITIAL_COST = 25;
+
+                this.baseStatUpgrades = [
+                    // Max HP Boost
+                    { name: "Max HP Boost", key: "HP", baseValue: 50, apply: (p, tier) => p.maxHp += [10, 25, 50][tier], cost: INITIAL_COST, description: "+HP" },
+                    // Movement Speed
+                    { name: "Movement Speed", key: "Speed", baseValue: 0.1, apply: (p, tier) => p.baseSpeed += [0.2, 0.4, 0.7][tier], cost: INITIAL_COST, description: "+Speed" },
+                    // Damage Up
+                    { name: "Damage Up", key: "Dmg", baseValue: 0.1, apply: (p, tier) => p.damageMultiplier = parseFloat((p.damageMultiplier + [0.1, 0.25, 0.5][tier]).toFixed(2)), cost: INITIAL_COST, description: "+Damage Multiplier" },
+                    // Defense: Armor
+                    { name: "Defense: Armor", key: "Armor", baseValue: 1, apply: (p, tier) => p.armor += [1, 2, 4][tier], cost: INITIAL_COST, description: "+Armor" },
+                    // Defense: Evasion (Max 50%)
+                    { name: "Defense: Evasion", key: "Eva", baseValue: 0.05, apply: (p, tier) => p.evasion = Math.min(0.5, p.evasion + [0.05, 0.12, 0.25][tier]), cost: INITIAL_COST, description: "+Evasion Chance" },
+                    // Defense: Shield
+                    { name: "Defense: Shield", key: "Shield", baseValue: 15, apply: (p, tier) => p.shield += [10, 25, 50][tier], cost: INITIAL_COST, description: "+Shield HP" },
+                    // Ricochet Shots
+                    { name: "Ricochet Shots", key: "Bounce", baseValue: 1, apply: (p, tier) => p.bounceCount += [1, 2, 4][tier], cost: INITIAL_COST, description: "+Projectile Bounces" },
+                    // More Projectiles (Dual Effect)
+                    { name: "More Projectiles", key: "Proj", baseValue: 1,
+                      apply: (p, tier) => {
+                          const projBonus = [1, 2, 4][tier];
+                          p.projectileCountBonus += projBonus;
+                          p.fireRateReduction = parseFloat((p.fireRateReduction + projBonus * 0.1).toFixed(2));
+                      },
+                      cost: INITIAL_COST, description: "+Projectiles / Melee Attack Speed" },
+                    // Attack Speed Boost
+                    { name: "Attack Speed Boost", key: "AS", baseValue: 0.1, apply: (p, tier) => p.fireRateReduction = parseFloat((p.fireRateReduction + [0.1, 0.25, 0.5][tier]).toFixed(2)), cost: INITIAL_COST, description: "+Fire Rate Multiplier" },
+                    // Projectile Range
+                    { name: "Projectile Range", key: "Range", baseValue: 0.1, apply: (p, tier) => p.attackRangeMultiplier = parseFloat((p.attackRangeMultiplier + [0.1, 0.25, 0.5][tier]).toFixed(2)), cost: INITIAL_COST, description: "+Range Multiplier" },
+                    // Vampire Healing
+                    { name: "Vampire Healing", key: "Life", baseValue: 0.005, apply: (p, tier) => p.lifestealPercentage = parseFloat((p.lifestealPercentage + [0.005, 0.015, 0.03][tier]).toFixed(3)), cost: INITIAL_COST, description: "+Lifesteal Percentage" },
+                    // Healing Potion (No stacking, always bronze cost/value for instant heal)
+                    { name: "Healing Potion", key: "Heal", baseValue: 1, apply: p => p.currentHp = p.maxHp, cost: INITIAL_COST, description: "Fully Restore HP" },
+                ];
+
+                // Track prices by unique stat NAME for exponential scaling
+                this.statUpgradePrices = {};
+
+                this.setupInput();
+                this.setupUpgradeUIEvents(); // NEW: Setup confirm/skip buttons
+                this.updateHUD();
+
+                // MOVED: this.startNewWave() call removed from constructor
+            }
+
+            // NEW: Setup click handlers for the Confirm/Skip buttons
+            setupUpgradeUIEvents() {
+                confirmPurchaseButton.onclick = () => this.handleConfirmPurchase();
+                skipButton.onclick = () => {
+                    this.resume();
+                    // If skipping a weapon choice, start the next wave immediately
+                    if (this.currentUpgradeType === 'weapon') {
+                         this.startNewWave();
+                    }
+                };
+            }
+
+            setupInput() {
+                document.removeEventListener('keydown', this.keyListenerDown);
+                document.removeEventListener('keyup', this.keyListenerUp);
+                canvas.removeEventListener('mousemove', this.mouseListener);
+                canvas.removeEventListener('click', this.mouseClickListener);
+                canvas.removeEventListener('mousedown', this.mouseDownListener);
+                canvas.removeEventListener('mouseup', this.mouseUpListener);
+
+                this.keyListenerDown = (e) => this.handleInput(e.key, true);
+                this.keyListenerUp = (e) => this.handleInput(e.key, false);
+                this.mouseListener = (e) => this.handleMouseMovement(e);
+                this.mouseDownListener = (e) => this.handleMouseDown(e);
+                this.mouseUpListener = (e) => this.handleMouseUp(e);
+                canvas.addEventListener('click', this.mouseClickListener);
+                document.addEventListener('keydown', this.keyListenerDown);
+                document.addEventListener('keyup', this.keyListenerUp);
+                canvas.addEventListener('mousemove', this.mouseListener);
+                canvas.addEventListener('mouseup', this.mouseUpListener);
+                restartButton.addEventListener('click', () => this.restart());
+
+                // Remove previous joystick listeners if any
+                joystickZone.removeEventListener('touchstart', this.handleTouchStart);
+                joystickZone.removeEventListener('touchmove', this.handleTouchMove);
+                joystickZone.removeEventListener('touchend', this.handleTouchEnd);
+
+                if (isMobileMode) {
+                    this.handleTouchStart = (e) => this.onTouchStart(e);
+                    this.handleTouchMove = (e) => this.onTouchMove(e);
+                    this.handleTouchEnd = (e) => this.onTouchEnd(e);
+
+                    joystickZone.addEventListener('touchstart', this.handleTouchStart, {passive: false});
+                    joystickZone.addEventListener('touchmove', this.handleTouchMove, {passive: false});
+                    joystickZone.addEventListener('touchend', this.handleTouchEnd, {passive: false});
+                }
+            }
+
+            onTouchStart(e) {
+                e.preventDefault();
+                const touch = e.changedTouches[0];
+                joystickTouchId = touch.identifier;
+                joystickActive = true;
+
+                const rect = joystickZone.getBoundingClientRect();
+                joystickCenter = {
+                    x: rect.left + rect.width / 2,
+                    y: rect.top + rect.height / 2
+                };
+
+                this.updateJoystick(touch.clientX, touch.clientY);
+            }
+
+            onTouchMove(e) {
+                e.preventDefault();
+                if (!joystickActive) return;
+
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    if (e.changedTouches[i].identifier === joystickTouchId) {
+                        this.updateJoystick(e.changedTouches[i].clientX, e.changedTouches[i].clientY);
+                        break;
+                    }
+                }
+            }
+
+            onTouchEnd(e) {
+                e.preventDefault();
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    if (e.changedTouches[i].identifier === joystickTouchId) {
+                        joystickActive = false;
+                        joystickTouchId = null;
+                        joystickVector = { x: 0, y: 0 };
+                        joystickNipple.style.transform = `translate(-50%, -50%)`; // Reset nipple
+                        this.updateMovementDirection();
+            }
+
+            enterMobileFullscreen() {
+                const elem = document.documentElement;
+                if (elem.requestFullscreen) {
+                    elem.requestFullscreen();
+                } else if (elem.webkitRequestFullscreen) { /* Safari */
+                    elem.webkitRequestFullscreen();
+                } else if (elem.msRequestFullscreen) { /* IE11 */
+                    elem.msRequestFullscreen();
+                }
+
+                // Set flags
+                isMobileMode = true;
+                isFullscreen = true;
+                mobileModeToggle.checked = true; // Visually sync toggle
+
+                // Add fullscreen class
+                document.body.classList.add('fullscreen-mode');
+
+                // Force start game with a default or last selected character if not selected?
+                // Actually, the button is on the start screen, user hasn't picked a char yet.
+                // So we just enter fullscreen mode, keep them on start screen, but update UI layout.
+                // The resize will happen via CSS.
+
+                // Update UI state immediately
+                mobileControlsDiv.style.display = 'block';
+            }
+                        break;
+                    }
+                }
+            }
+
+            updateJoystick(clientX, clientY) {
+                const maxDist = 50; // Max radius of joystick movement
+                let dx = clientX - joystickCenter.x;
+                let dy = clientY - joystickCenter.y;
+                const distance = Math.hypot(dx, dy);
+
+                if (distance > maxDist) {
+                    dx = (dx / distance) * maxDist;
+                    dy = (dy / distance) * maxDist;
+                }
+
+                joystickNipple.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+
+                // Normalize vector for movement
+                joystickVector = {
+                    x: dx / maxDist,
+                    y: dy / maxDist
+                };
+
+                this.updateMovementDirection();
+
+            // NEW: Handle confirmation of multiple selected items
+            handleConfirmPurchase() {
+                const selectedCards = Array.from(upgradeOptionsDiv.children).filter(card => card.classList.contains('selected-item'));
+                let totalCost = 0;
+
+                selectedCards.forEach(card => {
+                    const optionIndex = parseInt(card.dataset.index);
+                    const option = this.currentUpgradeOptions[optionIndex];
+                    totalCost += option.cost;
+                });
+
+                if (totalCost > this.player.currency) {
+                    // This shouldn't happen if UI correctly disables buying when cost > currency
+                    // But is a failsafe.
+                    return;
+                }
+
+                if (selectedCards.length === 0) {
+                    this.resume();
+                    if (this.currentUpgradeType === 'weapon') {
+                         this.startNewWave();
+                    }
+                    return;
+                }
+
+                this.player.currency -= totalCost;
+
+                selectedCards.forEach(card => {
+                    const optionIndex = parseInt(card.dataset.index);
+                    const upgrade = this.currentUpgradeOptions[optionIndex];
+
+                    // Apply the upgrade using its specific tier value
+                    if (this.currentUpgradeType === 'stat') {
+                        upgrade.apply(this.player, upgrade.tier);
+                    } else {
+                        upgrade.apply(this.player);
+                    }
+
+
+                    if (this.currentUpgradeType === 'stat' && !upgrade.isFree) {
+                        // Only track purchased stat upgrades by KEY for price increase
+                        this.statUpgradePrices[upgrade.key] = (this.statUpgradePrices[upgrade.key] || 0) + 1;
+                    }
+                });
+
+                this.resume();
+                this.updateHUD();
+
+                // If confirming a weapon choice, start the next wave immediately
+                if (this.currentUpgradeType === 'weapon') {
+                    this.startNewWave();
+                }
+            }
+
+
+            // NEW: Mouse Down sets the movement flag
+            handleMouseDown(e) {
+                if (e.button === 0) { // Left click
+                    this.isMouseDown = true;
+                    this.isMouseMoving = true;
+                    // When mouse is pressed, calculate target based on canvas click
+                    const rect = canvas.getBoundingClientRect();
+                    const scaleX = canvas.width / rect.width;
+                    const scaleY = canvas.height / rect.height;
+
+                    // Convert canvas click (viewport) to World coordinates
+                    this.mouseTargetX = this.player.x + (e.clientX - rect.left) * scaleX - centerX;
+                    this.mouseTargetY = this.player.y + (e.clientY - rect.top) * scaleY - centerY;
+
+                    // When mouse is pressed, clear keyboard state for mouse priority
+                    this.keyState = { up: false, down: false, left: false, right: false };
+                    this.updateMovementDirection();
+            }
+
+            enterMobileFullscreen() {
+                const elem = document.documentElement;
+                if (elem.requestFullscreen) {
+                    elem.requestFullscreen();
+                } else if (elem.webkitRequestFullscreen) { /* Safari */
+                    elem.webkitRequestFullscreen();
+                } else if (elem.msRequestFullscreen) { /* IE11 */
+                    elem.msRequestFullscreen();
+                }
+
+                // Set flags
+                isMobileMode = true;
+                isFullscreen = true;
+                mobileModeToggle.checked = true; // Visually sync toggle
+
+                // Add fullscreen class
+                document.body.classList.add('fullscreen-mode');
+
+                // Force start game with a default or last selected character if not selected?
+                // Actually, the button is on the start screen, user hasn't picked a char yet.
+                // So we just enter fullscreen mode, keep them on start screen, but update UI layout.
+                // The resize will happen via CSS.
+
+                // Update UI state immediately
+                mobileControlsDiv.style.display = 'block';
+            }
+                }
+            }
+
+            // NEW: Mouse Up clears the movement flag
+            handleMouseUp(e) {
+                if (e.button === 0) { // Left click
+                    this.isMouseDown = false;
+                    this.isMouseMoving = false;
+                    this.updateMovementDirection(); // Forces stop
+            }
+
+            enterMobileFullscreen() {
+                const elem = document.documentElement;
+                if (elem.requestFullscreen) {
+                    elem.requestFullscreen();
+                } else if (elem.webkitRequestFullscreen) { /* Safari */
+                    elem.webkitRequestFullscreen();
+                } else if (elem.msRequestFullscreen) { /* IE11 */
+                    elem.msRequestFullscreen();
+                }
+
+                // Set flags
+                isMobileMode = true;
+                isFullscreen = true;
+                mobileModeToggle.checked = true; // Visually sync toggle
+
+                // Add fullscreen class
+                document.body.classList.add('fullscreen-mode');
+
+                // Force start game with a default or last selected character if not selected?
+                // Actually, the button is on the start screen, user hasn't picked a char yet.
+                // So we just enter fullscreen mode, keep them on start screen, but update UI layout.
+                // The resize will happen via CSS.
+
+                // Update UI state immediately
+                mobileControlsDiv.style.display = 'block';
+            }
+                }
+            }
+
+            // Mouse Click is simplified since movement is handled by Down/Up
+            handleMouseClick(e) {
+                 if (this.isPaused || this.gameOver) return;
+                 // Clicks now just set the target, Down/Up handle motion
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+
+                // Convert canvas click (viewport) to World coordinates
+                this.mouseTargetX = this.player.x + (e.clientX - rect.left) * scaleX - centerX;
+                this.mouseTargetY = this.player.y + (e.clientY - rect.top) * scaleY - centerY;
+            }
+
+            handleMouseMovement(e) {
+                if (this.isPaused || this.gameOver) return;
+
+                const rect = canvas.getBoundingClientRect();
+                const scaleX = canvas.width / rect.width;
+                const scaleY = canvas.height / rect.height;
+
+                // On mouse move, update the target position (in WORLD coordinates)
+                this.mouseTargetX = this.player.x + (e.clientX - rect.left) * scaleX - centerX;
+                this.mouseTargetY = this.player.y + (e.clientY - rect.top) * scaleY - centerY;
+
+                if (this.isMouseDown) {
+                    // Only update direction if the mouse button is down
+                    this.updateMovementDirection();
+            }
+
+            enterMobileFullscreen() {
+                const elem = document.documentElement;
+                if (elem.requestFullscreen) {
+                    elem.requestFullscreen();
+                } else if (elem.webkitRequestFullscreen) { /* Safari */
+                    elem.webkitRequestFullscreen();
+                } else if (elem.msRequestFullscreen) { /* IE11 */
+                    elem.msRequestFullscreen();
+                }
+
+                // Set flags
+                isMobileMode = true;
+                isFullscreen = true;
+                mobileModeToggle.checked = true; // Visually sync toggle
+
+                // Add fullscreen class
+                document.body.classList.add('fullscreen-mode');
+
+                // Force start game with a default or last selected character if not selected?
+                // Actually, the button is on the start screen, user hasn't picked a char yet.
+                // So we just enter fullscreen mode, keep them on start screen, but update UI layout.
+                // The resize will happen via CSS.
+
+                // Update UI state immediately
+                mobileControlsDiv.style.display = 'block';
+            }
+                }
+            }
+
+            handleInput(key, isDown) {
+                if (this.isPaused || this.gameOver) return;
+
+                switch (key) {
+                    case 'ArrowUp':
+                    case 'w':
+                    case 'W':
+                        this.keyState.up = isDown;
+                        break;
+                    case 'ArrowDown':
+                    case 's':
+                    case 'S':
+                        this.keyState.down = isDown;
+                        break;
+                    case 'ArrowLeft':
+                    case 'a':
+                    case 'A':
+                        this.keyState.left = isDown;
+                        break;
+                    case 'ArrowRight':
+                    case 'd':
+                    case 'D':
+                        this.keyState.right = isDown;
+                        break;
+                    default:
+                        return;
+                }
+
+                // If any movement key is pressed, keyboard takes precedence and stops mouse movement control
+                if (isDown) {
+                    this.isMouseDown = false;
+                    this.isMouseMoving = false;
+                }
+                this.updateMovementDirection();
+            }
+
+            enterMobileFullscreen() {
+                const elem = document.documentElement;
+                if (elem.requestFullscreen) {
+                    elem.requestFullscreen();
+                } else if (elem.webkitRequestFullscreen) { /* Safari */
+                    elem.webkitRequestFullscreen();
+                } else if (elem.msRequestFullscreen) { /* IE11 */
+                    elem.msRequestFullscreen();
+                }
+
+                // Set flags
+                isMobileMode = true;
+                isFullscreen = true;
+                mobileModeToggle.checked = true; // Visually sync toggle
+
+                // Add fullscreen class
+                document.body.classList.add('fullscreen-mode');
+
+                // Force start game with a default or last selected character if not selected?
+                // Actually, the button is on the start screen, user hasn't picked a char yet.
+                // So we just enter fullscreen mode, keep them on start screen, but update UI layout.
+                // The resize will happen via CSS.
+
+                // Update UI state immediately
+                mobileControlsDiv.style.display = 'block';
+            }
+            }
+
+            updateMovementDirection() {
+                const ks = this.keyState;
+                let dx = 0;
+                let dy = 0;
+                let isKeyboardActive = false;
+
+                // 1. Check Keyboard State
+                if (ks.left || ks.right || ks.up || ks.down) {
+                    if (ks.left) dx -= 1;
+                    if (ks.right) dx += 1;
+                    if (ks.up) dy -= 1;
+                    if (ks.down) dy += 1;
+                    isKeyboardActive = true;
+                }
+
+                // 2. Check Joystick State (Mobile Mode)
+                if (!isKeyboardActive && isMobileMode && (joystickVector.x !== 0 || joystickVector.y !== 0)) {
+                    dx = joystickVector.x;
+                    dy = joystickVector.y;
+                    // Joystick vector is already normalized 0-1, but we treat it as directional input
+                    // We directly apply it to moveDirection below
+                    this.player.moveDirection.x = dx;
+                    this.player.moveDirection.y = dy;
+                    return; // Skip mouse/keyboard logic
+                }
+
+                // 2. Check Mouse State (only if keyboard is not active AND mouse button is held)
+                if (!isKeyboardActive && this.isMouseDown) {
+                    const distToTarget = Math.hypot(this.player.x - this.mouseTargetX, this.player.y - this.mouseTargetY);
+
+                    if (distToTarget > this.mouseTolerance) {
+                        dx = this.mouseTargetX - this.player.x;
+                        dy = this.mouseTargetY - this.player.y;
+                    } else {
+                        // Stop if we are close enough to the target
+                        this.isMouseMoving = false; // Stop movement flag
+                        dx = 0;
+                        dy = 0;
+                    }
+                }
+
+                // 3. Apply final movement vector
+                if (dx !== 0 || dy !== 0) {
+                    const length = Math.hypot(dx, dy);
+                    this.player.moveDirection.x = dx / length;
+                    this.player.moveDirection.y = dy / length;
+                } else {
+                    this.player.moveDirection.x = 0;
+                    this.player.moveDirection.y = 0;
+                }
+            }
+
+            // NEW CENTRALIZED DEATH LOGIC
+            handleEnemyDefeat(e) {
+                if (e.isDead) return; // Prevent double awarding
+                e.isDead = true;
+
+                // BOSS SPECIFIC REWARD
+                if (e instanceof GalacticWarlord) {
+                    this.player.maxWeapons += 1; // Award boss slot
+                    console.log(`BOSS DEFEATED! Weapon slots increased to ${this.player.maxWeapons}`);
+                }
+
+                this.kills++;
+                this.player.gainCurrency(1);
+                this.player.gainXp(e.xpValue);
+
+                // PARTICLE EFFECT
+                this.addExplosionParticles(5, e.x, e.y, currentPalette.arenaBorder, 3);
+
+                // --- DROP LOGIC ---
+                const healthDropChance = 0.05;
+                if (Math.random() < healthDropChance) {
+                    this.pickups.push(new HealthDrop(e.x, e.y));
+                }
+
+                const explosiveDropChance = 0.02;
+                const iceDropChance = 0.015;
+                const speedDropChance = 0.015;
+                const bombDropChance = 0.005; // 0.5% chance
+
+                const roll = Math.random();
+                if (roll < bombDropChance) {
+                     this.pickups.push(new BombDrop(e.x, e.y));
+                } else if (roll < (bombDropChance + explosiveDropChance)) {
+                     this.pickups.push(new ExplosiveBulletDrop(e.x, e.y));
+                } else if (roll < (bombDropChance + explosiveDropChance + iceDropChance)) {
+                     this.pickups.push(new IcePowerupDrop(e.x, e.y));
+                } else if (roll < (bombDropChance + explosiveDropChance + iceDropChance + speedDropChance)) {
+                     this.pickups.push(new SpeedPowerupDrop(e.x, e.y));
+                }
+            }
+
+            addExplosionParticles(count, x, y, color, size) {
+                for (let i = 0; i < count; i++) {
+                    if (this.explosions.length >= this.MAX_PARTICLES) {
+                        break;
+                    }
+                    this.explosions.push(new Particle(x, y, color, Math.random() * size + 1));
+                }
+            }
+
+            // NEW: Handles the AoE damage when an explosive projectile hits
+            applyExplosiveAoE(x, y, baseDamage) {
+                const AOE_RADIUS = 50;
+                const AOE_DAMAGE_PERCENT = 0.5;
+                const aoeDamage = baseDamage * AOE_DAMAGE_PERCENT;
+
+                // Visual effect: large red flash/explosion particles
+                this.addExplosionParticles(10, x, y, '#ff4500', 4);
+
+                // Check for enemies within the AoE radius
+                this.enemies.forEach(e => {
+                    const distance = Math.hypot(x - e.x, y - e.y);
+                    if (distance < AOE_RADIUS + e.radius && !e.isDead) {
+
+                        // Apply damage
+                        e.currentHp = Math.max(0, e.currentHp - aoeDamage);
+
+                        // LIFESTEAL
+                        const lifestealAmount = aoeDamage * this.player.lifestealPercentage;
+                        this.player.heal(lifestealAmount);
+
+                        // CHECK FOR DEATH AND AWARD KILL CREDIT
+                        if (e.currentHp <= 0 && !e.isDead) {
+                            this.handleEnemyDefeat(e);
+                        }
+                    }
+                });
+            }
+
+            // NEW: Handles Detonator explosion damage (affects player and collateral enemies)
+            detonate(x, y, damage, radius) {
+                // ... (Player damage logic remains the same)
+                const distToPlayer = Math.hypot(x - this.player.x, y - this.player.y);
+                if (distToPlayer < radius + this.player.radius) {
+
+                    if (Math.random() < this.player.evasion * 0.1) {
+                         // Minimal evasion success
+                    } else {
+                        let damageRemaining = damage;
+
+                        if (this.player.shield > 0) {
+                            const absorbed = Math.min(this.player.shield, damageRemaining);
+                            this.player.shield -= absorbed;
+                            damageRemaining -= absorbed;
+                        }
+
+                        let damageTaken = damageRemaining - this.player.armor;
+                        damageTaken = Math.max(1, damageTaken);
+
+                        this.player.currentHp -= damageTaken;
+                        this.player.damageFlashTimer = 10;
+
+                        if (this.player.currentHp <= 0) {
+                            this.endGame();
+                        }
+                    }
+                }
+
+                // Apply damage to nearby enemies (collateral)
+                const COLLATERAL_DAMAGE_PERCENT = 0.5;
+                const collateralDamage = damage * COLLATERAL_DAMAGE_PERCENT;
+
+                this.enemies.forEach(e => {
+                    const distance = Math.hypot(x - e.x, y - e.y);
+                    if (distance < radius + e.radius && !e.isDead) {
+
+                        e.currentHp = Math.max(0, e.currentHp - collateralDamage);
+
+                        // LIFESTEAL
+                        const lifestealAmount = collateralDamage * this.player.lifestealPercentage;
+                        this.player.heal(lifestealAmount);
+
+                        // CHECK FOR DEATH AND AWARD KILL CREDIT
+                        if (e.currentHp <= 0 && !e.isDead) {
+                            this.handleEnemyDefeat(e);
+                        }
+                    }
+                });
+
+                // Create explosion particles
+                this.addExplosionParticles(15, x, y, '#ff4500', 6);
+            }
+
+            // NEW: Handles the map-wide bomb explosion (triggered by BombDrop pickup)
+            applyNuclearBomb() {
+                // ... (Visual effect logic remains the same)
+                this.addExplosionParticles(50, centerX, centerY, '#ffc700', 8);
+
+                const EXPLOSION_DAMAGE = 200;
+
+                // Apply MASSIVE damage to all enemies
+                this.enemies.forEach(e => {
+                    if (e.isDead) return;
+
+                    const damage = e instanceof GalacticWarlord ? EXPLOSION_DAMAGE * 0.5 : EXPLOSION_DAMAGE;
+                    e.currentHp = Math.max(0, e.currentHp - damage);
+
+                    // LIFESTEAL
+                    const lifestealAmount = damage * this.player.lifestealPercentage;
+                    this.player.heal(lifestealAmount);
+
+                    // Massive knockback away from center
+                    const angle = Math.atan2(e.y - WORLD_CENTER_Y, e.x - WORLD_CENTER_X);
+                    e.x += Math.cos(angle) * 100;
+                    e.y += Math.sin(angle) * 100;
+
+                    // CHECK FOR DEATH AND AWARD KILL CREDIT
+                    if (e.currentHp <= 0 && !e.isDead) {
+                        this.handleEnemyDefeat(e);
+                    }
+                });
+            }
+
+
+            meleeAttack(x, y, weapon) {
+                this.isMeleeSwinging = true;
+                this.meleeSwingTimer = this.MELEE_SWING_DURATION;
+
+                // --- FIXED: Find nearest enemy to determine attack angle ---
+                const nearestEnemy = this.getNearestEnemy(x, y);
+                let targetAngle = 0;
+
+                if (nearestEnemy) {
+                    targetAngle = Math.atan2(nearestEnemy.y - y, nearestEnemy.x - x);
+                } else {
+                    // Default to facing direction if no enemies are present
+                    targetAngle = this.player.facingRight ? 0 : Math.PI;
+                }
+
+                // Store the parameters for the draw() function to create the visual slash
+                this.meleeSwingTargetAngle = targetAngle;
+                this.meleeSwingRadius = weapon.radius;
+                this.meleeSwingArc = weapon.arcAngle;
+                // --- END FIX ---
+
+                const damage = (weapon.damage * weapon.stackDamageFactor) * this.player.damageMultiplier;
+                const knockback = weapon.knockback || 0;
+
+                this.enemies.forEach(e => {
+                    const distance = Math.hypot(x - e.x, y - e.y);
+                    if (distance < weapon.radius + e.radius) {
+                        const enemyAngle = Math.atan2(e.y - y, e.x - x);
+
+                        let angleDifference = enemyAngle - targetAngle; // Use the calculated targetAngle
+                        angleDifference = (angleDifference + Math.PI) % (Math.PI * 2) - Math.PI;
+                        if (angleDifference < -Math.PI) angleDifference += Math.PI * 2;
+
+                        if (Math.abs(angleDifference) <= weapon.arcAngle / 2 && !e.isDead) {
+
+                            e.currentHp = Math.max(0, e.currentHp - damage);
+                            this.player.damageFlashTimer = 5;
+
+                            // LIFESTEAL
+                            const lifestealAmount = damage * this.player.lifestealPercentage;
+                            this.player.heal(lifestealAmount);
+
+
+                            if (knockback > 0) {
+                                // ... (Knockback logic remains the same)
+                                const angle = Math.atan2(e.y - y, e.x - x);
+                                const KB_FACTOR = 1.5;
+                                e.x += Math.cos(angle) * knockback * KB_FACTOR;
+                                e.y += Math.sin(angle) * knockback * KB_FACTOR;
+
+                                const distToCenter = Math.hypot(e.x - WORLD_CENTER_X, e.y - WORLD_CENTER_Y);
+                                if (distToCenter + e.radius > WORLD_RADIUS) {
+                                    const clampAngle = Math.atan2(e.y - WORLD_CENTER_Y, e.x - WORLD_CENTER_X);
+                                    e.x = WORLD_CENTER_X + Math.cos(clampAngle) * (WORLD_RADIUS - e.radius);
+                                    e.y = WORLD_CENTER_Y + Math.sin(clampAngle) * (WORLD_RADIUS - e.radius);
+                                }
+                            }
+
+                            // CHECK FOR DEATH AND AWARD KILL CREDIT
+                            if (e.currentHp <= 0 && !e.isDead) {
+                                this.handleEnemyDefeat(e);
+                            }
+                        }
+                    }
+                });
+            }
+
+            // NEW: startNewWave moved into constructor property to fix the reference error
+            startNewWave = () => {
+                this.wave++;
+                this.lastWaveTime = Date.now();
+                this.enemyCountThisWave = 0;
+
+                this.enemies = this.enemies.filter(e => !e.isDead);
+                this.projectiles = [];
+                this.pickups = [];
+                this.obstacles = []; // NEW: Clear obstacles on new wave
+                this.explosions = [];
+                this.isBossWave = false;
+
+                // --- NEW: Add initial scattered pickups and obstacles to the map ---
+                const NUM_HEALTH_DROPS = 5;
+                const NUM_ICE_DROPS = 2;
+                const NUM_SPEED_DROPS = 2;
+                // Scale number of obstacles with wave
+                const NUM_OBSTACLES = 5 + Math.floor(this.wave / 5) * 3;
+
+                // Add Obstacles first (Obstacle creation is self-aware of its radius)
+                for (let i = 0; i < NUM_OBSTACLES; i++) {
+                    // Random radius between 30 and 60
+                    const radius = Math.random() * 30 + 30;
+                    const pos = this.findSafeWorldPlacement(radius + 50); // Ensure obstacle spawns away from rat center AND existing obstacles
+                    this.obstacles.push(new Obstacle(pos.x, pos.y, radius));
+                }
+
+                // Add Pickups (Pickups now rely on a safe spot, avoiding obstacles)
+                for (let i = 0; i < NUM_HEALTH_DROPS; i++) {
+                    const pos = this.findSafeWorldPlacement(10);
+                    this.pickups.push(new HealthDrop(pos.x, pos.y));
+                }
+                for (let i = 0; i < NUM_ICE_DROPS; i++) {
+                    const pos = this.findSafeWorldPlacement(10);
+                    this.pickups.push(new IcePowerupDrop(pos.x, pos.y));
+                }
+                 for (let i = 0; i < NUM_SPEED_DROPS; i++) {
+                    const pos = this.findSafeWorldPlacement(10);
+                    this.pickups.push(new SpeedPowerupDrop(pos.x, pos.y));
+                }
+                // --- END NEW PICKUPS AND OBSTACLES ---
+
+                // --- NEW PALETTE SWAP LOGIC ---
+                if (this.wave > 1 && (this.wave - 1) % 10 === 0) {
+                    const paletteKeys = Object.keys(COLOR_PALETTES);
+                    // Cycle through palettes based on wave number (e.g., 1 -> 0, 11 -> 1, 21 -> 2)
+                    const newPaletteIndex = Math.floor(((this.wave - 1) / 10) % paletteKeys.length);
+                    currentPalette = COLOR_PALETTES[paletteKeys[newPaletteIndex]];
+                    console.log(`PALETTE SWAP: Entering ${currentPalette.name} on Wave ${this.wave}`);
+                }
+                // --- END NEW PALETTE SWAP LOGIC ---
+
+
+                if (this.wave > 1 && this.wave % 10 === 0) {
+                    this.isBossWave = true;
+                    this.maxEnemiesThisWave = 1;
+
+                    const BOSS_RADIUS = 40;
+                    const angle = Math.random() * Math.PI * 2;
+
+                    // Boss spawns off-screen near the edge of the world
+                    const spawnDist = WORLD_RADIUS - BOSS_RADIUS - 10;
+                    const spawnX = WORLD_CENTER_X + Math.cos(angle) * spawnDist;
+                    const spawnY = WORLD_CENTER_Y + Math.sin(angle) * spawnDist;
+
+                    const boss = new GalacticWarlord(spawnX, spawnY, this.wave);
+                    this.enemies.push(boss);
+
+                    // NEW: Boss defeat grants +1 weapon slot
+                    // This is now done in update() logic after boss HP hits zero
+
+                    console.log(`BOSS WAVE START: Wave ${this.wave} - Boss HP: ${boss.maxHp} | Current Max Slots: ${this.player.maxWeapons}`);
+
+                    this.enemyCountThisWave = 1;
+
+                } else {
+                    // --- MODIFIED: NO MAX ENEMY LIMIT ---
+                    this.maxEnemiesThisWave = Infinity;
+
+                    // --- MODIFIED SPAWN RATE SCALING (1.5x Aggressiveness after Wave 5) ---
+                    let baseSpawnDecrease = 200; // Normal aggressive scaling (200ms per wave)
+
+                    // After Wave 5, increase scaling speed by 1.5x (200ms * 1.5 = 300ms reduction)
+                    if (this.wave >= 6) {
+                        baseSpawnDecrease = Math.floor(baseSpawnDecrease * 1.5); // 300ms reduction per wave
+                    }
+
+                    // Base interval starts at 800ms.
+                    this.enemySpawnInterval = Math.max(150, 800 - (this.wave - 1) * baseSpawnDecrease);
+                }
+            }
+
+
+            findSafeWorldPlacement(radius) {
+                let x, y;
+                let attempts = 0;
+
+                do {
+                    // Spawn anywhere within the world bounds
+                    const angle = Math.random() * Math.PI * 2;
+                    const distance = Math.random() * (WORLD_RADIUS - radius);
+                    x = WORLD_CENTER_X + Math.cos(angle) * distance;
+                    y = WORLD_CENTER_Y + Math.sin(angle) * distance;
+
+                    attempts++;
+
+                    // Simple check: don't spawn right on top of the player
+                    const distToPlayer = Math.hypot(x - this.player.x, y - this.player.y);
+
+                    // If it's a safe distance away (e.g., more than half the viewport away)
+                    if (distToPlayer > VIEWPORT_RADIUS / 2) {
+
+                        // Check for overlap with existing OBSTACLES before placing a pickup/new obstacle
+                        let overlaps = false;
+                        for(const o of this.obstacles) {
+                            const dist = Math.hypot(x - o.x, y - o.y);
+                            if (dist < radius + o.radius + 10) { // +10 for buffer
+                                overlaps = true;
+                                break;
+                            }
+                        }
+                        if (!overlaps) {
+                            return { x, y };
+                        }
+                    }
+                } while (attempts < 50); // Prevent infinite loop
+
+                // Fallback: spawn near world center
+                return { x: WORLD_CENTER_X, y: WORLD_CENTER_Y };
+            }
+
+            spawnEnemy() {
+                // --- MODIFIED: Spawning now relies on the viewport and world boundaries ---
+                if (!this.isBossWave && this.enemies.filter(e => !e.isDead).length >= 1000) {
+                    return;
+                }
+
+                if (this.enemyCountThisWave >= this.maxEnemiesThisWave && !this.isBossWave) {
+                    return;
+                }
+
+                const SPAWN_DISTANCE = VIEWPORT_RADIUS + 50; // Guaranteed off-screen
+
+                let spawnX, spawnY;
+                let attempts = 0;
+
+                do {
+                    // 1. Pick a random direction from the player
+                    const angle = Math.random() * Math.PI * 2;
+
+                    // 2. Calculate position relative to the player
+                    spawnX = this.player.x + Math.cos(angle) * SPAWN_DISTANCE;
+                    spawnY = this.player.y + Math.sin(angle) * SPAWN_DISTANCE;
+
+                    attempts++;
+
+                    // 3. Check if the spawn is outside the circular world boundary
+                    const distToWorldCenter = Math.hypot(spawnX - WORLD_CENTER_X, spawnY - WORLD_CENTER_Y);
+                    if (distToWorldCenter > WORLD_RADIUS - 10) {
+                        // If outside, clamp it to the edge of the world
+                        const angleFromCenter = Math.atan2(spawnY - WORLD_CENTER_Y, spawnX - WORLD_CENTER_X);
+                        spawnX = WORLD_CENTER_X + Math.cos(angleFromCenter) * (WORLD_RADIUS - 10);
+                        spawnY = WORLD_CENTER_Y + Math.sin(angleFromCenter) * (WORLD_RADIUS - 10);
+                        break;
+                    }
+
+                    // Stop trying if we find a suitable spot (off-screen and inside world)
+                    if (Math.hypot(spawnX - this.player.x, spawnY - this.player.y) >= VIEWPORT_RADIUS) {
+                        break;
+                    }
+
+                } while (attempts < 10);
+
+                if (attempts === 10) return; // Failsafe
+
+                let enemy;
+                const roll = Math.random();
+
+                // --- Spawn Chance Logic (Increases difficulty over waves) ---
+                let fastChance = 0.15;
+                let tankChance = 0.05;
+                let detonatorChance = 0.0; // Starts at 0%
+                let rangedChance = 0.0; // Starts at 0%
+
+                // Increase specialty enemy chances
+                if (this.wave >= 5) {
+                    fastChance = 0.25;
+                    tankChance = 0.15;
+                }
+                if (this.wave >= 10) {
+                    detonatorChance = 0.10; // Detonators start appearing after wave 10
+                    tankChance = 0.20;
+                    fastChance = 0.25;
+                }
+                if (this.wave >= 20) {
+                    detonatorChance = 0.15;
+                }
+
+                const totalSpecialChance = tankChance + fastChance + detonatorChance;
+
+                if (roll < tankChance) {
+                    enemy = new AlienBrute(spawnX, spawnY, this.wave);
+                } else if (roll < (tankChance + fastChance)) {
+                    enemy = new RobotSentry(spawnX, spawnY, this.wave);
+                } else if (roll < totalSpecialChance) {
+                     enemy = new ExplosiveBot(spawnX, spawnY, this.wave); // NEW ENEMY
+                }
+                 else {                    // Default Snake
+                    enemy = new AlienGrunt(spawnX, spawnY, this.wave);
+                }
+                // --- End Spawn Chance Logic ---
+
+                this.enemies.push(enemy);
+                this.enemyCountThisWave++;
+            }
+
+
+            checkCollisions() {
+
+                this.projectiles = this.projectiles.filter(p => {
+                    let hit = false;
+
+                    // 1. Check Projectile vs. Obstacle Collision
+                    let hitObstacle = false;
+                    this.obstacles.forEach(o => {
+                        const dist = Math.hypot(p.x - o.x, p.y - o.y);
+                        if (dist < p.radius + o.radius) {
+                            hitObstacle = true;
+                        }
+                    });
+
+                    if (hitObstacle) {
+                        // Projectile is immediately destroyed by obstacle
+                        this.addExplosionParticles(3, p.x, p.y, '#606060', 2);
+                        return false;
+                    }
+
+
+                    // 2. Check Projectile vs. Enemy Collision for Chaining
+                    for (const e of this.enemies) {
+                        const distance = Math.hypot(p.x - e.x, p.y - e.y);
+
+                        // Check if in range AND this projectile hasn't hit this enemy before
+                        if (distance < p.radius + e.radius && !p.hitEnemies.has(e)) {
+
+                            // 1. Mark this enemy as hit by this specific projectile
+                            p.hitEnemies.add(e);
+
+                            // 2. Apply damage and on-hit effects
+                            e.currentHp = Math.max(0, e.currentHp - p.damage);
+
+                            const lifestealAmount = p.damage * this.player.lifestealPercentage;
+                            this.player.heal(lifestealAmount);
+
+                            if (p.isExplosive) {
+                                this.applyExplosiveAoE(p.x, p.y, p.damage);
+                            }
+
+                            if (e.currentHp <= 0 && !e.isDead) {
+                                this.handleEnemyDefeat(e);
+                            }
+
+                            // 3. Attempt to bounce (chain) to a new target
+                            const bounced = p.bounce(this.enemies);
+
+                            // 4. If it can't bounce anymore, the projectile is destroyed
+                            if (!bounced) {
+                                hit = true; // Mark for removal from the game
+                            }
+
+                            // 5. A projectile can only hit one new enemy per frame to create the chain effect
+                            break;
+                        }
+                    }
+
+                    // Projectile removed if 'hit' is true (and it couldn't bounce) OR it's out of bounds.
+                    return !(hit || p.update(16.66));
+                });
+
+                this.enemyProjectiles = this.enemyProjectiles.filter(p => {
+                    const distance = Math.hypot(p.x - this.player.x, p.y - this.player.y);
+                    if (distance < p.radius + this.player.radius) {
+                        if (Math.random() < this.player.evasion) {
+                            return false;
+                        }
+
+                        let damageRemaining = p.damage;
+
+                        if (this.player.shield > 0) {
+                            const absorbed = Math.min(this.player.shield, damageRemaining);
+                            this.player.shield -= absorbed;
+                            damageRemaining -= absorbed;
+                        }
+
+                        let damageTaken = damageRemaining - this.player.armor;
+                        damageTaken = Math.max(1, damageTaken);
+
+                        this.player.currentHp -= damageTaken;
+                        this.player.damageFlashTimer = 10;
+
+                        if (this.player.currentHp <= 0) {
+                            this.endGame();
+                        }
+                        return false;
+                    }
+                    return true;
+                });
+
+                // --- PLAYER COLLISION LOGIC ---
+
+                // 1. Player vs. Enemy Collision (Damage and Knockback)
+                this.enemies.forEach((e) => {
+                    const distance = Math.hypot(e.x - this.player.x, e.y - this.player.y);
+                    if (distance < e.radius + this.player.radius) {
+
+                        if (e.damage > 0) {
+                            if (Math.random() < this.player.evasion) {
+                                return;
+                            }
+
+                            let damageRemaining = e.damage;
+
+                            if (this.player.shield > 0) {
+                                const absorbed = Math.min(this.player.shield, damageRemaining);
+                                this.player.shield -= absorbed;
+                                damageRemaining -= absorbed;
+                            }
+
+                            let damageTaken = damageRemaining - this.player.armor;
+                            damageTaken = Math.max(1, damageTaken);
+
+                            this.player.currentHp -= damageTaken;
+                            this.player.damageFlashTimer = 10;
+
+                            if (this.player.currentHp <= 0) {
+                                this.endGame();
+                                return;
+                            }
+                        }
+
+                        const BOUNCE_DISTANCE = 20;
+                        const angle = Math.atan2(e.y - this.player.y, e.x - this.player.x);
+
+                        e.x += Math.cos(angle) * BOUNCE_DISTANCE;
+                        e.y += Math.sin(angle) * BOUNCE_DISTANCE;
+
+                        const distToCenter = Math.hypot(e.x - WORLD_CENTER_X, e.y - WORLD_CENTER_Y);
+                        if (distToCenter + e.radius > WORLD_RADIUS) {
+                            const clampAngle = Math.atan2(e.y - WORLD_CENTER_Y, e.x - WORLD_CENTER_X);
+                            e.x = WORLD_CENTER_X + Math.cos(clampAngle) * (WORLD_RADIUS - e.radius);
+                            e.y = WORLD_CENTER_Y + Math.sin(clampAngle) * (WORLD_RADIUS - e.radius);
+                        }
+                    }
+                });
+
+                // 2. Player vs. Obstacle Collision (Movement Blocking)
+                this.obstacles.forEach(o => {
+                    const dist = Math.hypot(this.player.x - o.x, this.player.y - o.y);
+                    if (dist < this.player.radius + o.radius) {
+                        const angle = Math.atan2(this.player.y - o.y, this.player.x - o.x);
+                        const overlap = (this.player.radius + o.radius) - dist;
+                        this.player.x += Math.cos(angle) * overlap;
+                        this.player.y += Math.sin(angle) * overlap;
+
+                        const distToCenter = Math.hypot(this.player.x - WORLD_CENTER_X, this.player.y - WORLD_CENTER_Y);
+                        if (distToCenter + this.player.radius > WORLD_RADIUS) {
+                            const clampAngle = Math.atan2(this.player.y - WORLD_CENTER_Y, this.player.x - WORLD_CENTER_X);
+                            this.player.x = WORLD_CENTER_X + Math.cos(clampAngle) * (WORLD_RADIUS - this.player.radius);
+                            this.player.y = WORLD_CENTER_Y + Math.sin(clampAngle) * (WORLD_RADIUS - this.player.radius);
+                        }
+                    }
+                });
+
+                // 3. Player vs. Pickup Collision
+                this.pickups = this.pickups.filter(p => {
+                    const distance = Math.hypot(p.x - this.player.x, p.y - this.player.y);
+                    if (distance < p.radius + this.player.radius) {
+
+                        if (p instanceof HealthDrop) {
+                            this.player.heal(p.healAmount);
+                        } else if (p instanceof ExplosiveBulletDrop) {
+                             this.player.applyExplosiveBuff(p.buffDuration);
+                        } else if (p instanceof IcePowerupDrop) {
+                             this.player.applyIceAura(p.buffDuration);
+                        } else if (p instanceof SpeedPowerupDrop) {
+                             this.player.applyExtremeSpeed(p.buffDuration);
+                        } else if (p instanceof BombDrop) { // NEW BOMB PICKUP
+                             this.applyNuclearBomb();
+                        }
+
+                        return false;
+                    }
+                    return true;
+                });
+            }
+
+            getNearestEnemy(x, y) {
+                let nearest = null;
+                let minDistSq = Infinity;
+
+                this.enemies.forEach(e => {
+                    const distSq = (e.x - x) ** 2 + (e.y - y) ** 2;
+                    if (distSq < minDistSq) {
+                        minDistSq = distSq;
+                        nearest = e;
+                    }
+                });
+                return nearest;
+            }
+
+            // New method to get N nearest enemies
+            getNNearestEnemies(n) {
+                return this.enemies
+                    .map(e => ({ e, distance: Math.hypot(e.x - this.player.x, e.y - this.player.y) }))
+                    .sort((a, b) => a.distance - b.distance)
+                    .slice(0, n)
+                    .map(item => item.e);
+            }
+
+            // NEW: Updated to generate TIERED options
+            generateStatOptions() {
+                const NUM_OPTIONS = 5;
+                const options = [];
+                const availableBaseStats = this.baseStatUpgrades;
+
+                // Shuffle the base stats to pick 5 unique stats for the roll
+                const shuffledBaseStats = [...availableBaseStats].sort(() => 0.5 - Math.random());
+
+                const statPool = [];
+                for (let i = 0; i < NUM_OPTIONS && i < shuffledBaseStats.length; i++) {
+                    // Randomly select a tier (0=Bronze, 1=Silver, 2=Gold) with new rarity
+                    let tier;
+                    const roll = Math.random();
+                    if (roll < 0.65) { // 65% chance for Bronze
+                        tier = 0;
+                    } else if (roll < 0.90) { // 25% chance for Silver
+                        tier = 1;
+                    } else { // 10% chance for Gold
+                        tier = 2;
+                    }
+                    const stat = shuffledBaseStats[i];
+
+                    // --- Exponential Cost Calculation (based on unique KEY) ---
+                    const timesPurchased = this.statUpgradePrices[stat.key] || 0;
+
+                    // Cost = Base stat cost + (Times purchased * 20)
+                    // The base cost is now normalized and stored directly in stat.cost
+                    const finalCost = stat.cost + (timesPurchased * 20);
+                    // --- End Exponential Cost ---
+
+                    const tierNames = ['Bronze', 'Silver', 'Gold'];
+
+                    statPool.push({
+                        name: `${stat.name} [${tierNames[tier]}]`,
+                        key: stat.key,
+                        tier: tier, // Pass tier to the apply function
+                        apply: stat.apply, // Reference the base function
+                        description: `[${tierNames[tier]}] ${stat.description.replace(/(\+\d+)/g, '').trim()} TIER EFFECT`,
+                        cost: finalCost,
+                        canAfford: this.player.currency >= finalCost,
+                        purchaseCount: timesPurchased
+                    });
+                }
+
+                // Find the absolute lowest cost item (prioritizing lowest purchase count)
+                statPool.sort((a, b) => {
+                    if (a.cost !== b.cost) {
+                        return a.cost - b.cost;
+                    }
+                    return a.purchaseCount - b.purchaseCount;
+                });
+
+                // Apply FREE status to the first item
+                if (statPool.length > 0) {
+                    statPool[0].cost = 0;
+                    statPool[0].isFree = true;
+                    statPool[0].canAfford = true;
+                }
+
+                // Re-calculate affordability for the rest
+                statPool.forEach((opt, index) => {
+                    if (index > 0) {
+                        opt.canAfford = this.player.currency >= opt.cost;
+                    }
+                });
+
+                return statPool.sort(() => Math.random() - 0.5); // Shuffle final display order
+            }
+
+            // NEW: Updated to allow multi-selection and use confirm button
+            pauseAndShowStatUpgrades() {
+                // Standard pause routine
+                this.player.moveDirection = { x: 0, y: 0 };
+                this.keyState = { up: false, down: false, left: false, right: false };
+                this.isMouseMoving = false;
+                this.isMouseDown = false;
+
+                this.isPaused = true;
+                this.currentUpgradeType = 'stat'; // Set type for confirmation logic
+                upgradeScreen.classList.remove('hidden');
+                upgradeOptionsDiv.innerHTML = '';
+                upgradeScreenTitle.textContent = "LEVEL UP! Choose Stat Upgrades";
+
+                this.currentUpgradeOptions = this.generateStatOptions();
+
+                const tierColorClasses = ['text-yellow-500', 'text-gray-400', 'text-yellow-600']; // Bronze, Silver, Gold
+                const tierBorderClasses = ['border-yellow-700', 'border-gray-500', 'border-yellow-600'];
+
+                this.currentUpgradeOptions.forEach((upgrade, index) => {
+                    const canAfford = upgrade.canAfford;
+                    const card = document.createElement('div');
+
+                    // Determine tier for color/border
+                    const tierIndex = upgrade.tier || 0;
+                    const tierColor = tierColorClasses[tierIndex];
+                    const tierBorder = tierBorderClasses[tierIndex];
+
+                    let cardClasses = `upgrade-card stat-card p-4 rounded-lg transition duration-150 border-4 ${tierBorder}`;
+                    if (!canAfford && !upgrade.isFree) {
+                        cardClasses += ' unavailable';
+                    }
+                    if (upgrade.isFree) {
+                        cardClasses += ' free-upgrade selected-item'; // ADDED selected-item for default selection
+                    }
+
+                    card.className = cardClasses;
+                    card.dataset.index = index; // Store index for later retrieval
+
+                    const costColor = upgrade.isFree ? 'text-blue-400' : (canAfford ? 'text-green-400' : 'text-red-400');
+                    const descriptionText = upgrade.description; // Use the rich description from the generated options
+
+                    card.innerHTML = `
+                        <h3 class="text-xl font-bold ${upgrade.isFree ? 'text-blue-300' : tierColor} mb-2">${upgrade.name}</h3>
+                        <p class="text-sm text-gray-300 mb-2">${descriptionText}</p>
+                        <p class="text-lg font-extrabold ${costColor}">
+                            ${upgrade.isFree ? 'FREE' : `Cost: ${upgrade.cost} Kills`}
+                        </p>
+                    `;
+
+                    // NEW: Toggle selection when clicked
+                    card.onclick = () => this.handleCardSelection(card, upgrade);
+
+                    upgradeOptionsDiv.appendChild(card);
+                });
+
+                // Update purchase UI after cards are rendered
+                this.updatePurchaseSummary();
+            }
+
+            // NEW: Handles clicking a card to stage it for purchase
+            handleCardSelection(card, upgrade) {
+                if (upgrade.isFree) {
+                    // Free items are auto-selected and cannot be deselected
+                    // If it's already selected, clicking it does nothing.
+                    if (card.classList.contains('selected-item')) {
+                        return;
+                    }
+                    card.classList.add('selected-item');
+                    return;
+                }
+
+                if (card.classList.contains('unavailable')) return;
+
+                card.classList.toggle('selected-item');
+                this.updatePurchaseSummary();
+            }
+
+            // NEW: Updates the summary UI and confirm button state
+            updatePurchaseSummary() {
+                const selectedCards = Array.from(upgradeOptionsDiv.children).filter(card => card.classList.contains('selected-item'));
+                let totalCost = 0;
+
+                selectedCards.forEach(card => {
+                    const optionIndex = parseInt(card.dataset.index);
+                    const option = this.currentUpgradeOptions[optionIndex];
+                    totalCost += option.cost;
+                });
+
+                const remainingCurrency = this.player.currency - totalCost;
+
+                purchaseSummary.innerHTML = `
+                    Total Cost: <span class="${totalCost > this.player.currency ? 'text-red-400' : 'text-yellow-400'}">${totalCost} Kills</span> |
+                    Remaining: <span class="${remainingCurrency < 0 ? 'text-red-400' : 'text-green-400'}">${remainingCurrency} Kills</span>
+                `;
+
+                confirmPurchaseButton.textContent = `CONFIRM PURCHASE (${totalCost} Kills)`;
+
+                if (remainingCurrency < 0) {
+                    confirmPurchaseButton.disabled = true;
+                    confirmPurchaseButton.classList.remove('bg-green-600', 'hover:bg-green-500');
+                    confirmPurchaseButton.classList.add('bg-gray-600');
+                } else {
+                    confirmPurchaseButton.disabled = false;
+                    confirmPurchaseButton.classList.remove('bg-gray-600');
+                    confirmPurchaseButton.classList.add('bg-green-600', 'hover:bg-green-500');
+                }
+            }
+
+
+            generateWeaponOptions() {
+                const WEAPON_ACQUISITION_COST = 50;
+                const NUM_OPTIONS = 5;
+
+                const allWeaponKeys = Object.keys(WEAPONS);
+                const availableWeaponOptions = [];
+
+                // 1. Calculate equipped weapon counts and unique count
+                const equippedWeaponCounts = {};
+                this.player.weapons.forEach(w => {
+                    equippedWeaponCounts[w.key] = (equippedWeaponCounts[w.key] || 0) + 1;
+                });
+                const uniqueWeaponCount = Object.keys(equippedWeaponCounts).length;
+
+
+                // 2. Determine options for acquisition or stacking
+
+                allWeaponKeys.forEach(key => {
+                    const count = equippedWeaponCounts[key] || 0;
+                    const weapon = WEAPONS[key];
+
+                    let finalCost = 0;
+                    let descriptionText = '';
+                    let isAcquisition = false;
+
+                    if (count === 0) {
+                        // NEW WEAPON ACQUISITION (Requires slot, cost is static)
+                        finalCost = WEAPON_ACQUISITION_COST;
+                        descriptionText = `Acquire a new ${weapon.name} ${weapon.emoji}. Slots used: ${uniqueWeaponCount + 1}/${this.player.maxWeapons}`;
+                        isAcquisition = true;
+
+                        // Only add acquisition option if slots are available
+                        if (uniqueWeaponCount >= this.player.maxWeapons) {
+                            return;
+                        }
+                    } else {
+                        // WEAPON STACK (Does NOT require new slot, cost scales)
+                        // --- MODIFIED STACK COST: EXPONENTIAL SCALING ---
+                        // Cost = Base 10 + (Stack Count * 25)
+                        finalCost = 10 + (count * 25);
+                        // --- END MODIFIED STACK COST ---
+
+                        // Use the damage factor for the description
+                        const nextDamageFactor = count + 1;
+
+                        descriptionText = `Add another instance (Stack x${count + 1}). Damage becomes x${nextDamageFactor.toFixed(1)} base.`;
+                    }
+
+                    const canAfford = this.player.currency >= finalCost;
+
+                    availableWeaponOptions.push({
+                        name: count === 0 ? `NEW WEAPON: ${weapon.name}` : `STACK: ${weapon.name} (x${count + 1})`,
+                        description: descriptionText,
+                        type: 'weapon',
+                        cost: finalCost,
+                        canAfford: canAfford,
+                        isAcquisition: isAcquisition,
+                        currentStack: count,
+                        apply: (p) => p.addWeapon(key)
+                    });
+                });
+
+                // 3. Select final options to display (5 random, prioritizing options the player has less of)
+                const NUM_OPTIONS_WEAPON = 5;
+                const finalOptions = [];
+
+                // Sort by current stack count (ascending), then shuffle ties
+                const tempOptions = availableWeaponOptions.sort((a, b) => {
+                    if (a.currentStack !== b.currentStack) {
+                        return a.currentStack - b.currentStack;
+                    }
+                    return Math.random() - 0.5; // Shuffle acquisition vs stack if counts are equal
+                });
+
+                // Take the top NUM_OPTIONS items
+                while (finalOptions.length < NUM_OPTIONS_WEAPON && tempOptions.length > 0) {
+                    finalOptions.push(tempOptions.shift());
+                }
+
+                // 4. --- LOGIC: Determine and apply the FREE choice ---
+                if (finalOptions.length > 0) {
+
+                    let freeOptionIndex = -1;
+
+                    // Find the lowest cost/lowest stack option
+                    let lowestStackCount = Infinity;
+                    let lowestStackIndex = -1;
+
+                    finalOptions.forEach((opt, index) => {
+                        // We prioritize the lowest stack count item for the freebie
+                        if (opt.currentStack < lowestStackCount) {
+                            lowestStackCount = opt.currentStack;
+                            lowestStackIndex = index;
+                        }
+                    });
+
+                    if (lowestStackIndex !== -1) {
+                        freeOptionIndex = lowestStackIndex;
+                    }
+
+                    // 5. Apply FREE status to the identified item
+                    if (freeOptionIndex !== -1) {
+                        finalOptions[freeOptionIndex].cost = 0;
+                        finalOptions[freeOptionIndex].isFree = true;
+                        finalOptions[freeOptionIndex].canAfford = true; // Always affordable when free
+                    }
+                }
+                // --- END LOGIC ---
+
+                return finalOptions.sort(() => Math.random() - 0.5); // Shuffle final display order
+            }
+
+            // NEW: Updated to allow multi-selection and use confirm button
+            pauseAndShowWeaponChoice() {
+                // Standard pause routine
+                this.player.moveDirection = { x: 0, y: 0 };
+                this.keyState = { up: false, down: false, left: false, right: false };
+                this.isMouseMoving = false;
+                this.isMouseDown = false;
+
+                this.isPaused = true;
+                this.currentUpgradeType = 'weapon'; // Set type for confirmation logic
+                upgradeScreen.classList.remove('hidden');
+                upgradeOptionsDiv.innerHTML = '';
+                upgradeScreenTitle.textContent = `WAVE ${this.wave} COMPLETE! Choose a New Weapon`;
+
+                this.currentUpgradeOptions = this.generateWeaponOptions();
+
+                if (this.currentUpgradeOptions.length === 0) {
+                    // Fallback if no weapon options can be generated (e.g., maxed out slots and stacks)
+                    const stat = this.baseStatUpgrades[Math.floor(Math.random() * this.baseStatUpgrades.length)];
+                    // Generate a random bronze tier upgrade for the fallback
+                    const statOption = { ...stat, name: `BONUS STAT: ${stat.name}`, type: 'stat', tier: 0, cost: 0, canAfford: true, description: `BONUS ${stat.name}` };
+
+                    this.currentUpgradeOptions = [statOption];
+                    console.log("No more weapon slots! Granting free bonus stat instead.");
+                }
+
+                this.currentUpgradeOptions.forEach((upgrade, index) => {
+                    const isWeapon = upgrade.type === 'weapon';
+                    const canAfford = upgrade.canAfford;
+                    const card = document.createElement('div');
+
+                    let cardClasses = `upgrade-card ${isWeapon ? 'weapon-card' : 'stat-card'} p-4 rounded-lg transition duration-150 border-4 ${isWeapon ? 'border-green-500' : 'border-blue-500'}`;
+
+                    // Free item is selected by default
+                    if (upgrade.isFree) {
+                        cardClasses += ' free-upgrade selected-item';
+                    } else if (!canAfford) {
+                        cardClasses += ' unavailable';
+                    }
+                    card.className = cardClasses;
+                    card.dataset.index = index;
+
+                    const costColor = upgrade.isFree ? 'text-blue-400' : (canAfford ? 'text-green-400' : 'text-red-400');
+
+                    card.innerHTML = `
+                        <h3 class="text-xl font-bold ${upgrade.isFree ? 'text-blue-300' : (isWeapon ? 'text-green-300' : 'text-blue-300')} mb-2">${upgrade.name} (${upgrade.cost} Kills)</h3>
+                        <p class="text-sm text-gray-300 mb-2">${upgrade.description}</p>
+                         <p class="text-lg font-extrabold ${costColor}">
+                            ${upgrade.isFree ? 'FREE' : `Cost: ${upgrade.cost} Kills`}
+                        </p>
+                    `;
+
+                    card.onclick = () => this.handleCardSelection(card, upgrade);
+
+                    upgradeOptionsDiv.appendChild(card);
+                });
+
+                this.updatePurchaseSummary();
+            }
+
+
+            resume() {
+                this.isPaused = false;
+                upgradeScreen.classList.add('hidden');
+                this.lastUpdateTime = performance.now();
+                window.requestAnimationFrame(gameLoop);
+            }
+
+            endGame() {
+                this.gameOver = true;
+                this.isPaused = true;
+                cancelAnimationFrame(animationFrameId);
+
+                let highscoreMessage = '';
+
+                // NEW: High Score Logic
+                if (this.kills > this.bestKills) {
+                    this.bestKills = this.kills;
+                    localStorage.setItem(HIGHSCORE_KEY, this.bestKills);
+                    highscoreMessage = `<span class="text-yellow-400 font-bold">NEW HIGH SCORE!</span>`;
+                } else {
+                    highscoreMessage = `Best Score: ${this.bestKills} Kills`;
+                }
+                // END NEW High Score Logic
+
+                document.getElementById('messageTitle').textContent = "GAME OVER";
+                document.getElementById('messageText').innerHTML = `
+                    You survived ${this.wave - 1} waves and earned ${this.kills} Kills.<br>
+                    Final Level: ${this.player.level}<br><br>
+                    ${highscoreMessage}
+                `;
+                messageBox.classList.remove('hidden');
+            }
+
+            restart() {
+                document.removeEventListener('keydown', this.keyListenerDown);
+                document.removeEventListener('keyup', this.keyListenerUp);
+                canvas.removeEventListener('mousemove', this.mouseListener);
+                canvas.removeEventListener('click', this.mouseClickListener);
+                canvas.removeEventListener('mousedown', this.mouseDownListener);
+                canvas.removeEventListener('mouseup', this.mouseUpListener);
+
+                messageBox.classList.add('hidden');
+                // Re-read the global high score just in case another run finished quickly
+                highScore = parseInt(localStorage.getItem(HIGHSCORE_KEY) || '0', 10);
+                showStartScreen();
+            }
+
+            updateHUD() {
+                const equippedWeaponCounts = {};
+                this.player.weapons.forEach(w => {
+                    equippedWeaponCounts[w.key] = (equippedWeaponCounts[w.key] || 0) + 1;
+                });
+
+                const uniqueWeaponCount = Object.keys(equippedWeaponCounts).length;
+
+                const weaponNames = Object.keys(equippedWeaponCounts).map(key => {
+                    const count = equippedWeaponCounts[key];
+                    const name = WEAPONS[key].name;
+                    // Use the emoji from the definition for the HUD text description
+                    const emoji = WEAPONS[key].emoji;
+
+                    // Display actual damage factor based on stack count
+                    const damageFactor = this.player.weapons.find(w => w.key === key)?.stackDamageFactor || 1.0;
+
+                    return `${emoji} ${name} (x${count}, Dmg: ${damageFactor.toFixed(1)}x)`;
+                });
+
+                // NEW: Calculate overall buff display
+                let buffText = '';
+                if (this.player.buffs.explosiveBullets > 0) {
+                    buffText += `💥 E-Rounds: ${Math.ceil(this.player.buffs.explosiveBullets / 1000)}s | `;
+                }
+                if (this.player.buffs.iceAura > 0) {
+                    buffText += `❄️ Frozen: ${Math.ceil(this.player.buffs.iceAura / 1000)}s | `;
+                }
+                if (this.player.buffs.extremeSpeed > 0) {
+                    buffText += `💨 TURBO: ${Math.ceil(this.player.buffs.extremeSpeed / 1000)}s | `;
+                }
+                hud.buffTimer.textContent = buffText.slice(0, -3); // Remove trailing space/pipe
+
+                hud.waveCount.textContent = this.wave + (this.isBossWave ? ' (BOSS)' : '');
+                hud.killCount.textContent = this.player.currency; // Display currency here
+                hud.bestKillCount.textContent = this.bestKills; // Display high score here
+                hud.currentHP.textContent = Math.max(0, Math.floor(this.player.currentHp));
+                hud.maxHP.textContent = this.player.maxHp;
+
+                // NEW: Update Weapon Slots display
+                // Use uniqueWeaponCount for the current count
+                hud.weaponSlots.textContent = `(Slots: ${uniqueWeaponCount}/${this.player.maxWeapons})`;
+
+                hud.statSpeed.textContent = this.player.baseSpeed.toFixed(1);
+                hud.statDamage.textContent = this.player.damageMultiplier.toFixed(2);
+                hud.statArmor.textContent = this.player.armor; // New
+                hud.statEvasion.textContent = (this.player.evasion * 100).toFixed(0); // New
+                hud.statProjectiles.textContent = this.player.projectileCountBonus; // NEW
+                // Display Attack Speed as a percentage increase (e.g., 1.1x multiplier is +10%)
+                hud.statAttackSpeed.textContent = ((this.player.fireRateReduction * (this.player.buffs.extremeSpeed > 0 ? 1.5 : 1.0) - 1) * 100).toFixed(0);
+                hud.statRange.textContent = this.player.attackRangeMultiplier.toFixed(1); // NEW
+                hud.statShield.textContent = Math.floor(this.player.shield); // NEW
+                hud.weaponList.innerHTML = weaponNames.join(', ');
+
+                const xpRatio = this.player.xp / this.player.xpToNextLevel;
+                hud.xpBarFill.style.width = `${Math.min(100, xpRatio * 100)}%`;
+            }
+
+            update(deltaTime) {
+                if (!game || game.isPaused) return;
+
+                const currentTime = Date.now();
+
+                let shouldEndWave = false;
+
+                if (this.isBossWave) {
+                    if (this.enemies.filter(e => !e.isDead).length === 0) { // Check only non-dead enemies
+                        shouldEndWave = true;
+                    }
+                } else {
+                    if (currentTime - this.lastWaveTime >= this.waveDuration) {
+                        shouldEndWave = true;
+                    }
+                }
+
+                if (shouldEndWave) {
+                    this.pauseAndShowWeaponChoice();
+                    return;
+                }
+
+                if (!this.isBossWave && currentTime - this.lastSpawnTime > this.enemySpawnInterval) {
+                    this.spawnEnemy();
+                    this.lastSpawnTime = currentTime;
+                }
+
+                // Update melee swing timer
+                if (this.isMeleeSwinging) {
+                    this.meleeSwingTimer--;
+                    if (this.meleeSwingTimer <= 0) {
+                        this.isMeleeSwinging = false;
+                    }
+                }
+
+                this.updateMovementDirection(); // Recalculate movement based on KB/Mouse before updating position
+            }
+
+            enterMobileFullscreen() {
+                const elem = document.documentElement;
+                if (elem.requestFullscreen) {
+                    elem.requestFullscreen();
+                } else if (elem.webkitRequestFullscreen) { /* Safari */
+                    elem.webkitRequestFullscreen();
+                } else if (elem.msRequestFullscreen) { /* IE11 */
+                    elem.msRequestFullscreen();
+                }
+
+                // Set flags
+                isMobileMode = true;
+                isFullscreen = true;
+                mobileModeToggle.checked = true; // Visually sync toggle
+
+                // Add fullscreen class
+                document.body.classList.add('fullscreen-mode');
+
+                // Force start game with a default or last selected character if not selected?
+                // Actually, the button is on the start screen, user hasn't picked a char yet.
+                // So we just enter fullscreen mode, keep them on start screen, but update UI layout.
+                // The resize will happen via CSS.
+
+                // Update UI state immediately
+                mobileControlsDiv.style.display = 'block';
+            }
+
+                this.player.update(deltaTime);
+                this.enemies.forEach(e => e.update(this.player, deltaTime));
+                // FIX: Removed p.update(deltaTime) call for pickups as they don't have physics update logic
+                // this.pickups.forEach(p => p.update(deltaTime));
+
+                this.explosions = this.explosions.filter(p => !p.update());
+                this.enemyProjectiles = this.enemyProjectiles.filter(p => !p.update(deltaTime));
+
+                this.checkCollisions();
+
+                // --- NEW CLEANUP FIX: Remove any enemy that died from any source (AoE, Detonator self-destruct) ---
+                this.enemies = this.enemies.filter(e => !e.isDead);
+                // --- END NEW CLEANUP FIX ---
+
+                this.updateHUD();
+            }
+
+            draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Set background color outside the arena (currently draws over the whole canvas)
+                ctx.fillStyle = '#1a202c';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // --- CAMERA TRANSLATION: Shift the world so the player is centered ---
+                // Calculate camera offset
+                const cameraOffsetX = centerX - this.player.x;
+                const cameraOffsetY = centerY - this.player.y;
+
+                ctx.save(); // Save context state 1 (before translate)
+                ctx.translate(cameraOffsetX, cameraOffsetY);
+
+                // 1. DEFINE CLIPPING PATH (Centered on Rat's world position, which is screen center)
+                ctx.beginPath();
+                ctx.arc(this.player.x, this.player.y, VIEWPORT_RADIUS, 0, Math.PI * 2);
+                ctx.clip(); // Apply the circular clip path
+
+                // 2. DRAW WORLD ELEMENTS (Will only be visible inside the clip)
+
+                // Draw World Boundary (The large explorable area floor)
+                ctx.beginPath();
+                ctx.arc(WORLD_CENTER_X, WORLD_CENTER_Y, WORLD_RADIUS, 0, Math.PI * 2);
+                ctx.fillStyle = currentPalette.arenaBase;
+                ctx.fill();
+
+                // Add subtle shadow gradient for depth
+                const gradientDepth = ctx.createRadialGradient(WORLD_CENTER_X, WORLD_CENTER_Y, 0, WORLD_CENTER_X, WORLD_CENTER_Y, WORLD_RADIUS);
+                gradientDepth.addColorStop(0, 'rgba(0,0,0,0.05)');
+                gradientDepth.addColorStop(1, 'rgba(0,0,0,0.3)');
+                ctx.fillStyle = gradientDepth;
+                ctx.beginPath();
+                ctx.arc(WORLD_CENTER_X, WORLD_CENTER_Y, WORLD_RADIUS, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Add subtle randomized 'pebbles' for texture (dynamic color)
+                ctx.fillStyle = currentPalette.arenaPebbles;
+                for(let i=0; i<300; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const distance = Math.random() * WORLD_RADIUS;
+                    const px = WORLD_CENTER_X + Math.cos(angle) * distance;
+                    const py = WORLD_CENTER_Y + Math.sin(angle) * distance;
+                    ctx.fillRect(px, py, 1, 1);
+                }
+
+                // Draw World Boundary Stroke (Outer edge of the entire game world)
+                ctx.strokeStyle = currentPalette.arenaBorder;
+                ctx.lineWidth = 10;
+                ctx.beginPath();
+                ctx.arc(WORLD_CENTER_X, WORLD_CENTER_Y, WORLD_RADIUS, 0, Math.PI * 2);
+                ctx.stroke();
+
+                // 3. DRAW GAME ENTITIES
+                this.obstacles.forEach(o => o.draw(ctx));
+                this.pickups.forEach(p => p.draw(ctx));
+                this.projectiles.forEach(p => p.draw(ctx));
+                this.enemyProjectiles.forEach(p => p.draw(ctx));
+                this.explosions.forEach(p => p.draw(ctx));
+                this.enemies.forEach(e => e.draw(ctx));
+                this.player.draw(ctx);
+
+                // 4. Draw Melee Slash Animation (must be inside the translated/clipped context)
+                if (this.isMeleeSwinging) {
+                    const progress = (this.MELEE_SWING_DURATION - this.meleeSwingTimer) / this.MELEE_SWING_DURATION;
+                    // Animate alpha to be brightest mid-swing
+                    const alpha = Math.sin(progress * Math.PI);
+
+                    const radius = this.meleeSwingRadius;
+                    const totalArc = this.meleeSwingArc;
+                    const centerAngle = this.meleeSwingTargetAngle;
+
+                    // Define the start of the full swing arc
+                    const swingStartAngle = centerAngle - totalArc / 2;
+
+                    // The current angle of the slash moves across the total arc
+                    const currentAngle = swingStartAngle + (totalArc * progress);
+
+                    // The slash itself is a small arc
+                    const slashWidth = Math.PI / 6; // How wide the swoosh is
+                    const slashStart = currentAngle - slashWidth / 2;
+                    const slashEnd = currentAngle + slashWidth / 2;
+
+                    ctx.save();
+                    ctx.translate(this.player.x, this.player.y);
+
+                    // White core of the slash
+                    ctx.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.9})`;
+                    ctx.lineWidth = 4;
+                    ctx.lineCap = 'round';
+
+                    ctx.beginPath();
+                    ctx.arc(0, 0, radius, slashStart, slashEnd);
+                    ctx.stroke();
+
+                    // Colored glow around the slash
+                    ctx.strokeStyle = `rgba(${parseInt(currentPalette.arenaBorder.substring(1, 3), 16)}, ${parseInt(currentPalette.arenaBorder.substring(3, 5), 16)}, ${parseInt(currentPalette.arenaBorder.substring(5, 7), 16)}, ${alpha * 0.7})`;
+                    ctx.lineWidth = 12;
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = `rgba(${parseInt(currentPalette.arenaBorder.substring(1, 3), 16)}, ${parseInt(currentPalette.arenaBorder.substring(3, 5), 16)}, ${parseInt(currentPalette.arenaBorder.substring(5, 7), 16)}, ${alpha * 0.5})`;
+
+                    ctx.beginPath();
+                    ctx.arc(0, 0, radius, slashStart, slashEnd);
+                    ctx.stroke();
+
+                    ctx.restore();
+                }
+
+                // Restore context state 1 (removes translation and clipping)
+                ctx.restore();
+
+                // 5. Draw Viewport Boundary Stroke (The final circular border - must be in screen coordinates)
+                ctx.strokeStyle = currentPalette.arenaBorder;
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                // Draw circle centered on the screen center (centerX, centerY)
+                ctx.arc(centerX, centerY, VIEWPORT_RADIUS, 0, Math.PI * 2);
+                ctx.stroke();
+
+                // 6. Draw Mouse Target Indicator (must be in screen coordinates)
+                if (this.isMouseDown) {
+                    // Calculate screen position of mouse target
+                    const screenMouseX = centerX + (this.mouseTargetX - this.player.x);
+                    const screenMouseY = centerY + (this.mouseTargetY - this.player.y);
+
+                    ctx.save();
+                    ctx.strokeStyle = currentPalette.arenaBorder;
+                    ctx.lineWidth = 2;
+                    ctx.globalAlpha = 0.5;
+                    ctx.beginPath();
+                    ctx.arc(screenMouseX, screenMouseY, 15, 0, Math.PI * 2);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+            }
+        }
+
+        // --- GAME LOOP ---
+
+        function gameLoop(currentTime) {
+            // FIX: Ensure game object exists before accessing its properties
+            if (!game) {
+                window.requestAnimationFrame(gameLoop);
+                return;
+            }
+
+            if (!game.isPaused) {
+                const deltaTime = currentTime - game.lastUpdateTime;
+                // FIX: Check if game.update is defined before calling
+                if (typeof game.update === 'function') {
+                    game.update(deltaTime);
+                    game.draw();
+                }
+                game.lastUpdateTime = currentTime;
+            }
+            if (!game.gameOver) {
+                animationFrameId = window.requestAnimationFrame(gameLoop);
+            }
+        }
+
+        // --- STARTUP LOGIC ---
+
+        function startGame(characterKey) {
+            startScreen.classList.add('hidden');
+
+            // CHECK MOBILE TOGGLE
+            isMobileMode = mobileModeToggle.checked;
+
+            if (isMobileMode) {
+                document.body.classList.add('mobile-mode');
+                mobileControlsDiv.style.display = 'block';
+            } else {
+                document.body.classList.remove('mobile-mode');
+                mobileControlsDiv.style.display = 'none';
+            }
+
+            // Reset palette to default on start
+            currentPalette = COLOR_PALETTES.dirt;
+            game = new Game(characterKey);
+
+            // FIX: Move startNewWave() call here to ensure 'game' object is fully instantiated
+            game.startNewWave();
+
+            // Ensure lastUpdateTime is set immediately before the first frame request
+            game.lastUpdateTime = performance.now();
+            window.requestAnimationFrame(gameLoop);
+        }
+
+        function showStartScreen() {
+            startScreen.classList.remove('hidden');
+
+            // --- MODIFICATION: Updated ID to characterOptionsDiv ---
+            characterOptionsDiv.innerHTML = '';
+
+            Object.entries(CHARACTERS).forEach(([key, character]) => {
+                const card = document.createElement('div');
+                card.className = 'character-card p-6 rounded-lg text-left shadow-xl';
+                card.innerHTML = `
+                    <h3 class="2xl font-bold text-blue-300 mb-2">${character.name}</h3>
+                    <p class="text-sm text-gray-300 mb-4">${character.description}</p>
+                    <hr class="border-gray-600 mb-3">
+                    <ul class="text-xs text-gray-400 space-y-1">
+                        <li>HP: <span class="text-white">${character.initialStats.maxHp}</span></li>
+                        <li>Damage Multiplier: <span class="text-white">${character.initialStats.damageMultiplier.toFixed(1)}x</span></li>
+                        <li>Max Slots: <span class="text-yellow-500 font-bold">${character.initialStats.maxWeapons}</span></li>
+                        <li>Armor: <span class="text-white">${character.initialStats.armor}</span></li>
+                        <li>Evasion: <span class="text-white">${(character.initialStats.evasion * 100).toFixed(0)}%</span></li>
+                        <li>Shield: <span class="text-blue-400">${character.initialStats.shield}</span></li> <li>Lifesteal: <span class="text-red-400">${(character.initialStats.lifestealPercentage * 100).toFixed(1)}%</span></li> <li class="mt-2 text-yellow-500">Starts with: ${WEAPONS[character.starterWeapon].name} ${WEAPONS[character.starterWeapon].emoji}</li>
+                        <li class="text-sm mt-3 text-white font-semibold">SKIN: <span style="color: ${character.ratColors.main}">${character.name.split(' ').pop()} Style</span></li>
+                    </ul>
+                `;
+                card.onclick = () => startGame(key);
+                characterOptionsDiv.appendChild(card);
+            });
+            // --- END MODIFICATION ---
+
+            // Initial HUD update for high score display
+            hud.bestKillCount.textContent = highScore;
+        }
+
+
+        // Initialize the game
+        window.onload = () => {
+            showStartScreen();
+        };
+    </script>
+</body>
+</html>
